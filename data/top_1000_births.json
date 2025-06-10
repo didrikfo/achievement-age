@@ -1,0 +1,34 @@
+[
+  {
+    "name": "Juan Carlos I of Spain",
+    "year": "1938",
+    "month": 1,
+    "day": 5,
+    "text": "Juan Carlos I of Spain",
+    "industry": "GOVERNMENT"
+  },
+  {
+    "name": "Queen Sofía of Spain",
+    "year": "1938",
+    "month": 11,
+    "day": 2,
+    "text": "Queen Sofía of Spain",
+    "industry": "GOVERNMENT"
+  },
+  {
+    "name": "Amaury Nolasco",
+    "year": "1970",
+    "month": 12,
+    "day": 24,
+    "text": "Amaury Nolasco, Puerto Rican actor",
+    "industry": "FILM AND THEATRE"
+  },
+  {
+    "name": "Nikola Kalinić",
+    "year": "1988",
+    "month": 1,
+    "day": 5,
+    "text": "Nikola Kalinić",
+    "industry": "TEAM SPORTS"
+  }
+]

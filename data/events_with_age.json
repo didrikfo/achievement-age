@@ -1,0 +1,1418 @@
+[
+  {
+    "year": "1521",
+    "month": 1,
+    "day": 3,
+    "text": "Pope Leo X excommunicates Martin Luther in the papal bull Decet Romanum Pontificem.",
+    "name": "Martin Luther",
+    "age": 13568
+  },
+  {
+    "year": "1540",
+    "month": 1,
+    "day": 6,
+    "text": "King Henry VIII of England marries Anne of Cleves.",
+    "name": "Henry VIII of England",
+    "age": 17723
+  },
+  {
+    "year": "1929",
+    "month": 1,
+    "day": 6,
+    "text": "Mother Teresa arrives by sea in Calcutta, India, to begin her work among India's poorest and sick people.",
+    "name": "Mother Teresa",
+    "age": 6708
+  },
+  {
+    "year": "1610",
+    "month": 1,
+    "day": 7,
+    "text": "Galileo Galilei makes his first observation of the four Galilean moons: Ganymede, Callisto, Io and Europa, although he is not able to distinguish the last two until the following night.",
+    "name": "Galileo Galilei",
+    "age": 16763
+  },
+  {
+    "year": "1835",
+    "month": 1,
+    "day": 7,
+    "text": "HMS Beagle, with Charles Darwin on board, drops anchor off the Chonos Archipelago.",
+    "name": "Charles Darwin",
+    "age": 9460
+  },
+  {
+    "year": "1735",
+    "month": 1,
+    "day": 8,
+    "text": "The premiere of George Frideric Handel's Ariodante takes place at the Royal Opera House, Covent Garden.",
+    "name": "George Frideric Handel",
+    "age": 18215
+  },
+  {
+    "year": "1547",
+    "month": 1,
+    "day": 13,
+    "text": "Henry Howard, Earl of Surrey, is sentenced to death for treason, on the grounds of having quartered his arms to make them similar to those of the King, Henry VIII of England.",
+    "name": "Henry VIII of England",
+    "age": 20287
+  },
+  {
+    "year": "1898",
+    "month": 1,
+    "day": 13,
+    "text": "Émile Zola's J'accuse…! exposes the Dreyfus affair.",
+    "name": "Émile Zola",
+    "age": 21105
+  },
+  {
+    "year": "1981",
+    "month": 1,
+    "day": 15,
+    "text": "Pope John Paul II receives a delegation from the Polish trade union Solidarity at the Vatican led by Lech Wałęsa.",
+    "name": "Pope John Paul II",
+    "age": 22157
+  },
+  {
+    "year": "1605",
+    "month": 1,
+    "day": 16,
+    "text": "The first edition of El ingenioso hidalgo Don Quijote de la Mancha (Book One of Don Quixote) by Miguel de Cervantes is published in Madrid, Spain.",
+    "name": "Miguel de Cervantes",
+    "age": 20929
+  },
+  {
+    "year": "1773",
+    "month": 1,
+    "day": 17,
+    "text": "Captain James Cook leads the first expedition to sail south of the Antarctic Circle.",
+    "name": "James Cook",
+    "age": 16142
+  },
+  {
+    "year": "1904",
+    "month": 1,
+    "day": 17,
+    "text": "Anton Chekhov's The Cherry Orchard receives its premiere performance at the Moscow Art Theatre.",
+    "name": "Anton Chekhov",
+    "age": 16058
+  },
+  {
+    "year": "1778",
+    "month": 1,
+    "day": 18,
+    "text": "James Cook is the first known European to discover the Hawaiian Islands, which he names the \"Sandwich Islands\".",
+    "name": "James Cook",
+    "age": 17969
+  },
+  {
+    "year": "1829",
+    "month": 1,
+    "day": 19,
+    "text": "Johann Wolfgang von Goethe's Faust: The First Part of the Tragedy receives its premiere performance.",
+    "name": "Johann Wolfgang von Goethe",
+    "age": 28998
+  },
+  {
+    "year": "1853",
+    "month": 1,
+    "day": 19,
+    "text": "Giuseppe Verdi's opera Il trovatore receives its premiere performance in Rome.",
+    "name": "Giuseppe Verdi",
+    "age": 14346
+  },
+  {
+    "year": "1656",
+    "month": 1,
+    "day": 23,
+    "text": "Blaise Pascal publishes the first of his Lettres provinciales.",
+    "name": "Blaise Pascal",
+    "age": 11906
+  },
+  {
+    "year": "1533",
+    "month": 1,
+    "day": 25,
+    "text": "Henry VIII of England secretly marries his second wife Anne Boleyn.",
+    "name": "Henry VIII of England",
+    "age": 15186
+  },
+  {
+    "year": "1979",
+    "month": 1,
+    "day": 25,
+    "text": "Pope John Paul II starts his first official papal visits outside Italy to The Bahamas, Dominican Republic, and Mexico.",
+    "name": "Pope John Paul II",
+    "age": 21436
+  },
+  {
+    "year": "1980",
+    "month": 1,
+    "day": 25,
+    "text": "Mother Teresa is honored with India's highest civilian award, the Bharat Ratna.",
+    "name": "Mother Teresa",
+    "age": 25354
+  },
+  {
+    "year": "1998",
+    "month": 1,
+    "day": 25,
+    "text": "During a historic visit to Cuba, Pope John Paul II demands political reforms and the release of political prisoners while condemning US attempts to isolate the country.",
+    "name": "Pope John Paul II",
+    "age": 28376
+  },
+  {
+    "year": "1948",
+    "month": 1,
+    "day": 30,
+    "text": "Following the assassination of Mahatma Gandhi in his home compound, India's prime minister, Jawaharlal Nehru, broadcasts to the nation, saying \"The light has gone out of our lives\". The date of the assassination becomes observed as \"Martyrs' Day\" in India.",
+    "name": "Mahatma Gandhi",
+    "age": 28608
+  },
+  {
+    "year": "1901",
+    "month": 1,
+    "day": 31,
+    "text": "Anton Chekhov's Three Sisters premieres at Moscow Art Theatre in Russia.",
+    "name": "Anton Chekhov",
+    "age": 14977
+  },
+  {
+    "year": "1898",
+    "month": 2,
+    "day": 7,
+    "text": "Dreyfus affair: Émile Zola is brought to trial for libel for publishing J'Accuse...!",
+    "name": "Émile Zola",
+    "age": 21130
+  },
+  {
+    "year": "1843",
+    "month": 2,
+    "day": 11,
+    "text": "Giuseppe Verdi's opera I Lombardi alla prima crociata receives its first performance in Milan, Italy.",
+    "name": "Giuseppe Verdi",
+    "age": 10716
+  },
+  {
+    "year": "1889",
+    "month": 2,
+    "day": 12,
+    "text": "Antonín Dvořák's Jakobín is premiered at National Theater in Prague",
+    "name": "Antonín Dvořák",
+    "age": 17324
+  },
+  {
+    "year": "1542",
+    "month": 2,
+    "day": 13,
+    "text": "Catherine Howard, the fifth wife of Henry VIII of England, is executed for adultery.",
+    "name": "Henry VIII of England",
+    "age": 18492
+  },
+  {
+    "year": "1633",
+    "month": 2,
+    "day": 13,
+    "text": "Galileo Galilei arrives in Rome for his trial before the Inquisition.",
+    "name": "Galileo Galilei",
+    "age": 25201
+  },
+  {
+    "year": "1779",
+    "month": 2,
+    "day": 14,
+    "text": "James Cook is killed by Native Hawaiians near Kealakekua on the Island of Hawaii.",
+    "name": "James Cook",
+    "age": 18361
+  },
+  {
+    "year": "1848",
+    "month": 2,
+    "day": 21,
+    "text": "Karl Marx and Friedrich Engels publish The Communist Manifesto.",
+    "name": "Friedrich Engels",
+    "age": 9946
+  },
+  {
+    "year": "1898",
+    "month": 2,
+    "day": 23,
+    "text": "Émile Zola is imprisoned in France after writing J'Accuse…!, a letter accusing the French government of antisemitism and wrongfully imprisoning Captain Alfred Dreyfus.",
+    "name": "Émile Zola",
+    "age": 21146
+  },
+  {
+    "year": "1711",
+    "month": 2,
+    "day": 24,
+    "text": "Rinaldo by George Frideric Handel, the first Italian opera written for the London stage, is premièred.",
+    "name": "George Frideric Handel",
+    "age": 9496
+  },
+  {
+    "year": "1705",
+    "month": 2,
+    "day": 25,
+    "text": "George Frideric Handel's opera Nero premiered in Hamburg.",
+    "name": "George Frideric Handel",
+    "age": 7306
+  },
+  {
+    "year": "1616",
+    "month": 2,
+    "day": 26,
+    "text": "Galileo Galilei is formally banned by the Roman Catholic Church from teaching or defending the view that the earth orbits the sun.",
+    "name": "Galileo Galilei",
+    "age": 19004
+  },
+  {
+    "year": "1893",
+    "month": 3,
+    "day": 1,
+    "text": "Electrical engineer Nikola Tesla gives the first public demonstration of radio in St. Louis, Missouri.",
+    "name": "Nikola Tesla",
+    "age": 13383
+  },
+  {
+    "year": "1776",
+    "month": 3,
+    "day": 9,
+    "text": "Scottish philosopher Adam Smith publishes The Wealth of Nations, ushering in the classical period of political economy.",
+    "name": "Adam Smith",
+    "age": 19260
+  },
+  {
+    "year": "1842",
+    "month": 3,
+    "day": 9,
+    "text": "Giuseppe Verdi's third opera, Nabucco, receives its première performance in Milan; its success establishes Verdi as one of Italy's foremost opera composers.",
+    "name": "Giuseppe Verdi",
+    "age": 10377
+  },
+  {
+    "year": "1922",
+    "month": 3,
+    "day": 10,
+    "text": "Mahatma Gandhi is arrested in India, tried for sedition, and sentenced to six years in prison, only to be released after nearly two years for an appendicitis operation.",
+    "name": "Mahatma Gandhi",
+    "age": 19151
+  },
+  {
+    "year": "1851",
+    "month": 3,
+    "day": 11,
+    "text": "The first performance of Rigoletto by Giuseppe Verdi takes place in Venice.",
+    "name": "Giuseppe Verdi",
+    "age": 13666
+  },
+  {
+    "year": "1930",
+    "month": 3,
+    "day": 12,
+    "text": "Mahatma Gandhi begins the Salt March, a 200-mile (320 km) march to the sea to protest the British monopoly on salt in India.",
+    "name": "Mahatma Gandhi",
+    "age": 22075
+  },
+  {
+    "year": "1997",
+    "month": 3,
+    "day": 13,
+    "text": "The Missionaries of Charity choose Sister Nirmala to succeed Mother Teresa as their leader.",
+    "name": "Mother Teresa",
+    "age": 31611
+  },
+  {
+    "year": "1916",
+    "month": 3,
+    "day": 20,
+    "text": "Albert Einstein submits his paper, \"The Foundation of the General Theory of Relativity\", which establishes his general theory of relativity, to the journal Annalen der Physik.",
+    "name": "Albert Einstein",
+    "age": 13520
+  },
+  {
+    "year": "1923",
+    "month": 3,
+    "day": 20,
+    "text": "The Arts Club of Chicago hosts the opening of Pablo Picasso's first United States showing, entitled Original Drawings by Pablo Picasso, becoming an early proponent of modern art in the United States.",
+    "name": "Pablo Picasso",
+    "age": 15120
+  },
+  {
+    "year": "2000",
+    "month": 3,
+    "day": 21,
+    "text": "Pope John Paul II makes his first ever pontifical visit to Israel.",
+    "name": "Pope John Paul II",
+    "age": 29162
+  },
+  {
+    "year": "1508",
+    "month": 3,
+    "day": 22,
+    "text": "Ferdinand II of Aragon commissions Amerigo Vespucci chief navigator of the Spanish Empire.",
+    "name": "Amerigo Vespucci",
+    "age": 20832
+  },
+  {
+    "year": "1540",
+    "month": 3,
+    "day": 23,
+    "text": "Waltham Abbey is surrendered to King Henry VIII of England; the last religious community to be closed during the Dissolution of the Monasteries.",
+    "name": "Henry VIII of England",
+    "age": 17800
+  },
+  {
+    "year": "1721",
+    "month": 3,
+    "day": 24,
+    "text": "Johann Sebastian Bach dedicated six concertos to Margrave Christian Ludwig of Brandenburg-Schwedt, now commonly called the Brandenburg Concertos, BWV 1046-1051.",
+    "name": "Johann Sebastian Bach",
+    "age": 13141
+  },
+  {
+    "year": "1901",
+    "month": 3,
+    "day": 31,
+    "text": "Rusalka by Antonín Dvořák premieres at the National Opera House in Prague.",
+    "name": "Antonín Dvořák",
+    "age": 21753
+  },
+  {
+    "year": "1800",
+    "month": 4,
+    "day": 2,
+    "text": "Ludwig van Beethoven leads the premiere of his First Symphony in Vienna.",
+    "name": "Ludwig van Beethoven",
+    "age": 10699
+  },
+  {
+    "year": "1895",
+    "month": 4,
+    "day": 3,
+    "text": "The trial in the libel case brought by Oscar Wilde begins, eventually resulting in his imprisonment on charges of homosexuality.",
+    "name": "Oscar Wilde",
+    "age": 14779
+  },
+  {
+    "year": "1805",
+    "month": 4,
+    "day": 7,
+    "text": "German composer Ludwig van Beethoven premieres his Third Symphony, at the Theater an der Wien in Vienna.",
+    "name": "Ludwig van Beethoven",
+    "age": 12530
+  },
+  {
+    "year": "1727",
+    "month": 4,
+    "day": 11,
+    "text": "Premiere of Johann Sebastian Bach's St Matthew Passion BWV 244b at St. Thomas Church in Leipzig, Electorate of Saxony (now Germany).",
+    "name": "Johann Sebastian Bach",
+    "age": 15350
+  },
+  {
+    "year": "1742",
+    "month": 4,
+    "day": 13,
+    "text": "George Frideric Handel's oratorio Messiah makes its world premiere in Dublin, Ireland.",
+    "name": "George Frideric Handel",
+    "age": 20867
+  },
+  {
+    "year": "1738",
+    "month": 4,
+    "day": 15,
+    "text": "Serse, an Italian opera by George Frideric Handel, receives its premiere performance in London, England.",
+    "name": "George Frideric Handel",
+    "age": 19408
+  },
+  {
+    "year": "1521",
+    "month": 4,
+    "day": 17,
+    "text": "Trial of Martin Luther over his teachings begins during the assembly of the Diet of Worms. Initially intimidated, he asks for time to reflect before answering and is given a stay of one day.",
+    "name": "Martin Luther",
+    "age": 13672
+  },
+  {
+    "year": "1521",
+    "month": 4,
+    "day": 18,
+    "text": "Trial of Martin Luther begins its second day during the assembly of the Diet of Worms. He refuses to recant his teachings despite the risk of excommunication.",
+    "name": "Martin Luther",
+    "age": 13673
+  },
+  {
+    "year": "1770",
+    "month": 4,
+    "day": 19,
+    "text": "Captain James Cook, still holding the rank of lieutenant, sights the eastern coast of what is now Australia.",
+    "name": "James Cook",
+    "age": 15138
+  },
+  {
+    "year": "1770",
+    "month": 4,
+    "day": 19,
+    "text": "Marie Antoinette marries Louis XVI in a proxy wedding.",
+    "name": "Marie Antoinette",
+    "age": 5282
+  },
+  {
+    "year": "1862",
+    "month": 4,
+    "day": 20,
+    "text": "Louis Pasteur and Claude Bernard complete the experiment disproving the theory of spontaneous generation.",
+    "name": "Louis Pasteur",
+    "age": 14359
+  },
+  {
+    "year": "1902",
+    "month": 4,
+    "day": 20,
+    "text": "Pierre and Marie Curie refine radium chloride.",
+    "name": "Marie Curie",
+    "age": 12582
+  },
+  {
+    "year": "1724",
+    "month": 4,
+    "day": 23,
+    "text": "Johann Sebastian Bach leads the first performance of his cantata Du Hirte Israel, höre, BWV 104, illustrating the topic of the Good Shepherd in pastoral music.",
+    "name": "Johann Sebastian Bach",
+    "age": 14267
+  },
+  {
+    "year": "1564",
+    "month": 4,
+    "day": 26,
+    "text": "Playwright William Shakespeare is baptized in Stratford-upon-Avon, Warwickshire, England (date of birth is unknown).",
+    "name": "William Shakespeare",
+    "age": 3
+  },
+  {
+    "year": "1770",
+    "month": 4,
+    "day": 29,
+    "text": "James Cook arrives in Australia at Botany Bay, which he names.",
+    "name": "James Cook",
+    "age": 15148
+  },
+  {
+    "year": "1905",
+    "month": 4,
+    "day": 30,
+    "text": "Albert Einstein completes his doctoral thesis at the University of Zurich.",
+    "name": "Albert Einstein",
+    "age": 9543
+  },
+  {
+    "year": "2011",
+    "month": 5,
+    "day": 1,
+    "text": "Pope John Paul II is beatified by his successor, Pope Benedict XVI.",
+    "name": "Pope John Paul II",
+    "age": 33220
+  },
+  {
+    "year": "1984",
+    "month": 5,
+    "day": 6,
+    "text": "One hundred and three Korean Martyrs are canonized by Pope John Paul II in Seoul.",
+    "name": "Pope John Paul II",
+    "age": 23364
+  },
+  {
+    "year": "2001",
+    "month": 5,
+    "day": 6,
+    "text": "During a trip to Syria, Pope John Paul II becomes the first pope to enter a mosque.",
+    "name": "Pope John Paul II",
+    "age": 29573
+  },
+  {
+    "year": "1824",
+    "month": 5,
+    "day": 7,
+    "text": "World premiere of Ludwig van Beethoven's Ninth Symphony in Vienna, Austria. The performance is conducted by Michael Umlauf under the composer's supervision.",
+    "name": "Ludwig van Beethoven",
+    "age": 19500
+  },
+  {
+    "year": "1999",
+    "month": 5,
+    "day": 7,
+    "text": "Pope John Paul II travels to Romania, becoming the first pope to visit a predominantly Eastern Orthodox country since the Great Schism in 1054.",
+    "name": "Pope John Paul II",
+    "age": 28843
+  },
+  {
+    "year": "1497",
+    "month": 5,
+    "day": 10,
+    "text": "Amerigo Vespucci allegedly leaves Cádiz for his first voyage to the New World.",
+    "name": "Amerigo Vespucci",
+    "age": 16864
+  },
+  {
+    "year": "1774",
+    "month": 5,
+    "day": 10,
+    "text": "Louis XVI and Marie Antoinette become King and Queen of France.",
+    "name": "Marie Antoinette",
+    "age": 6764
+  },
+  {
+    "year": "1982",
+    "month": 5,
+    "day": 12,
+    "text": "During a procession outside the shrine of the Virgin Mary in Fátima, Portugal, security guards overpower Juan María Fernández y Krohn before he can attack Pope John Paul II with a bayonet.",
+    "name": "Pope John Paul II",
+    "age": 22639
+  },
+  {
+    "year": "1501",
+    "month": 5,
+    "day": 13,
+    "text": "Amerigo Vespucci, this time under Portuguese flag, set sail for western lands.",
+    "name": "Amerigo Vespucci",
+    "age": 18327
+  },
+  {
+    "year": "1981",
+    "month": 5,
+    "day": 13,
+    "text": "Mehmet Ali Ağca attempts to assassinate Pope John Paul II in St. Peter's Square in Rome. The Pope is rushed to the Agostino Gemelli University Polyclinic to undergo emergency surgery and survives.",
+    "name": "Pope John Paul II",
+    "age": 22275
+  },
+  {
+    "year": "1532",
+    "month": 5,
+    "day": 16,
+    "text": "Sir Thomas More resigns as Lord Chancellor of England.",
+    "name": "Thomas More",
+    "age": 19821
+  },
+  {
+    "year": "1770",
+    "month": 5,
+    "day": 16,
+    "text": "The 14-year-old Marie Antoinette marries 15-year-old Louis-Auguste, who later becomes king of France.",
+    "name": "Marie Antoinette",
+    "age": 5309
+  },
+  {
+    "year": "1888",
+    "month": 5,
+    "day": 16,
+    "text": "Nikola Tesla delivers a lecture describing the equipment which will allow efficient generation and use of alternating currents to transmit electric power over long distances.",
+    "name": "Nikola Tesla",
+    "age": 11633
+  },
+  {
+    "year": "1536",
+    "month": 5,
+    "day": 19,
+    "text": "Anne Boleyn, the second wife of Henry VIII of England, is beheaded for adultery, treason, and incest.",
+    "name": "Henry VIII of England",
+    "age": 16396
+  },
+  {
+    "year": "1962",
+    "month": 5,
+    "day": 19,
+    "text": "A birthday salute to U.S. President John F. Kennedy takes place at Madison Square Garden, New York City. The highlight is Marilyn Monroe's rendition of \"Happy Birthday\".",
+    "name": "Marilyn Monroe",
+    "age": 13136
+  },
+  {
+    "year": "1714",
+    "month": 5,
+    "day": 20,
+    "text": "Johann Sebastian Bach leads the first performance of his cantata for Pentecost, Erschallet, ihr Lieder, BWV 172, at the chapel of Schloss Weimar.",
+    "name": "Johann Sebastian Bach",
+    "age": 10641
+  },
+  {
+    "year": "1521",
+    "month": 5,
+    "day": 25,
+    "text": "The Diet of Worms ends when Charles V, Holy Roman Emperor, issues the Edict of Worms, declaring Martin Luther an outlaw.",
+    "name": "Martin Luther",
+    "age": 13710
+  },
+  {
+    "year": "1895",
+    "month": 5,
+    "day": 25,
+    "text": "Playwright, poet and novelist Oscar Wilde is convicted of \"committing acts of gross indecency with other male persons\" and sentenced to serve two years in prison.",
+    "name": "Oscar Wilde",
+    "age": 14831
+  },
+  {
+    "year": "1538",
+    "month": 5,
+    "day": 26,
+    "text": "Geneva expels John Calvin and his followers from the city. Calvin lives in exile in Strasbourg for the next three years.",
+    "name": "John Calvin",
+    "age": 10547
+  },
+  {
+    "year": "1533",
+    "month": 5,
+    "day": 28,
+    "text": "The Archbishop of Canterbury, Thomas Cranmer, declares the marriage of King Henry VIII of England to Anne Boleyn valid.",
+    "name": "Henry VIII of England",
+    "age": 15309
+  },
+  {
+    "year": "1919",
+    "month": 5,
+    "day": 29,
+    "text": "Albert Einstein's theory of general relativity is tested (later confirmed) by Arthur Eddington and Andrew Claude de la Cherois Crommelin.",
+    "name": "Albert Einstein",
+    "age": 14685
+  },
+  {
+    "year": "1982",
+    "month": 5,
+    "day": 29,
+    "text": "Pope John Paul II becomes the first pontiff to visit Canterbury Cathedral.",
+    "name": "Pope John Paul II",
+    "age": 22656
+  },
+  {
+    "year": "1536",
+    "month": 5,
+    "day": 30,
+    "text": "King Henry VIII of England marries Jane Seymour, a lady-in-waiting to his first two wives.",
+    "name": "Henry VIII of England",
+    "age": 16407
+  },
+  {
+    "year": "1723",
+    "month": 5,
+    "day": 30,
+    "text": "Johann Sebastian Bach assumed the office of Thomaskantor in Leipzig, presenting his first new cantata, Die Elenden sollen essen, BWV 75, in the St. Nicholas Church on the first Sunday after Trinity.",
+    "name": "Johann Sebastian Bach",
+    "age": 13938
+  },
+  {
+    "year": "1857",
+    "month": 6,
+    "day": 1,
+    "text": "Charles Baudelaire's Les Fleurs du mal is published.",
+    "name": "Charles Baudelaire",
+    "age": 13202
+  },
+  {
+    "year": "1979",
+    "month": 6,
+    "day": 2,
+    "text": "Pope John Paul II starts his first official visit to his native Poland, becoming the first Pope to visit a Communist country.",
+    "name": "Pope John Paul II",
+    "age": 21564
+  },
+  {
+    "year": "2001",
+    "month": 6,
+    "day": 10,
+    "text": "Pope John Paul II canonizes Lebanon's first female saint, Saint Rafqa.",
+    "name": "Pope John Paul II",
+    "age": 29608
+  },
+  {
+    "year": "1509",
+    "month": 6,
+    "day": 11,
+    "text": "Henry VIII of England marries Catherine of Aragon.",
+    "name": "Henry VIII of England",
+    "age": 6557
+  },
+  {
+    "year": "1724",
+    "month": 6,
+    "day": 11,
+    "text": "Johann Sebastian Bach leads his cantata O Ewigkeit, du Donnerwort (O eternity, you word of thunder), BWV 20, on the first Sunday after Trinity, beginning his second cycle, the chorale cantata cycle.",
+    "name": "Johann Sebastian Bach",
+    "age": 14316
+  },
+  {
+    "year": "1770",
+    "month": 6,
+    "day": 11,
+    "text": "British explorer Captain James Cook runs aground on the Great Barrier Reef.",
+    "name": "James Cook",
+    "age": 15191
+  },
+  {
+    "year": "1525",
+    "month": 6,
+    "day": 13,
+    "text": "Martin Luther marries Katharina von Bora, against the celibacy rule decreed by the Roman Catholic Church for priests and nuns.",
+    "name": "Martin Luther",
+    "age": 15190
+  },
+  {
+    "year": "1855",
+    "month": 6,
+    "day": 13,
+    "text": "Twentieth opera of Giuseppe Verdi, Les vêpres siciliennes (\"The Sicilian Vespers\"), is premiered in Paris.",
+    "name": "Giuseppe Verdi",
+    "age": 15221
+  },
+  {
+    "year": "2000",
+    "month": 6,
+    "day": 13,
+    "text": "Italy pardons Mehmet Ali Ağca, the Turkish gunman who tried to kill Pope John Paul II in 1981.",
+    "name": "Pope John Paul II",
+    "age": 29246
+  },
+  {
+    "year": "1520",
+    "month": 6,
+    "day": 15,
+    "text": "Pope Leo X threatens to excommunicate Martin Luther in Exsurge Domine.",
+    "name": "Martin Luther",
+    "age": 13366
+  },
+  {
+    "year": "1858",
+    "month": 6,
+    "day": 18,
+    "text": "Charles Darwin receives a paper from Alfred Russel Wallace that includes nearly identical conclusions about evolution as Darwin's own, prompting Darwin to publish his theory.",
+    "name": "Charles Darwin",
+    "age": 18023
+  },
+  {
+    "year": "1988",
+    "month": 6,
+    "day": 19,
+    "text": "Pope John Paul II canonizes 117 Vietnamese Martyrs.",
+    "name": "Pope John Paul II",
+    "age": 24869
+  },
+  {
+    "year": "1633",
+    "month": 6,
+    "day": 22,
+    "text": "The Holy Office in Rome forces Galileo Galilei to recant his view that the Sun, not the Earth, is the center of the Universe in the form he presented it in, after heated controversy.",
+    "name": "Galileo Galilei",
+    "age": 25330
+  },
+  {
+    "year": "1532",
+    "month": 6,
+    "day": 23,
+    "text": "Henry VIII of England and Francis I of France sign the \"Treaty of Closer Amity With France\" (also known as the Pommeraye treaty), pledging mutual aid against Charles V, Holy Roman Emperor.",
+    "name": "Henry VIII of England",
+    "age": 14970
+  },
+  {
+    "year": "1499",
+    "month": 6,
+    "day": 27,
+    "text": "Amerigo Vespucci sights what is now Amapá State in Brazil.",
+    "name": "Amerigo Vespucci",
+    "age": 17642
+  },
+  {
+    "year": "1613",
+    "month": 6,
+    "day": 29,
+    "text": "The Globe Theatre in London, built by William Shakespeare's playing company, the Lord Chamberlain's Men, burns to the ground.",
+    "name": "William Shakespeare",
+    "age": 17964
+  },
+  {
+    "year": "1905",
+    "month": 6,
+    "day": 30,
+    "text": "Albert Einstein sends the article On the Electrodynamics of Moving Bodies, in which he introduces special relativity, for publication in Annalen der Physik.",
+    "name": "Albert Einstein",
+    "age": 9604
+  },
+  {
+    "year": "1858",
+    "month": 7,
+    "day": 1,
+    "text": "Joint reading of Charles Darwin and Alfred Russel Wallace's papers on evolution to the Linnean Society of London.",
+    "name": "Charles Darwin",
+    "age": 18036
+  },
+  {
+    "year": "1687",
+    "month": 7,
+    "day": 5,
+    "text": "Isaac Newton publishes Philosophiæ Naturalis Principia Mathematica.",
+    "name": "Isaac Newton",
+    "age": 16263
+  },
+  {
+    "year": "1885",
+    "month": 7,
+    "day": 6,
+    "text": "Louis Pasteur successfully tests his vaccine against rabies on Joseph Meister, a boy who was bitten by a rabid dog.",
+    "name": "Louis Pasteur",
+    "age": 22837
+  },
+  {
+    "year": "1540",
+    "month": 7,
+    "day": 9,
+    "text": "King Henry VIII of England annuls his marriage to his fourth wife, Anne of Cleves.",
+    "name": "Henry VIII of England",
+    "age": 17908
+  },
+  {
+    "year": "1543",
+    "month": 7,
+    "day": 12,
+    "text": "King Henry VIII of England marries his sixth and last wife, Catherine Parr, at Hampton Court Palace.",
+    "name": "Henry VIII of England",
+    "age": 19006
+  },
+  {
+    "year": "1776",
+    "month": 7,
+    "day": 12,
+    "text": "Captain James Cook begins his third voyage.",
+    "name": "James Cook",
+    "age": 17414
+  },
+  {
+    "year": "1942",
+    "month": 7,
+    "day": 14,
+    "text": "In the Wardha session of Congress, the \"Quit India\" resolution is approved, authorising Mahatma Gandhi to campaign for India's independence from Britain.",
+    "name": "Mahatma Gandhi",
+    "age": 26582
+  },
+  {
+    "year": "1717",
+    "month": 7,
+    "day": 17,
+    "text": "King George I of Great Britain sails down the River Thames with a barge of 50 musicians, where George Frideric Handel's Water Music is premiered.",
+    "name": "George Frideric Handel",
+    "age": 11831
+  },
+  {
+    "year": "1723",
+    "month": 7,
+    "day": 18,
+    "text": "Johann Sebastian Bach leads the first performance of his cantata Erforsche mich, Gott, und erfahre mein Herz, BWV 136, in Leipzig on the eighth Sunday after Trinity.",
+    "name": "Johann Sebastian Bach",
+    "age": 13987
+  },
+  {
+    "year": "1598",
+    "month": 7,
+    "day": 22,
+    "text": "William Shakespeare's play, The Merchant of Venice, is entered on the Stationers' Register. By decree of Queen Elizabeth, the Stationers' Register licensed printed works, giving the Crown tight control over all published material.",
+    "name": "William Shakespeare",
+    "age": 12508
+  },
+  {
+    "year": "1788",
+    "month": 7,
+    "day": 25,
+    "text": "Wolfgang Amadeus Mozart completes his Symphony No. 40 in G minor (K550).",
+    "name": "Wolfgang Amadeus Mozart",
+    "age": 11868
+  },
+  {
+    "year": "1890",
+    "month": 7,
+    "day": 27,
+    "text": "Vincent van Gogh shoots himself and dies two days later.",
+    "name": "Vincent van Gogh",
+    "age": 13633
+  },
+  {
+    "year": "1540",
+    "month": 7,
+    "day": 28,
+    "text": "Henry VIII of England marries his fifth wife, Catherine Howard.",
+    "name": "Henry VIII of England",
+    "age": 17927
+  },
+  {
+    "year": "1939",
+    "month": 8,
+    "day": 2,
+    "text": "Albert Einstein and Leo Szilard write a letter to Franklin D. Roosevelt, urging him to begin the Manhattan Project to develop a nuclear weapon.",
+    "name": "Albert Einstein",
+    "age": 22055
+  },
+  {
+    "year": "1962",
+    "month": 8,
+    "day": 5,
+    "text": "American actress Marilyn Monroe is found dead at her home from a drug overdose.",
+    "name": "Marilyn Monroe",
+    "age": 13214
+  },
+  {
+    "year": "1553",
+    "month": 8,
+    "day": 13,
+    "text": "Michael Servetus is arrested by John Calvin in Geneva, Switzerland as a heretic.",
+    "name": "John Calvin",
+    "age": 16105
+  },
+  {
+    "year": "1724",
+    "month": 8,
+    "day": 13,
+    "text": "Johann Sebastian Bach leads the first performance of Nimm von uns, Herr, du treuer Gott, BWV 101, a chorale cantata on a famous tune.",
+    "name": "Johann Sebastian Bach",
+    "age": 14379
+  },
+  {
+    "year": "1513",
+    "month": 8,
+    "day": 16,
+    "text": "Battle of the Spurs (Battle of Guinegate): King Henry VIII of England and his Imperial allies defeat French Forces who are then forced to retreat.",
+    "name": "Henry VIII of England",
+    "age": 8084
+  },
+  {
+    "year": "1858",
+    "month": 8,
+    "day": 20,
+    "text": "Charles Darwin first publishes his theory of evolution through natural selection in The Journal of the Proceedings of the Linnean Society of London, alongside Alfred Russel Wallace's same theory.",
+    "name": "Charles Darwin",
+    "age": 18086
+  },
+  {
+    "year": "1770",
+    "month": 8,
+    "day": 21,
+    "text": "James Cook formally claims eastern Australia for Great Britain, naming it New South Wales.",
+    "name": "James Cook",
+    "age": 15262
+  },
+  {
+    "year": "1770",
+    "month": 8,
+    "day": 22,
+    "text": "James Cook names and lands on Possession Island, and claims the east coast of Australia for Britain as New South Wales.",
+    "name": "James Cook",
+    "age": 15263
+  },
+  {
+    "year": "1780",
+    "month": 8,
+    "day": 22,
+    "text": "James Cook's ship HMS Resolution returns to England (Cook having been killed on Hawaii during the voyage).",
+    "name": "James Cook",
+    "age": 18916
+  },
+  {
+    "year": "1894",
+    "month": 8,
+    "day": 22,
+    "text": "Mahatma Gandhi forms the Natal Indian Congress (NIC) in order to fight discrimination against Indian traders in Natal.",
+    "name": "Mahatma Gandhi",
+    "age": 9090
+  },
+  {
+    "year": "1609",
+    "month": 8,
+    "day": 25,
+    "text": "Galileo Galilei demonstrates his first telescope to Venetian lawmakers.",
+    "name": "Galileo Galilei",
+    "age": 16628
+  },
+  {
+    "year": "1768",
+    "month": 8,
+    "day": 26,
+    "text": "Captain James Cook sets sail from England on board HMS Endeavour.",
+    "name": "James Cook",
+    "age": 14537
+  },
+  {
+    "year": "1831",
+    "month": 8,
+    "day": 29,
+    "text": "Michael Faraday discovers electromagnetic induction.",
+    "name": "Michael Faraday",
+    "age": 14585
+  },
+  {
+    "year": "1532",
+    "month": 9,
+    "day": 1,
+    "text": "Lady Anne Boleyn is made Marquess of Pembroke by her fiancé, King Henry VIII of England.",
+    "name": "Henry VIII of England",
+    "age": 15040
+  },
+  {
+    "year": "1774",
+    "month": 9,
+    "day": 4,
+    "text": "New Caledonia is first sighted by Europeans, during the second voyage of Captain James Cook.",
+    "name": "James Cook",
+    "age": 16737
+  },
+  {
+    "year": "1724",
+    "month": 9,
+    "day": 10,
+    "text": "Johann Sebastian Bach leads the first performance of Jesu, der du meine Seele, BWV 78, a chorale cantata based on a passion hymn by Johann Rist.",
+    "name": "Johann Sebastian Bach",
+    "age": 14407
+  },
+  {
+    "year": "1741",
+    "month": 9,
+    "day": 14,
+    "text": "George Frideric Handel completes his oratorio Messiah.",
+    "name": "George Frideric Handel",
+    "age": 20656
+  },
+  {
+    "year": "1835",
+    "month": 9,
+    "day": 15,
+    "text": "HMS Beagle, with Charles Darwin aboard, reaches the Galápagos Islands. The ship lands at Chatham or San Cristobal, the easternmost of the archipelago.",
+    "name": "Charles Darwin",
+    "age": 9711
+  },
+  {
+    "year": "1954",
+    "month": 9,
+    "day": 15,
+    "text": "Marilyn Monroe's iconic skirt scene is shot during filming for The Seven Year Itch.",
+    "name": "Marilyn Monroe",
+    "age": 10333
+  },
+  {
+    "year": "1905",
+    "month": 9,
+    "day": 26,
+    "text": "Albert Einstein publishes the third of his Annus Mirabilis papers, introducing the special theory of relativity.",
+    "name": "Albert Einstein",
+    "age": 9692
+  },
+  {
+    "year": "1979",
+    "month": 10,
+    "day": 1,
+    "text": "Pope John Paul II begins his first pastoral visit to the United States.",
+    "name": "Pope John Paul II",
+    "age": 21685
+  },
+  {
+    "year": "1979",
+    "month": 10,
+    "day": 6,
+    "text": "Pope John Paul II becomes the first pontiff to visit the White House.",
+    "name": "Pope John Paul II",
+    "age": 21690
+  },
+  {
+    "year": "1950",
+    "month": 10,
+    "day": 7,
+    "text": "Mother Teresa establishes the Missionaries of Charity.",
+    "name": "Mother Teresa",
+    "age": 14652
+  },
+  {
+    "year": "1980",
+    "month": 10,
+    "day": 9,
+    "text": "Pope John Paul II greets the Dalai Lama during a private audience in Vatican City.",
+    "name": "Pope John Paul II",
+    "age": 22059
+  },
+  {
+    "year": "1793",
+    "month": 10,
+    "day": 15,
+    "text": "Queen Marie Antoinette of France is tried and convicted of treason.",
+    "name": "Marie Antoinette",
+    "age": 13862
+  },
+  {
+    "year": "1793",
+    "month": 10,
+    "day": 16,
+    "text": "French Revolution: Queen Marie Antoinette is executed.",
+    "name": "Marie Antoinette",
+    "age": 13863
+  },
+  {
+    "year": "1978",
+    "month": 10,
+    "day": 16,
+    "text": "Cardinal Karol Wojtyła is elected to the papacy as Pope John Paul II, he becomes the first non-Italian pontiff since 1523.",
+    "name": "Pope John Paul II",
+    "age": 21335
+  },
+  {
+    "year": "1933",
+    "month": 10,
+    "day": 17,
+    "text": "Albert Einstein flees Nazi Germany and moves to the United States.",
+    "name": "Albert Einstein",
+    "age": 19940
+  },
+  {
+    "year": "1979",
+    "month": 10,
+    "day": 17,
+    "text": "Mother Teresa is awarded the Nobel Peace Prize.",
+    "name": "Mother Teresa",
+    "age": 25254
+  },
+  {
+    "year": "1512",
+    "month": 10,
+    "day": 19,
+    "text": "Martin Luther becomes a doctor of theology.",
+    "name": "Martin Luther",
+    "age": 10570
+  },
+  {
+    "year": "2003",
+    "month": 10,
+    "day": 19,
+    "text": "Mother Teresa is beatified by Pope John Paul II.",
+    "name": "Pope John Paul II",
+    "age": 30469
+  },
+  {
+    "year": "1512",
+    "month": 10,
+    "day": 21,
+    "text": "Martin Luther joins the theological faculty of the University of Wittenberg.",
+    "name": "Martin Luther",
+    "age": 10572
+  },
+  {
+    "year": "1964",
+    "month": 10,
+    "day": 22,
+    "text": "Jean-Paul Sartre is awarded the Nobel Prize in Literature, though he does not accept the prize.",
+    "name": "Jean-Paul Sartre",
+    "age": 21673
+  },
+  {
+    "year": "1517",
+    "month": 10,
+    "day": 31,
+    "text": "Protestant Reformation: Martin Luther posts his 95 Theses on the door of the Castle Church in Wittenberg.",
+    "name": "Martin Luther",
+    "age": 12408
+  },
+  {
+    "year": "1604",
+    "month": 11,
+    "day": 1,
+    "text": "William Shakespeare's tragedy Othello is performed for the first time, at Whitehall Palace in London.",
+    "name": "William Shakespeare",
+    "age": 14802
+  },
+  {
+    "year": "1783",
+    "month": 11,
+    "day": 4,
+    "text": "Wolfgang Amadeus Mozart's Symphony No. 36 is performed for the first time in Linz, Austria.",
+    "name": "Wolfgang Amadeus Mozart",
+    "age": 10143
+  },
+  {
+    "year": "1723",
+    "month": 11,
+    "day": 7,
+    "text": "O Ewigkeit, du Donnerwort, BWV 60, a dialogue cantata by Johann Sebastian Bach for Leipzig, was first performed.",
+    "name": "Johann Sebastian Bach",
+    "age": 14099
+  },
+  {
+    "year": "1930",
+    "month": 11,
+    "day": 11,
+    "text": "Patent number US1781541 is awarded to Albert Einstein and Leó Szilárd for their invention, the Einstein refrigerator.",
+    "name": "Albert Einstein",
+    "age": 18869
+  },
+  {
+    "year": "1511",
+    "month": 11,
+    "day": 17,
+    "text": "Henry VIII of England concludes the Treaty of Westminster, a pledge of mutual aid against the French, with Ferdinand II of Aragon.",
+    "name": "Henry VIII of England",
+    "age": 7446
+  },
+  {
+    "year": "1900",
+    "month": 11,
+    "day": 21,
+    "text": "Claude Monet's paintings shown at Gallery Durand-Ruel in Paris.",
+    "name": "Claude Monet",
+    "age": 21921
+  },
+  {
+    "year": "1905",
+    "month": 11,
+    "day": 21,
+    "text": "Albert Einstein's paper that leads to the mass-energy equivalence formula, E = mc², is published in the journal Annalen der Physik.",
+    "name": "Albert Einstein",
+    "age": 9748
+  },
+  {
+    "year": "1859",
+    "month": 11,
+    "day": 24,
+    "text": "British naturalist Charles Darwin's On the Origin of Species is published.",
+    "name": "Charles Darwin",
+    "age": 18547
+  },
+  {
+    "year": "1915",
+    "month": 11,
+    "day": 25,
+    "text": "Albert Einstein presents the field equations of general relativity to the Prussian Academy of Sciences.",
+    "name": "Albert Einstein",
+    "age": 13404
+  },
+  {
+    "year": "1981",
+    "month": 11,
+    "day": 25,
+    "text": "Pope John Paul II appoints Joseph Cardinal Ratzinger (the future Pope Benedict XVI) Prefect of the Congregation for the Doctrine of the Faith.",
+    "name": "Pope John Paul II",
+    "age": 22471
+  },
+  {
+    "year": "1778",
+    "month": 11,
+    "day": 26,
+    "text": "In the Hawaiian Islands, Captain James Cook becomes the first European to visit Maui.",
+    "name": "James Cook",
+    "age": 18281
+  },
+  {
+    "year": "1895",
+    "month": 11,
+    "day": 27,
+    "text": "At the Swedish-Norwegian Club in Paris, Alfred Nobel signs his last will and testament, setting aside his estate to establish the Nobel Prize after he dies.",
+    "name": "Alfred Nobel",
+    "age": 22682
+  },
+  {
+    "year": "2004",
+    "month": 11,
+    "day": 27,
+    "text": "Pope John Paul II returns the relics of Saint John Chrysostom to the Eastern Orthodox Church.",
+    "name": "Pope John Paul II",
+    "age": 30874
+  },
+  {
+    "year": "1582",
+    "month": 11,
+    "day": 28,
+    "text": "In Stratford-upon-Avon, William Shakespeare and Anne Hathaway pay a £40 (equivalent to £14,557 in 2023) bond in lieu of posting wedding banns, which enables them to marry immediately.",
+    "name": "William Shakespeare",
+    "age": 6793
+  },
+  {
+    "year": "1932",
+    "month": 12,
+    "day": 7,
+    "text": "German-born Swiss physicist Albert Einstein is granted an American visa.",
+    "name": "Albert Einstein",
+    "age": 19626
+  },
+  {
+    "year": "1520",
+    "month": 12,
+    "day": 10,
+    "text": "Martin Luther burns his copy of the papal bull Exsurge Domine outside Wittenberg's Elster Gate.",
+    "name": "Martin Luther",
+    "age": 13544
+  },
+  {
+    "year": "1684",
+    "month": 12,
+    "day": 10,
+    "text": "Isaac Newton's derivation of Kepler's laws from his theory of gravity, contained in the paper De motu corporum in gyrum, is read to the Royal Society by Edmond Halley.",
+    "name": "Isaac Newton",
+    "age": 15326
+  },
+  {
+    "year": "1901",
+    "month": 12,
+    "day": 10,
+    "text": "The first Nobel Prize ceremony is held in Stockholm on the fifth anniversary of Alfred Nobel's death.",
+    "name": "Alfred Nobel",
+    "age": 24886
+  },
+  {
+    "year": "1893",
+    "month": 12,
+    "day": 15,
+    "text": "Symphony No. 9 (\"From the New World\" a.k.a. the \"New World Symphony\") by Antonín Dvořák premieres in a public afternoon rehearsal at Carnegie Hall in New York City, followed by a concert premiere on the evening of December 16.",
+    "name": "Antonín Dvořák",
+    "age": 19091
+  },
+  {
+    "year": "1538",
+    "month": 12,
+    "day": 17,
+    "text": "Pope Paul III excommunicates Henry VIII of England.",
+    "name": "Henry VIII of England",
+    "age": 17338
+  },
+  {
+    "year": "1985",
+    "month": 12,
+    "day": 20,
+    "text": "Pope John Paul II announces the institution of World Youth Day.",
+    "name": "Pope John Paul II",
+    "age": 23957
+  },
+  {
+    "year": "1808",
+    "month": 12,
+    "day": 22,
+    "text": "Ludwig van Beethoven conducts and performs in concert at the Theater an der Wien, Vienna, with the premiere of his Fifth Symphony, Sixth Symphony, Fourth Piano Concerto and Choral Fantasy.",
+    "name": "Ludwig van Beethoven",
+    "age": 13885
+  },
+  {
+    "year": "1777",
+    "month": 12,
+    "day": 24,
+    "text": "Kiritimati, also called Christmas Island, is discovered by James Cook.",
+    "name": "James Cook",
+    "age": 17944
+  },
+  {
+    "year": "1709",
+    "month": 12,
+    "day": 26,
+    "text": "The opera Agrippina by George Frideric Handel premiered in Venice.",
+    "name": "George Frideric Handel",
+    "age": 9071
+  },
+  {
+    "year": "1831",
+    "month": 12,
+    "day": 27,
+    "text": "Charles Darwin embarks on his journey aboard HMS Beagle, during which he will begin to formulate his theory of evolution.",
+    "name": "Charles Darwin",
+    "age": 8353
+  },
+  {
+    "year": "1983",
+    "month": 12,
+    "day": 27,
+    "text": "Pope John Paul II visits Mehmet Ali Ağca in Rebibbia's prison and personally forgives him for the 1981 attack on him in St. Peter's Square.",
+    "name": "Pope John Paul II",
+    "age": 23233
+  }
+]

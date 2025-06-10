@@ -1,0 +1,802 @@
+[
+  {
+    "name": "Wolfgang Amadeus Mozart",
+    "year": "1756",
+    "month": 1,
+    "day": 27,
+    "text": "Austrian pianist and composer (d. 1791)",
+    "industry": "MUSIC"
+  },
+  {
+    "name": "William Shakespeare",
+    "year": "1564",
+    "month": 4,
+    "day": 23,
+    "text": "English playwright and poet (d. 1616)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Michelangelo",
+    "year": "1475",
+    "month": 3,
+    "day": 6,
+    "text": "Italian painter and sculptor (d. 1564)",
+    "industry": "FINE ARTS"
+  },
+  {
+    "name": "Isaac Newton",
+    "year": "1642",
+    "month": 12,
+    "day": 25,
+    "text": "English physicist and mathematician (d. 1727)",
+    "industry": "NATURAL SCIENCES"
+  },
+  {
+    "name": "Albert Einstein",
+    "year": "1879",
+    "month": 3,
+    "day": 14,
+    "text": "German-American physicist, academic and Nobel Prize laureate (d. 1955)",
+    "industry": "NATURAL SCIENCES"
+  },
+  {
+    "name": "Johann Sebastian Bach",
+    "year": "1685",
+    "month": 3,
+    "day": 31,
+    "text": "German composer (d. 1750)",
+    "industry": "MUSIC"
+  },
+  {
+    "name": "Ludwig van Beethoven",
+    "year": "1770",
+    "month": 12,
+    "day": 16,
+    "text": "composer (d. 1827)",
+    "industry": "MUSIC"
+  },
+  {
+    "name": "Martin Luther",
+    "year": "1483",
+    "month": 11,
+    "day": 10,
+    "text": "German monk and priest, leader of the Protestant Reformation (d. 1546)",
+    "industry": "RELIGION"
+  },
+  {
+    "name": "Galileo Galilei",
+    "year": "1564",
+    "month": 2,
+    "day": 15,
+    "text": "Italian astronomer, physicist, and mathematician (d. 1642)",
+    "industry": "NATURAL SCIENCES"
+  },
+  {
+    "name": "Augustine of Hippo",
+    "year": "354",
+    "month": 11,
+    "day": 13,
+    "text": "Roman bishop and theologian (d. 430)",
+    "industry": "PHILOSOPHY"
+  },
+  {
+    "name": "Karl Marx",
+    "year": "1897",
+    "month": 11,
+    "day": 12,
+    "text": "German composer and conductor (d. 1985)",
+    "industry": "SOCIAL SCIENCES"
+  },
+  {
+    "name": "Marco Polo",
+    "year": "1254",
+    "month": 9,
+    "day": 15,
+    "text": "Italian merchant and explorer (d. 1324)",
+    "industry": "EXPLORERS"
+  },
+  {
+    "name": "Vincent van Gogh",
+    "year": "1853",
+    "month": 3,
+    "day": 30,
+    "text": "Dutch-French painter and illustrator (d. 1890)",
+    "industry": "FINE ARTS"
+  },
+  {
+    "name": "Immanuel Kant",
+    "year": "1724",
+    "month": 4,
+    "day": 22,
+    "text": "German anthropologist, philosopher, and academic (d. 1804)",
+    "industry": "PHILOSOPHY"
+  },
+  {
+    "name": "Sigmund Freud",
+    "year": "1856",
+    "month": 5,
+    "day": 6,
+    "text": "Austrian neurologist and psychoanalyst (d. 1939)",
+    "industry": "SOCIAL SCIENCES"
+  },
+  {
+    "name": "Pablo Picasso",
+    "year": "1881",
+    "month": 10,
+    "day": 25,
+    "text": "Spanish painter and sculptor (d. 1973)",
+    "industry": "FINE ARTS"
+  },
+  {
+    "name": "René Descartes",
+    "year": "1596",
+    "month": 3,
+    "day": 31,
+    "text": "French mathematician and philosopher (d. 1650)",
+    "industry": "PHILOSOPHY"
+  },
+  {
+    "name": "Mary",
+    "year": "1542",
+    "month": 12,
+    "day": 8,
+    "text": "Queen of Scots, daughter of James V of Scotland and Mary of Guise (d. 1587)",
+    "industry": "RELIGION"
+  },
+  {
+    "name": "Johann Wolfgang von Goethe",
+    "year": "1749",
+    "month": 8,
+    "day": 28,
+    "text": "German novelist, poet, playwright, and diplomat (d. 1832)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Voltaire",
+    "year": "1694",
+    "month": 11,
+    "day": 21,
+    "text": "French writer and philosopher (d. 1778)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Niccolò Machiavelli",
+    "year": "1469",
+    "month": 5,
+    "day": 3,
+    "text": "Italian historian and philosopher (d. 1527)",
+    "industry": "PHILOSOPHY"
+  },
+  {
+    "name": "Blaise Pascal",
+    "year": "1623",
+    "month": 6,
+    "day": 19,
+    "text": "French mathematician and physicist (d. 1662)",
+    "industry": "MATH"
+  },
+  {
+    "name": "Charles Darwin",
+    "year": "1809",
+    "month": 2,
+    "day": 12,
+    "text": "English naturalist, geologist, biologist and theorist (d. 1882)",
+    "industry": "NATURAL SCIENCES"
+  },
+  {
+    "name": "Jean-Jacques Rousseau",
+    "year": "1712",
+    "month": 6,
+    "day": 28,
+    "text": "Swiss philosopher and polymath (d. 1778)",
+    "industry": "PHILOSOPHY"
+  },
+  {
+    "name": "Mahatma Gandhi",
+    "year": "1869",
+    "month": 10,
+    "day": 2,
+    "text": "Indian freedom fighter, activist and philosopher (d. 1948)",
+    "industry": "ACTIVISM"
+  },
+  {
+    "name": "Adam Smith",
+    "year": "1723",
+    "month": 6,
+    "day": 16,
+    "text": "Scottish philosopher and economist (d. 1790)",
+    "industry": "SOCIAL SCIENCES"
+  },
+  {
+    "name": "Albrecht Dürer",
+    "year": "1471",
+    "month": 5,
+    "day": 21,
+    "text": "German painter, engraver, and mathematician (d. 1528)",
+    "industry": "FINE ARTS"
+  },
+  {
+    "name": "John Locke",
+    "year": "1632",
+    "month": 8,
+    "day": 29,
+    "text": "English physician and philosopher (d. 1704)",
+    "industry": "PHILOSOPHY"
+  },
+  {
+    "name": "Salvador Dalí",
+    "year": "1904",
+    "month": 5,
+    "day": 11,
+    "text": "Spanish artist (d. 1989)",
+    "industry": "FINE ARTS"
+  },
+  {
+    "name": "Molière",
+    "year": "1622",
+    "month": 1,
+    "day": 15,
+    "text": "French actor and playwright (d. 1673)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Oscar Wilde",
+    "year": "1854",
+    "month": 10,
+    "day": 16,
+    "text": "Irish playwright, novelist, and poet (d. 1900)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Francisco Goya",
+    "year": "1746",
+    "month": 3,
+    "day": 30,
+    "text": "Spanish-French painter and sculptor (d. 1828)",
+    "industry": "FINE ARTS"
+  },
+  {
+    "name": "Peter Paul Rubens",
+    "year": "1577",
+    "month": 6,
+    "day": 28,
+    "text": "Flemish painter and diplomat (d. 1640)",
+    "industry": "FINE ARTS"
+  },
+  {
+    "name": "Claude Monet",
+    "year": "1840",
+    "month": 11,
+    "day": 14,
+    "text": "French painter (d. 1926)",
+    "industry": "FINE ARTS"
+  },
+  {
+    "name": "Frédéric Chopin",
+    "year": "1810",
+    "month": 3,
+    "day": 1,
+    "text": "Polish pianist and composer (d. 1849)",
+    "industry": "MUSIC"
+  },
+  {
+    "name": "Henry VIII of England",
+    "year": "1491",
+    "month": 6,
+    "day": 28,
+    "text": "Henry VIII of England (d. 1547)",
+    "industry": "GOVERNMENT"
+  },
+  {
+    "name": "Marie Antoinette",
+    "year": "1755",
+    "month": 11,
+    "day": 2,
+    "text": "Austrian-French queen consort of Louis XVI of France (d. 1793)",
+    "industry": "GOVERNMENT"
+  },
+  {
+    "name": "Carl Friedrich Gauss",
+    "year": "1777",
+    "month": 4,
+    "day": 30,
+    "text": "German mathematician and physicist (d. 1855)",
+    "industry": "MATH"
+  },
+  {
+    "name": "Giuseppe Verdi",
+    "year": "1813",
+    "month": 10,
+    "day": 10,
+    "text": "Italian composer and philanthropist (d. 1901)",
+    "industry": "MUSIC"
+  },
+  {
+    "name": "Marilyn Monroe",
+    "year": "1926",
+    "month": 6,
+    "day": 1,
+    "text": "American model and actress (d. 1962)",
+    "industry": "FILM AND THEATRE"
+  },
+  {
+    "name": "Georg Wilhelm Friedrich Hegel",
+    "year": "1770",
+    "month": 8,
+    "day": 27,
+    "text": "German philosopher and academic (d. 1831)",
+    "industry": "PHILOSOPHY"
+  },
+  {
+    "name": "Louis Pasteur",
+    "year": "1822",
+    "month": 12,
+    "day": 27,
+    "text": "French chemist and microbiologist (d. 1895)",
+    "industry": "NATURAL SCIENCES"
+  },
+  {
+    "name": "George Frideric Handel",
+    "year": "1685",
+    "month": 2,
+    "day": 23,
+    "text": "German-English organist and composer (d. 1759)",
+    "industry": "MUSIC"
+  },
+  {
+    "name": "Carl Linnaeus",
+    "year": "1707",
+    "month": 5,
+    "day": 23,
+    "text": "Swedish botanist, physician, and zoologist (d. 1778)",
+    "industry": "NATURAL SCIENCES"
+  },
+  {
+    "name": "Petrarch",
+    "year": "1304",
+    "month": 7,
+    "day": 20,
+    "text": "Italian poet and scholar (d. 1374)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Max Weber",
+    "year": "1897",
+    "month": 8,
+    "day": 2,
+    "text": "Swiss lawyer and politician (d. 1974)",
+    "industry": "SOCIAL SCIENCES"
+  },
+  {
+    "name": "Leo Tolstoy",
+    "year": "1828",
+    "month": 9,
+    "day": 9,
+    "text": "Russian author and playwright (d. 1910)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Thomas Hobbes",
+    "year": "1588",
+    "month": 4,
+    "day": 5,
+    "text": "English philosopher (d. 1679)",
+    "industry": "PHILOSOPHY"
+  },
+  {
+    "name": "John Calvin",
+    "year": "1509",
+    "month": 7,
+    "day": 10,
+    "text": "French pastor and theologian (d. 1564)",
+    "industry": "RELIGION"
+  },
+  {
+    "name": "Thomas More",
+    "year": "1478",
+    "month": 2,
+    "day": 7,
+    "text": "English lawyer and politician, Lord Chancellor of England (d. 1535)",
+    "industry": "PHILOSOPHY"
+  },
+  {
+    "name": "Le Corbusier",
+    "year": "1887",
+    "month": 10,
+    "day": 6,
+    "text": "Swiss-French architect and painter, designed the Philips Pavilion and Saint-Pierre, Firminy (d. 1965)",
+    "industry": "DESIGN"
+  },
+  {
+    "name": "Jean-Paul Sartre",
+    "year": "1905",
+    "month": 6,
+    "day": 21,
+    "text": "French philosopher and author (d. 1980)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "James Cook",
+    "year": "1728",
+    "month": 11,
+    "day": 7,
+    "text": "English captain, navigator, and cartographer (d. 1779)",
+    "industry": "EXPLORERS"
+  },
+  {
+    "name": "Joseph Haydn",
+    "year": "1732",
+    "month": 3,
+    "day": 31,
+    "text": "Austrian pianist and composer (d. 1809)",
+    "industry": "MUSIC"
+  },
+  {
+    "name": "Honoré de Balzac",
+    "year": "1799",
+    "month": 5,
+    "day": 20,
+    "text": "French novelist and playwright (d. 1850)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Baruch Spinoza",
+    "year": "1632",
+    "month": 11,
+    "day": 24,
+    "text": "Dutch philosopher and scholar (d. 1677)",
+    "industry": "PHILOSOPHY"
+  },
+  {
+    "name": "James Watt",
+    "year": "1736",
+    "month": 1,
+    "day": 19,
+    "text": "Scottish chemist and engineer (d. 1819)",
+    "industry": "INVENTION"
+  },
+  {
+    "name": "Anton Chekhov",
+    "year": "1860",
+    "month": 1,
+    "day": 29,
+    "text": "Russian playwright and short story writer (d. 1904)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Nicolaus Copernicus",
+    "year": "1473",
+    "month": 2,
+    "day": 19,
+    "text": "Prussian mathematician and astronomer (d. 1543)",
+    "industry": "NATURAL SCIENCES"
+  },
+  {
+    "name": "Michael Faraday",
+    "year": "1791",
+    "month": 9,
+    "day": 22,
+    "text": "English physicist and chemist (d. 1867)",
+    "industry": "NATURAL SCIENCES"
+  },
+  {
+    "name": "Antonio Vivaldi",
+    "year": "1678",
+    "month": 3,
+    "day": 4,
+    "text": "Italian violinist and composer (d. 1741)",
+    "industry": "MUSIC"
+  },
+  {
+    "name": "Mother Teresa",
+    "year": "1910",
+    "month": 8,
+    "day": 26,
+    "text": "Albanian-Indian nun, missionary, Catholic saint, and Nobel Prize laureate (d. 1997)",
+    "industry": "ACTIVISM"
+  },
+  {
+    "name": "Paracelsus",
+    "year": "1493",
+    "month": 11,
+    "day": 11,
+    "text": "Swiss-German physician, botanist, astrologer, and occultist (d. 1541)",
+    "industry": "MEDICINE"
+  },
+  {
+    "name": "Bob Marley",
+    "year": "1945",
+    "month": 2,
+    "day": 6,
+    "text": "Jamaican singer-songwriter and guitarist (d. 1981)",
+    "industry": "MUSIC"
+  },
+  {
+    "name": "Miguel de Cervantes",
+    "year": "1547",
+    "month": 9,
+    "day": 29,
+    "text": "Spanish novelist, poet, and playwright (d. 1616)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Averroes",
+    "year": "1126",
+    "month": 4,
+    "day": 14,
+    "text": "Andalusian Arab physician and philosopher (d. 1198)",
+    "industry": "PHILOSOPHY"
+  },
+  {
+    "name": "David Hume",
+    "year": "1711",
+    "month": 5,
+    "day": 7,
+    "text": "Scottish economist, historian, and philosopher (d. 1776)",
+    "industry": "PHILOSOPHY"
+  },
+  {
+    "name": "Bruce Lee",
+    "year": "1940",
+    "month": 11,
+    "day": 27,
+    "text": "American-Chinese actor, martial artist, and screenwriter (d. 1973)",
+    "industry": "FILM AND THEATRE"
+  },
+  {
+    "name": "Arthur Schopenhauer",
+    "year": "1788",
+    "month": 2,
+    "day": 22,
+    "text": "German philosopher and author (d. 1860)",
+    "industry": "PHILOSOPHY"
+  },
+  {
+    "name": "Hermann Hesse",
+    "year": "1877",
+    "month": 7,
+    "day": 2,
+    "text": "German-born Swiss poet, novelist, and painter, Nobel Prize laureate (d. 1962)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Friedrich Engels",
+    "year": "1820",
+    "month": 11,
+    "day": 28,
+    "text": "German-English philosopher, economist, and journalist (d. 1895)",
+    "industry": "PHILOSOPHY"
+  },
+  {
+    "name": "Rembrandt",
+    "year": "1606",
+    "month": 7,
+    "day": 15,
+    "text": "Dutch painter and etcher (d. 1669)",
+    "industry": "FINE ARTS"
+  },
+  {
+    "name": "Paul Gauguin",
+    "year": "1848",
+    "month": 6,
+    "day": 7,
+    "text": "French painter and sculptor (d. 1903)",
+    "industry": "FINE ARTS"
+  },
+  {
+    "name": "Johannes Brahms",
+    "year": "1833",
+    "month": 5,
+    "day": 7,
+    "text": "German pianist and composer (d. 1897)",
+    "industry": "MUSIC"
+  },
+  {
+    "name": "Thomas Mann",
+    "year": "1875",
+    "month": 6,
+    "day": 6,
+    "text": "German author and critic, Nobel Prize laureate (d. 1955)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Omar Khayyám",
+    "year": "1048",
+    "month": 5,
+    "day": 18,
+    "text": "Persian mathematician, astronomer, and poet (d. 1131)",
+    "industry": "MATH"
+  },
+  {
+    "name": "Alfred Nobel",
+    "year": "1833",
+    "month": 10,
+    "day": 21,
+    "text": "Swedish chemist and engineer, invented dynamite and founded the Nobel Prize (d. 1896)",
+    "industry": "NATURAL SCIENCES"
+  },
+  {
+    "name": "Francis Bacon",
+    "year": "1909",
+    "month": 10,
+    "day": 28,
+    "text": "Irish painter and illustrator (d. 1992)",
+    "industry": "PHILOSOPHY"
+  },
+  {
+    "name": "Marie Curie",
+    "year": "1867",
+    "month": 11,
+    "day": 7,
+    "text": "Polish chemist and physicist, Nobel Prize laureate (d. 1934)",
+    "industry": "NATURAL SCIENCES"
+  },
+  {
+    "name": "Bertolt Brecht",
+    "year": "1898",
+    "month": 2,
+    "day": 10,
+    "text": "German director, playwright, and poet (d. 1956)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Charles Baudelaire",
+    "year": "1821",
+    "month": 4,
+    "day": 9,
+    "text": "French poet and critic (d. 1867)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Hans Christian Andersen",
+    "year": "1805",
+    "month": 4,
+    "day": 2,
+    "text": "Danish novelist, short story writer, and poet (d. 1875)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Antonín Dvořák",
+    "year": "1841",
+    "month": 9,
+    "day": 8,
+    "text": "Czech composer and academic (d. 1904)",
+    "industry": "MUSIC"
+  },
+  {
+    "name": "Ludwig Wittgenstein",
+    "year": "1889",
+    "month": 4,
+    "day": 26,
+    "text": "Austrian-English philosopher and academic (d. 1951)",
+    "industry": "PHILOSOPHY"
+  },
+  {
+    "name": "Frida Kahlo",
+    "year": "1907",
+    "month": 7,
+    "day": 6,
+    "text": "Mexican painter and educator (d. 1954)",
+    "industry": "FINE ARTS"
+  },
+  {
+    "name": "Amerigo Vespucci",
+    "year": "1451",
+    "month": 3,
+    "day": 9,
+    "text": "Italian cartographer and explorer, namesake of the Americas (d. 1512)",
+    "industry": "EXPLORERS"
+  },
+  {
+    "name": "Gabriel García Márquez",
+    "year": "1927",
+    "month": 3,
+    "day": 6,
+    "text": "Colombian journalist and author, Nobel Prize laureate (d. 2014)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Pierre-Auguste Renoir",
+    "year": "1841",
+    "month": 2,
+    "day": 25,
+    "text": "French painter and sculptor (d. 1919)",
+    "industry": "FINE ARTS"
+  },
+  {
+    "name": "Marlon Brando",
+    "year": "1924",
+    "month": 4,
+    "day": 3,
+    "text": "American actor and director (d. 2004)",
+    "industry": "FILM AND THEATRE"
+  },
+  {
+    "name": "Pelé",
+    "year": "1940",
+    "month": 10,
+    "day": 23,
+    "text": "Brazilian footballer and actor (d. 2022)",
+    "industry": "TEAM SPORTS"
+  },
+  {
+    "name": "Pope John Paul II",
+    "year": "1920",
+    "month": 5,
+    "day": 18,
+    "text": "Pope John Paul II (d. 2005)",
+    "industry": "RELIGION"
+  },
+  {
+    "name": "Bertrand Russell",
+    "year": "1872",
+    "month": 5,
+    "day": 18,
+    "text": "British mathematician, historian, and philosopher, Nobel Prize laureate (d. 1970)",
+    "industry": "MATH"
+  },
+  {
+    "name": "Émile Zola",
+    "year": "1840",
+    "month": 4,
+    "day": 2,
+    "text": "French novelist, playwright, journalist (d. 1902)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Denis Diderot",
+    "year": "1713",
+    "month": 10,
+    "day": 5,
+    "text": "French philosopher and critic (d. 1784)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Giacomo Casanova",
+    "year": "1725",
+    "month": 4,
+    "day": 2,
+    "text": "Italian explorer and author (d. 1798)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Henri Matisse",
+    "year": "1869",
+    "month": 12,
+    "day": 31,
+    "text": "French painter and sculptor (d. 1954)",
+    "industry": "FINE ARTS"
+  },
+  {
+    "name": "Arthur Rimbaud",
+    "year": "1854",
+    "month": 10,
+    "day": 20,
+    "text": "French soldier and poet (d. 1891)",
+    "industry": "LANGUAGE"
+  },
+  {
+    "name": "Nikola Tesla",
+    "year": "1856",
+    "month": 7,
+    "day": 10,
+    "text": "Serbian-American electrical and mechanical engineer (d. 1943)",
+    "industry": "INVENTION"
+  },
+  {
+    "name": "Alessandro Volta",
+    "year": "1745",
+    "month": 2,
+    "day": 18,
+    "text": "Italian physicist, invented the battery (d. 1827)",
+    "industry": "NATURAL SCIENCES"
+  },
+  {
+    "name": "Benedict of Nursia",
+    "year": "480",
+    "month": 3,
+    "day": 2,
+    "text": "Italian Christian saint (d. 543 or 547)",
+    "industry": "RELIGION"
+  }
+]
