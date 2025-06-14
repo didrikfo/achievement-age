@@ -1,7 +1,7 @@
 import csv
 import json
 
-from utils import load_json
+from utils.utils import load_json
 
 # Set number of top entries to retrieve
 TOP_N = 200
