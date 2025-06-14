@@ -41,7 +41,6 @@ def clean_births(input_file, output_file):
         name = extract_name(entry["text"])
         year = int(entry["year"]) if entry["year"].isdigit() else float('inf')
 
-
         if name not in seen_names or year < seen_names[name]["year"]:
             seen_names[name] = {"entry": entry, "year": year}
 
