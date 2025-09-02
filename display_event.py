@@ -1,6 +1,8 @@
 from datetime import date
+import os
 
-from utils import load_json
+from utils import load_json, load_events_from_json, load_persons_from_json
+from models.event import Event
 
 def get_user_age_in_days():
     """Prompt the user for their birthday and calculate their age in days."""
@@ -17,15 +19,15 @@ def get_user_age_in_days():
         except ValueError:
             print("Invalid input. Please enter numeric values for year, month, and day.")
 
-def search_for_event_matching_age(events, user_age):
+def search_for_event_matching_age(events: list[Event], user_age: int) -> list[Event]:
     """Search for events where the age in days matches the user's age."""
     matching_events = []
     for event in events:
-        if "age" in event and event["age"] == user_age:
+        if event.age_at_event == user_age:
             matching_events.append(event)
     return matching_events
 
-def display_matching_events(matching_events, birthday: date):
+def display_matching_events(matching_events: list[Event], birthday: date) -> None:
     """Display the users age and matching events."""
     # Display the user's age in years and days
     user_age_years = date.today().year - birthday.year
@@ -42,13 +44,13 @@ def display_matching_events(matching_events, birthday: date):
         return
 
     for event in matching_events:
-        print(f"When {event['name']} was that age:")
-        print(event['text'])
+        print(f"{event.display_text}")
 
 
 def main():
     # Load events data
-    events = load_json("data/events_with_age.json")
+    persons = load_persons_from_json(os.path.join("data","top_1000_births.json"))
+    events = load_events_from_json(os.path.join("data","displayable_events.json"), persons)
 
     # Get user's age in days
     user_age, birthday = get_user_age_in_days()

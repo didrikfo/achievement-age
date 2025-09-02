@@ -11,7 +11,8 @@ class Event:
     """Class representing an achievement event."""
     date: date
     person: Person
-    achievement: str
+    description: str
+    display_text: str
     
     @property
     def age_at_event(self) -> int:
@@ -25,7 +26,8 @@ class Event:
             "day": self.date.day,
             "text": self.description,
             "name": self.person.name,
-            "age": self.age_at_event
+            "age": self.age_at_event,
+            "display_text": self.display_text
         }
     
     

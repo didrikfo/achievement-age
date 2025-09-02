@@ -2,7 +2,7 @@ import json
 import re
 from datetime import date
 
-from utils.utils import load_json
+from utils import load_json
 
 def calculate_age(birth_year, birth_month, birth_day, event_year, event_month, event_day):
     try:
@@ -45,8 +45,8 @@ def match_births_to_events(births, events):
         for name, birth_info in name_to_birth.items():
             # Check if the name is in the event text
             # Using regex to enusre we match whole names
-            #if re.search(r'\b' + re.escape(name) + r'\b', event_text, re.IGNORECASE):
-            if name.lower() in event_text.lower():
+            if re.search(r'\b' + re.escape(name) + r'\b', event_text, re.IGNORECASE):
+            #if name.lower() in event_text.lower():
                 # Calculate age at the time of the event
                 age = calculate_age(
                     birth_info["year"],  # year of birth
@@ -65,13 +65,27 @@ def match_births_to_events(births, events):
 
     return results
 
+def only_name_and_text_from_json(event_json_path: str) -> list[dict]:
+    events_with_age = load_json(event_json_path)
+    name_and_text = []
+    for event in events_with_age:
+        name = event.get('name')
+        text = event.get('text')
+        name_and_text.append({'name':name, 'text':text})
+    return name_and_text
+
 def main():
-    births = load_json('data/top_100_births.json', sort_by_field='name')
+    births = load_json('data/top_1000_births.json', sort_by_field='name')
     events = load_json('data/historical_events.json')
     matched_events = match_births_to_events(births, events)
     
     with open('data/events_with_age.json', 'w', encoding='utf-8') as f:
         json.dump(matched_events, f, ensure_ascii=False, indent=2)
+
+    only_names_and_text = only_name_and_text_from_json('data/events_with_age.json')
+
+    with open('data/events_only_name_and_text.json', 'w', encoding='utf-8') as f:
+        json.dump(only_names_and_text, f, ensure_ascii=False, indent=2)
 
 if __name__ == "__main__":
     main()
