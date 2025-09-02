@@ -3,3 +3,4 @@ venv/
 __pycache__/
 data/
 !data/displayable_events.json
+!data/top_1000_births.json
