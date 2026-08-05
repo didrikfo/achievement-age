@@ -1,62 +1,23 @@
-"""LLM helpers used during data preparation."""
+"""LLM helpers used during data preparation.
+
+Rewording (adding display_text to matched events) is done by spawning Claude
+Haiku subagents from within a Claude Code session - see prepare_reword_chunks
+and merge_reworded_chunk. This module has no network/API-calling code itself;
+it only prepares chunk files for a subagent to process and merges the result
+back in.
+"""
 
 from __future__ import annotations
 
-import os
+import json
+from pathlib import Path
 from typing import Dict, List, Tuple
 
-from dotenv import load_dotenv
-from google import genai
-
 from core.config import DATA_DIR
-from core.io import load_json, parse_llm_output, save_to_json
+from core.io import load_json, save_to_json
 
-load_dotenv(dotenv_path="dotenv.env")
-API_KEY = os.getenv("PRIVATE_API_KEY")
-client = genai.Client(api_key=API_KEY)
-
-CHUNK_SIZE = 50
-TMP_DIR = DATA_DIR / "tmp"
-MODEL_NAME = "gemini-flash-latest"
-
-
-def test_batch_job(client=client):  # pragma: no cover - helper used manually
-    """Submit two toy prompts, primarily for verifying credentials."""
-    inline_requests = [
-        {
-            "contents": [
-                {
-                    "parts": [{"text": "Tell me a one-sentence joke."}],
-                    "role": "user",
-                }
-            ]
-        },
-        {
-            "contents": [
-                {"parts": [{"text": "Why is the sky blue?"}], "role": "user"}
-            ]
-        },
-    ]
-
-    inline_batch_job = client.batches.create(
-        model="models/gemini-2.0-flash",
-        src=inline_requests,
-        config={"display_name": "inlined-requests-job-1"},
-    )
-
-    print(f"Created batch job: {inline_batch_job.name}")
-
-INSTRUCTIONS = (
-    "For each event record, add a display_text field of the form "
-    "'The same age that {name} was when {event happened}'. "
-    "Return ONLY a raw JSON array of the updated records: no markdown code fences, "
-    "no commentary, no surrounding text."
-)
-
-STRICT_RETRY_SUFFIX = (
-    " Your previous response was not valid JSON. Return strictly a JSON array of "
-    "objects and nothing else - no code fences, no explanation."
-)
+CHUNK_SIZE = 100
+CHUNK_DIR = DATA_DIR / "tmp" / "reword_chunks"
 
 
 def _event_key(event: Dict) -> Tuple[object, object]:
@@ -65,36 +26,11 @@ def _event_key(event: Dict) -> Tuple[object, object]:
 
 
 def _fallback_display_text(event: Dict) -> str:
-    """Deterministic display_text used when the LLM can't produce usable JSON."""
+    """Deterministic display_text used when a subagent can't produce usable output."""
     text = event.get("text", "") or ""
     name = event.get("name", "")
     lowered = text[:1].lower() + text[1:] if text else text
     return f"The same age that {name} was when {lowered}"
-
-
-def _call_llm(content: str, client=client):  # pragma: no cover - network call
-    return client.models.generate_content(model=MODEL_NAME, contents=content)
-
-
-def _process_chunk(chunk: List[Dict], chunk_index: int, client=client) -> List[Dict]:
-    """Reword one chunk of events, retrying once and falling back to a template."""
-    content = INSTRUCTIONS + str(chunk)
-    response = _call_llm(content, client=client)
-
-    TMP_DIR.mkdir(parents=True, exist_ok=True)
-    (TMP_DIR / f"chunk_{chunk_index:04d}_raw.txt").write_text(response.text, encoding="utf-8")
-
-    try:
-        return parse_llm_output(response.text)
-    except ValueError:
-        print(f"Chunk {chunk_index}: initial LLM output unparsable, retrying with stricter prompt.")
-        retry_response = _call_llm(content + STRICT_RETRY_SUFFIX, client=client)
-        (TMP_DIR / f"chunk_{chunk_index:04d}_retry.txt").write_text(retry_response.text, encoding="utf-8")
-        try:
-            return parse_llm_output(retry_response.text)
-        except ValueError:
-            print(f"Chunk {chunk_index}: retry also unparsable, using fallback template for this chunk.")
-            return [{**event, "display_text": _fallback_display_text(event)} for event in chunk]
 
 
 def get_pending_events(
@@ -113,33 +49,58 @@ def get_pending_events(
     return processed, pending
 
 
-def reword_event_descriptions(
-    chunk_size: int = CHUNK_SIZE,
-    max_events: int | None = None,
-    client=client,
-) -> List[Dict]:
-    """Ensure every matched event has a display_text, resuming from prior progress.
+def prepare_reword_chunks(chunk_size: int = CHUNK_SIZE, max_events: int | None = None) -> List[Path]:
+    """Split pending events into numbered chunk files for a subagent to process.
 
-    Already-processed events (present in displayable_events.json, matched by
-    (name, text)) are skipped. Set max_events to cap how many pending events are
-    sent to the LLM in this call (useful for a cheap smoke test).
+    Returns the chunk file paths. Each is a JSON array of event records still
+    missing display_text.
     """
-    processed, pending = get_pending_events()
+    _, pending = get_pending_events()
     if max_events is not None:
         pending = pending[:max_events]
 
-    if not pending:
-        print("Nothing to process; all matched events already have display_text.")
-        return processed
-
-    print(f"{len(pending)} event(s) queued for this run ({len(processed)} already done).")
-
-    results = list(processed)
-    for chunk_index, start in enumerate(range(0, len(pending), chunk_size)):
+    CHUNK_DIR.mkdir(parents=True, exist_ok=True)
+    paths: List[Path] = []
+    for index, start in enumerate(range(0, len(pending), chunk_size)):
         chunk = pending[start : start + chunk_size]
-        print(f"Processing chunk {chunk_index} ({len(chunk)} events)...")
-        chunk_results = _process_chunk(chunk, chunk_index, client=client)
-        results.extend(chunk_results)
-        save_to_json(DATA_DIR / "displayable_events.json", results)
+        path = CHUNK_DIR / f"chunk_{index:04d}.json"
+        save_to_json(path, chunk)
+        paths.append(path)
+    return paths
 
-    return results
+
+def merge_reworded_chunk(chunk_path, result_path, displayable_path=DATA_DIR / "displayable_events.json") -> int:
+    """Merge a subagent's reworded chunk into displayable_path (default data/displayable_events.json).
+
+    Records are matched back to the original chunk by (name, text), not by
+    list order/position, so a subagent that drops or reorders a record is
+    still handled correctly. Any record that doesn't come back with a usable
+    display_text (missing result file, invalid JSON, or a blank field) gets
+    the deterministic fallback template instead. Returns how many records
+    were merged.
+    """
+    chunk = load_json(chunk_path)
+
+    reworded_by_key: Dict[Tuple[object, object], Dict] = {}
+    try:
+        reworded = load_json(result_path)
+        reworded_by_key = {_event_key(event): event for event in reworded}
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
+    merged: List[Dict] = []
+    for event in chunk:
+        result = reworded_by_key.get(_event_key(event))
+        if result and result.get("display_text"):
+            merged.append(result)
+        else:
+            merged.append({**event, "display_text": _fallback_display_text(event)})
+
+    try:
+        existing = load_json(displayable_path)
+    except FileNotFoundError:
+        existing = []
+    existing.extend(merged)
+    save_to_json(displayable_path, existing)
+
+    return len(merged)
