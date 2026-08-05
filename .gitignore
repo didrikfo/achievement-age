@@ -1,6 +1,7 @@
 venv/
 *.env
 __pycache__/
+*.egg-info/
 data/
 !data/displayable_events.json
 !data/top_1000_births.json

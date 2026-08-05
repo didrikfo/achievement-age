@@ -3,4 +3,6 @@
 ## To run ##
 Windows command prompt:
     venv\Scripts\activate
-    streamlit run app.py
+    pip install -e .
+    pip install -r requirements.txt
+    streamlit run src/app/ui.py

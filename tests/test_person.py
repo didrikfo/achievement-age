@@ -1,6 +1,6 @@
 import pytest
 from datetime import date
-from models.person import Person
+from core.models.person import Person
 
 def test_person_attributes():
     p = Person(

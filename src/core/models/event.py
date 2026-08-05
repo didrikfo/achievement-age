@@ -4,7 +4,7 @@ from datetime import date
 from typing import List, Dict, Any
 from dataclasses import dataclass
 
-from models.person import Person
+from .person import Person
 
 @dataclass
 class Event:

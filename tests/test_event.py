@@ -1,7 +1,7 @@
 import pytest
 from datetime import date
-from models.person import Person
-from models.event import Event
+from core.models.person import Person
+from core.models.event import Event
 
 @pytest.fixture
 def person():
@@ -16,12 +16,12 @@ def person():
 
 def test_event_age(person):
     event_date = date(1905, 11, 21)
-    event = Event(date=event_date, person=person, description="E=mc^2 paper published")
+    event = Event(date=event_date, person=person, description="E=mc^2 paper published", display_text="E=mc^2 paper published")
     assert event.age_at_event == (event_date - person.birth_date).days
 
 def test_event_to_dict(person):
     event_date = date(1905, 11, 21)
-    event = Event(date=event_date, person=person, description="E=mc^2 paper published")
+    event = Event(date=event_date, person=person, description="E=mc^2 paper published", display_text="E=mc^2 paper published")
     result = event.to_dict()
     assert result["year"] == 1905
     assert result["name"] == "Einstein"
