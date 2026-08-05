@@ -512,6 +512,14 @@
     "age": 19231
   },
   {
+    "year": "393",
+    "month": 1,
+    "day": 23,
+    "text": "Roman emperor Theodosius I proclaims his eight-year-old son Honorius co-emperor.",
+    "name": "Theodosius I",
+    "age": 16814
+  },
+  {
     "year": "1264",
     "month": 1,
     "day": 23,
@@ -526,6 +534,22 @@
     "text": "Blaise Pascal publishes the first of his Lettres provinciales.",
     "name": "Blaise Pascal",
     "age": 11906
+  },
+  {
+    "year": "1904",
+    "month": 1,
+    "day": 23,
+    "text": "Ålesund Fire: The Norwegian coastal town Ålesund is devastated by fire, leaving 10,000 people homeless and one person dead. Kaiser Wilhelm II funds the rebuilding of the town in Jugendstil style.",
+    "name": "Wilhelm II",
+    "age": 16431
+  },
+  {
+    "year": "1920",
+    "month": 1,
+    "day": 23,
+    "text": "The Netherlands refuses to surrender the exiled Kaiser Wilhelm II of Germany to the Allies.",
+    "name": "Wilhelm II",
+    "age": 22275
   },
   {
     "year": "1937",
@@ -752,6 +776,14 @@
     "age": 14977
   },
   {
+    "year": "1917",
+    "month": 1,
+    "day": 31,
+    "text": "World War I: Kaiser Wilhelm II orders the resumption of unrestricted submarine warfare.",
+    "name": "Wilhelm II",
+    "age": 21188
+  },
+  {
     "year": "1928",
     "month": 1,
     "day": 31,
@@ -960,6 +992,14 @@
     "age": 17324
   },
   {
+    "year": "1965",
+    "month": 2,
+    "day": 12,
+    "text": "Malcolm X visits Smethwick near Birmingham following the racially-charged 1964 United Kingdom general election.",
+    "name": "Malcolm X",
+    "age": 14514
+  },
+  {
     "year": "2002",
     "month": 2,
     "day": 12,
@@ -1040,6 +1080,14 @@
     "age": 10985
   },
   {
+    "year": "438",
+    "month": 2,
+    "day": 15,
+    "text": "Roman emperor Theodosius II publishes the law codex Codex Theodosianus",
+    "name": "Theodosius II",
+    "age": 13460
+  },
+  {
     "year": "1899",
     "month": 2,
     "day": 15,
@@ -1078,6 +1126,14 @@
     "text": "Emperor Septimius Severus defeats usurper Clodius Albinus in the Battle of Lugdunum, the bloodiest battle between Roman armies.",
     "name": "Septimius Severus",
     "age": 18942
+  },
+  {
+    "year": "356",
+    "month": 2,
+    "day": 19,
+    "text": "The anti-paganism policy of Constantius II forbids the worship of pagan idols in the Roman Empire.",
+    "name": "Constantius II",
+    "age": 14075
   },
   {
     "year": "1949",
@@ -1296,6 +1352,14 @@
     "age": 15650
   },
   {
+    "year": "364",
+    "month": 2,
+    "day": 26,
+    "text": "Valentinian I is proclaimed Roman Emperor.",
+    "name": "Valentinian I",
+    "age": 15578
+  },
+  {
     "year": "1616",
     "month": 2,
     "day": 26,
@@ -1336,6 +1400,22 @@
     "age": 27779
   },
   {
+    "year": "380",
+    "month": 2,
+    "day": 27,
+    "text": "Edict of Thessalonica: Emperor Theodosius I and his co-emperors Gratian and Valentinian II declare their wish that all Roman citizens convert to Nicene Christianity.",
+    "name": "Theodosius I",
+    "age": 12100
+  },
+  {
+    "year": "425",
+    "month": 2,
+    "day": 27,
+    "text": "The University of Constantinople is founded by Emperor Theodosius II at the urging of his wife Aelia Eudocia.",
+    "name": "Theodosius II",
+    "age": 8724
+  },
+  {
     "year": "1860",
     "month": 2,
     "day": 27,
@@ -1358,6 +1438,14 @@
     "text": "Pope Benedict XVI resigns as the pope of the Catholic Church, becoming the first pope to do so since Pope Gregory XII in 1415.",
     "name": "Pope Benedict XVI",
     "age": 31365
+  },
+  {
+    "year": "350",
+    "month": 3,
+    "day": 1,
+    "text": "Vetranio proclaims himself Caesar after being encouraged to do so by Constantina, sister of Constantius II.",
+    "name": "Constantius II",
+    "age": 11894
   },
   {
     "year": "1628",
@@ -1478,6 +1566,14 @@
     "text": "Dmitri Mendeleev presents the first periodic table to the Russian Chemical Society.",
     "name": "Dmitri Mendeleev",
     "age": 12810
+  },
+  {
+    "year": "1901",
+    "month": 3,
+    "day": 6,
+    "text": "Anarchist assassin tries to kill German Emperor Wilhelm II.",
+    "name": "Wilhelm II",
+    "age": 15378
   },
   {
     "year": "1943",
@@ -1736,6 +1832,14 @@
     "age": 21510
   },
   {
+    "year": "455",
+    "month": 3,
+    "day": 17,
+    "text": "Petronius Maximus becomes, with support of the Roman Senate, emperor of the Western Roman Empire; he forces Licinia Eudoxia, the widow of his predecessor, Valentinian III, to marry him.",
+    "name": "Valentinian III",
+    "age": 13042
+  },
+  {
     "year": "1776",
     "month": 3,
     "day": 17,
@@ -1774,6 +1878,14 @@
     "text": "World War II: Adolf Hitler issues his \"Nero Decree\" ordering all industries, military installations, shops, transportation facilities, and communications facilities in Germany to be destroyed.",
     "name": "Adolf Hitler",
     "age": 20421
+  },
+  {
+    "year": "1890",
+    "month": 3,
+    "day": 20,
+    "text": "Chancellor of the German Empire Otto von Bismarck is dismissed by Emperor Wilhelm II.",
+    "name": "Wilhelm II",
+    "age": 11375
   },
   {
     "year": "1916",
@@ -1976,6 +2088,14 @@
     "age": 15374
   },
   {
+    "year": "364",
+    "month": 3,
+    "day": 28,
+    "text": "Roman Emperor Valentinian I appoints his brother Flavius Valens co-emperor.",
+    "name": "Valentinian I",
+    "age": 15609
+  },
+  {
     "year": "1939",
     "month": 3,
     "day": 28,
@@ -2024,6 +2144,14 @@
     "age": 21753
   },
   {
+    "year": "1905",
+    "month": 3,
+    "day": 31,
+    "text": "Kaiser Wilhelm II of Germany declares his support for Moroccan independence in Tangier, beginning the First Moroccan Crisis.",
+    "name": "Wilhelm II",
+    "age": 16864
+  },
+  {
     "year": "1913",
     "month": 3,
     "day": 31,
@@ -2038,6 +2166,14 @@
     "text": "American President Lyndon B. Johnson speaks to the nation of \"Steps to Limit the War in Vietnam\" in a television address. At the conclusion of his speech, he announces: \"I shall not seek, and I will not accept, the nomination of my party for another term as your President.\"",
     "name": "Lyndon B. Johnson",
     "age": 21766
+  },
+  {
+    "year": "527",
+    "month": 4,
+    "day": 1,
+    "text": "Byzantine Emperor Justin I names his nephew Justinian I as co-ruler and successor to the throne.",
+    "name": "Justin I",
+    "age": 28181
   },
   {
     "year": "1924",
@@ -2888,6 +3024,14 @@
     "age": 24964
   },
   {
+    "year": "357",
+    "month": 4,
+    "day": 28,
+    "text": "Emperor Constantius II enters Rome for the first time to celebrate his victory over Magnus Magnentius.",
+    "name": "Constantius II",
+    "age": 14509
+  },
+  {
     "year": "1796",
     "month": 4,
     "day": 28,
@@ -3392,6 +3536,14 @@
     "age": 23917
   },
   {
+    "year": "1951",
+    "month": 5,
+    "day": 16,
+    "text": "The first regularly scheduled transatlantic flights begin between Idlewild Airport (now John F Kennedy International Airport) in New York City and Heathrow Airport in London, operated by El Al Israel Airlines.",
+    "name": "John F. Kennedy",
+    "age": 12405
+  },
+  {
     "year": "1974",
     "month": 5,
     "day": 16,
@@ -3744,6 +3896,14 @@
     "age": 10547
   },
   {
+    "year": "1805",
+    "month": 5,
+    "day": 26,
+    "text": "Napoléon Bonaparte assumes the title of King of Italy and is crowned with the Iron Crown of Lombardy in Milan Cathedral, the gothic cathedral in Milan.",
+    "name": "Napoleon Bonaparte",
+    "age": 13067
+  },
+  {
     "year": "1860",
     "month": 5,
     "day": 27,
@@ -3896,6 +4056,14 @@
     "age": 9785
   },
   {
+    "year": "1866",
+    "month": 5,
+    "day": 30,
+    "text": "Bedrich Smetana's comic opera The Bartered Bride premiered in Prague.",
+    "name": "Bedřich Smetana",
+    "age": 15429
+  },
+  {
     "year": "1670",
     "month": 6,
     "day": 1,
@@ -4030,6 +4198,14 @@
     "text": "Movement of 15 Khordad: Protests against the arrest of Ayatollah Ruhollah Khomeini by the Shah of Iran, Mohammad Reza Pahlavi. In several cities, masses of angry demonstrators are confronted by tanks and paratroopers.",
     "name": "Mohammad Reza Pahlavi",
     "age": 15928
+  },
+  {
+    "year": "421",
+    "month": 6,
+    "day": 7,
+    "text": "Emperor Theodosius II marries Aelia Eudocia at Constantinople (Byzantine Empire).",
+    "name": "Theodosius II",
+    "age": 7363
   },
   {
     "year": "1191",
@@ -4352,6 +4528,14 @@
     "age": 14769
   },
   {
+    "year": "1888",
+    "month": 6,
+    "day": 15,
+    "text": "Crown Prince Wilhelm becomes Kaiser Wilhelm II; he will be the last Emperor of the German Empire. Due to the death of his predecessors Wilhelm I and Frederick III, 1888 is the Year of the Three Emperors.",
+    "name": "Wilhelm II",
+    "age": 10732
+  },
+  {
     "year": "1970",
     "month": 6,
     "day": 15,
@@ -4664,6 +4848,14 @@
     "age": 18454
   },
   {
+    "year": "1964",
+    "month": 6,
+    "day": 28,
+    "text": "Malcolm X forms the Organization of Afro-American Unity.",
+    "name": "Malcolm X",
+    "age": 14285
+  },
+  {
     "year": "1989",
     "month": 6,
     "day": 28,
@@ -4752,6 +4944,14 @@
     "age": 12958
   },
   {
+    "year": "437",
+    "month": 7,
+    "day": 2,
+    "text": "Emperor Valentinian III begins his reign over the Western Roman Empire. His mother Galla Placidia ends her regency, but continues to exercise political influence at the court in Rome.",
+    "name": "Valentinian III",
+    "age": 6575
+  },
+  {
     "year": "1582",
     "month": 7,
     "day": 2,
@@ -4814,6 +5014,14 @@
     "text": "U.S. President Jimmy Carter signs the first directive for secret aid to the opponents of the pro-Soviet regime in Kabul.",
     "name": "Jimmy Carter",
     "age": 19998
+  },
+  {
+    "year": "414",
+    "month": 7,
+    "day": 4,
+    "text": "Emperor Theodosius II, age 13, yields power to his older sister Aelia Pulcheria, who reigned as regent and proclaimed herself empress (Augusta) of the Eastern Roman Empire.",
+    "name": "Theodosius II",
+    "age": 4833
   },
   {
     "year": "1845",
@@ -4950,6 +5158,14 @@
     "text": "A failed assassination attempt against Iraqi president Saddam Hussein results in the Dujail Massacre over the next several months.",
     "name": "Saddam Hussein",
     "age": 16507
+  },
+  {
+    "year": "381",
+    "month": 7,
+    "day": 9,
+    "text": "The end of the First Council of Christian bishops convened in Constantinople by the Roman emperor Theodosius I.",
+    "name": "Theodosius I",
+    "age": 12598
   },
   {
     "year": "1540",
@@ -5480,6 +5696,14 @@
     "age": 13633
   },
   {
+    "year": "1900",
+    "month": 7,
+    "day": 27,
+    "text": "Kaiser Wilhelm II makes a speech comparing Germans to Huns; for years afterwards, \"Hun\" would be a disparaging name for Germans.",
+    "name": "Wilhelm II",
+    "age": 15156
+  },
+  {
     "year": "1540",
     "month": 7,
     "day": 28,
@@ -5624,6 +5848,14 @@
     "age": 16521
   },
   {
+    "year": "1492",
+    "month": 8,
+    "day": 2,
+    "text": "The Jews are expelled from Spain: 40,000-200,000 leave. Sultan Bayezid II of the Ottoman Empire, learning of this, dispatches the Ottoman Navy to bring the Jews safely to Ottoman lands, mainly  to the cities of Thessaloniki (in modern-day Greece) and İzmir (in modern-day Turkey).",
+    "name": "Bayezid II",
+    "age": 16314
+  },
+  {
     "year": "1830",
     "month": 8,
     "day": 2,
@@ -5654,6 +5886,14 @@
     "text": "World War II: The Motor Torpedo Boat PT-109 is rammed by the Japanese destroyer Amagiri and sinks. Lt. John F. Kennedy, future U.S. president, saves all but two of his crew.",
     "name": "John F. Kennedy",
     "age": 9561
+  },
+  {
+    "year": "435",
+    "month": 8,
+    "day": 3,
+    "text": "Deposed Ecumenical Patriarch of Constantinople Nestorius, considered the originator of Nestorianism, is exiled by Roman Emperor Theodosius II to a monastery in Egypt.",
+    "name": "Theodosius II",
+    "age": 12533
   },
   {
     "year": "1778",
@@ -5784,6 +6024,14 @@
     "age": 10830
   },
   {
+    "year": "1648",
+    "month": 8,
+    "day": 8,
+    "text": "Mehmed IV (1648-1687) succeeds Ibrahim I (1640-1648) as Ottoman sultan.",
+    "name": "Mehmed IV",
+    "age": 2410
+  },
+  {
     "year": "2024",
     "month": 8,
     "day": 8,
@@ -5846,6 +6094,14 @@
     "text": "Japanese American internment: U.S. President Ronald Reagan signs the Civil Liberties Act of 1988, providing $20,000 payments to Japanese Americans who were either interned in or relocated by the United States during World War II.",
     "name": "Ronald Reagan",
     "age": 28310
+  },
+  {
+    "year": "355",
+    "month": 8,
+    "day": 11,
+    "text": "Claudius Silvanus, accused of treason, proclaims himself Roman Emperor against Constantius II.",
+    "name": "Constantius II",
+    "age": 13883
   },
   {
     "year": "1492",
@@ -6216,6 +6472,14 @@
     "age": 19475
   },
   {
+    "year": "367",
+    "month": 8,
+    "day": 24,
+    "text": "Gratian, son of Roman Emperor Valentinian I, is named co-Augustus at the age of eight by his father.",
+    "name": "Valentinian I",
+    "age": 16853
+  },
+  {
     "year": "1941",
     "month": 8,
     "day": 24,
@@ -6504,6 +6768,14 @@
     "age": 23761
   },
   {
+    "year": "394",
+    "month": 9,
+    "day": 6,
+    "text": "Battle of the Frigidus: Roman emperor Theodosius I defeats and kills Eugenius the usurper. His Frankish magister militum Arbogast escapes but commits suicide two days later.",
+    "name": "Theodosius I",
+    "age": 17405
+  },
+  {
     "year": "1803",
     "month": 9,
     "day": 6,
@@ -6606,6 +6878,14 @@
     "text": "In Washington, D.C., the John F. Kennedy Center for the Performing Arts is inaugurated, with the opening feature being the premiere of Leonard Bernstein's Mass.",
     "name": "John F. Kennedy",
     "age": 19825
+  },
+  {
+    "year": "337",
+    "month": 9,
+    "day": 9,
+    "text": "Constantine II, Constantius II, and Constans succeed their father Constantine I as co-emperors. The Roman Empire is divided between the three Augusti.",
+    "name": "Constantius II",
+    "age": 7338
   },
   {
     "year": "1791",
@@ -7000,6 +7280,14 @@
     "age": 11600
   },
   {
+    "year": "351",
+    "month": 9,
+    "day": 28,
+    "text": "Constantius II defeats the usurper Magnentius.",
+    "name": "Constantius II",
+    "age": 12470
+  },
+  {
     "year": "1238",
     "month": 9,
     "day": 28,
@@ -7022,6 +7310,14 @@
     "text": "Egyptian President Gamal Abdel Nasser dies of a heart attack in Cairo.",
     "name": "Gamal Abdel Nasser",
     "age": 19249
+  },
+  {
+    "year": "1918",
+    "month": 9,
+    "day": 29,
+    "text": "Germany's Supreme Army Command tells Kaiser Wilhelm II and Imperial Chancellor Georg Michaelis to open negotiations for an armistice to end World War I.",
+    "name": "Wilhelm II",
+    "age": 21794
   },
   {
     "year": "1520",
@@ -7078,6 +7374,14 @@
     "text": "Pope John Paul II begins his first pastoral visit to the United States.",
     "name": "Pope John Paul II",
     "age": 21685
+  },
+  {
+    "year": "382",
+    "month": 10,
+    "day": 3,
+    "text": "Roman Emperor Theodosius I concludes a peace treaty with the Goths and settles them in the Balkans.",
+    "name": "Theodosius I",
+    "age": 13049
   },
   {
     "year": "1789",
@@ -7528,6 +7832,14 @@
     "age": 21673
   },
   {
+    "year": "425",
+    "month": 10,
+    "day": 23,
+    "text": "Valentinian III is elevated as Roman emperor at the age of six.",
+    "name": "Valentinian III",
+    "age": 2305
+  },
+  {
     "year": "1940",
     "month": 10,
     "day": 23,
@@ -7656,6 +7968,14 @@
     "age": 24868
   },
   {
+    "year": "437",
+    "month": 10,
+    "day": 29,
+    "text": "Valentinian III, Western Roman Emperor, marries Licinia Eudoxia, daughter of his cousin Theodosius II, Eastern Roman Emperor in Constantinople unifying the two branches of the House of Theodosius.",
+    "name": "Valentinian III",
+    "age": 6694
+  },
+  {
     "year": "1611",
     "month": 10,
     "day": 29,
@@ -7760,6 +8080,14 @@
     "age": 21980
   },
   {
+    "year": "365",
+    "month": 11,
+    "day": 1,
+    "text": "The Alemanni cross the Rhine and invade Gaul. Emperor Valentinian I moves to Paris to command the army and defend the Gallic cities.",
+    "name": "Valentinian I",
+    "age": 16192
+  },
+  {
     "year": "1604",
     "month": 11,
     "day": 1,
@@ -7838,6 +8166,14 @@
     "text": "U.S. President Ronald Reagan signs a bill creating Martin Luther King Jr. Day.",
     "name": "Ronald Reagan",
     "age": 26567
+  },
+  {
+    "year": "361",
+    "month": 11,
+    "day": 3,
+    "text": "Emperor Constantius II dies of a fever at Mopsuestia in Cilicia; on his deathbed he is baptised and declares his cousin Julian rightful successor.",
+    "name": "Constantius II",
+    "age": 16159
   },
   {
     "year": "1492",
@@ -8054,6 +8390,14 @@
     "text": "Prince George, Duke of Cornwall (later George V of the United Kingdom), becomes Prince of Wales and Earl of Chester.",
     "name": "George V of the United Kingdom",
     "age": 13307
+  },
+  {
+    "year": "1918",
+    "month": 11,
+    "day": 9,
+    "text": "Kaiser Wilhelm II of Germany abdicates after the German Revolution, and Germany is proclaimed a Republic.",
+    "name": "Wilhelm II",
+    "age": 21835
   },
   {
     "year": "1942",
@@ -8424,6 +8768,14 @@
     "age": 16515
   },
   {
+    "year": "380",
+    "month": 11,
+    "day": 24,
+    "text": "Theodosius I makes his adventus, or formal entry, into Constantinople.",
+    "name": "Theodosius I",
+    "age": 12371
+  },
+  {
     "year": "1859",
     "month": 11,
     "day": 24,
@@ -8694,6 +9046,22 @@
     "text": "At Notre Dame Cathedral in Paris, Napoleon Bonaparte crowns himself Emperor of the French.",
     "name": "Napoleon Bonaparte",
     "age": 12892
+  },
+  {
+    "year": "1851",
+    "month": 12,
+    "day": 2,
+    "text": "French President Louis-Napoléon Bonaparte overthrows the Second Republic.",
+    "name": "Napoleon Bonaparte",
+    "age": 30058
+  },
+  {
+    "year": "1852",
+    "month": 12,
+    "day": 2,
+    "text": "Louis-Napoléon Bonaparte becomes Emperor of the French as Napoleon III.",
+    "name": "Napoleon Bonaparte",
+    "age": 30424
   },
   {
     "year": "1867",
@@ -9048,6 +9416,14 @@
     "age": 20378
   },
   {
+    "year": "1354",
+    "month": 12,
+    "day": 17,
+    "text": "Margaret II, Countess of Hainaut and Holy Roman Empress and her son William I, Duke of Bavaria, sign a peace treaty ending the Hook and Cod wars.",
+    "name": "William I",
+    "age": 4016
+  },
+  {
     "year": "1538",
     "month": 12,
     "day": 17,
@@ -9302,6 +9678,14 @@
     "text": "World War II: Pope Pius XII makes a Christmas Eve appeal for peace.",
     "name": "Pope Pius XII",
     "age": 23306
+  },
+  {
+    "year": "350",
+    "month": 12,
+    "day": 25,
+    "text": "Vetranio meets Constantius II at Naissus (Serbia) and is forced to abdicate his imperial title. Constantius allows him to live as a private citizen on a state pension.",
+    "name": "Constantius II",
+    "age": 12193
   },
   {
     "year": "1130",

@@ -5,8 +5,10 @@ from __future__ import annotations
 from datetime import date
 from typing import Iterable, List
 
+from core.age import age_breakdown
 from core.config import DATA_DIR
 from core.io import load_events_from_json, load_persons_from_json
+from core.matching import find_matching_events
 from core.models.event import Event
 
 
@@ -27,19 +29,13 @@ def get_user_age_in_days() -> tuple[int, date]:
 
 def search_for_event_matching_age(events: Iterable[Event], user_age: int) -> List[Event]:
     """Search for events where the age in days matches the user's age."""
-    return [event for event in events if event.age_at_event == user_age]
+    return find_matching_events(events, user_age)
 
 
 def display_matching_events(matching_events: Iterable[Event], birthday: date) -> None:
     """Display the user's age and matching events."""
-    today = date.today()
-    user_age_years = today.year - birthday.year
-    birthday_this_year = date(today.year, birthday.month, birthday.day)
-    if today < birthday_this_year:
-        user_age_years -= 1
-        birthday_this_year = date(today.year - 1, birthday.month, birthday.day)
-    user_age_days = (today - birthday_this_year).days
-    print(f"\nYour age is {user_age_years} years and {user_age_days} days old.")
+    years, months, days = age_breakdown(birthday, date.today())
+    print(f"\nYour age is {years} years, {months} months, and {days} days old.")
 
     events = list(matching_events)
     if not events:

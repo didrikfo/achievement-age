@@ -7,6 +7,7 @@ from datetime import date
 from typing import Dict, Iterable, List
 
 from core.io import load_json
+from core.matching import compile_name_pattern, normalize_name
 
 
 
@@ -28,6 +29,9 @@ def _load_birth_lookup(births: Iterable[Dict[str, object]]) -> Dict[str, Dict[st
             name = birth["name"]
             if len(name.split()) <= 1:
                 continue
+            pattern = compile_name_pattern(name)
+            if pattern is None:
+                continue
             birth_year = int(birth["year"])
             birth_month = int(birth["month"])
             birth_day = int(birth["day"])
@@ -36,6 +40,7 @@ def _load_birth_lookup(births: Iterable[Dict[str, object]]) -> Dict[str, Dict[st
                 "month": birth_month,
                 "day": birth_day,
                 "name": name,
+                "pattern": pattern,
             }
         except Exception:
             continue
@@ -56,10 +61,10 @@ def match_births_to_events(births: List[Dict[str, object]], events: List[Dict[st
         event_year = int(event["year"])  # type: ignore[arg-type]
         event_month = int(event["month"])  # type: ignore[arg-type]
         event_day = int(event["day"])  # type: ignore[arg-type]
-        event_text = event["text"]
+        normalized_event_text = normalize_name(str(event["text"]))
 
         for name, birth_info in name_to_birth.items():
-            if name.lower() in str(event_text).lower():
+            if birth_info["pattern"].search(normalized_event_text):
                 age = calculate_age(
                     birth_info["year"],
                     birth_info["month"],

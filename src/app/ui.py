@@ -7,6 +7,7 @@ from typing import Dict, List
 
 import streamlit as st
 
+from core.age import age_breakdown
 from core.config import DATA_DIR
 from core.io import load_events_from_json, load_persons_from_json
 from core.models.event import Event
@@ -32,9 +33,8 @@ user_age_days = (date.today() - birthdate).days
 matches = search_for_event_matching_age(EVENTS, user_age_days)
 
 # Show age
-years = user_age_days // 365
-days = user_age_days % 365
-st.markdown(f"You are **{years} years and {days} days** old today.")
+years, months, days = age_breakdown(birthdate, date.today())
+st.markdown(f"You are **{years} years, {months} months, and {days} days** old today.")
 
 # Show event
 if matches:

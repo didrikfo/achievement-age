@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from ast import literal_eval
 from datetime import date
 from typing import Dict, List
 
@@ -78,8 +77,24 @@ def save_to_json(filepath: str, data: List[Dict]) -> None:
 
 
 def parse_llm_output(llm_output_string: str) -> List[Dict]:
-    """Parse the LLM output string produced by llm_utils helpers."""
-    llm_output_parsed = literal_eval(llm_output_string)
-    assert isinstance(llm_output_parsed, list)
-    assert isinstance(llm_output_parsed[0], dict)
-    return llm_output_parsed
+    """Parse and validate the JSON array of objects produced by llm_utils helpers.
+
+    Raises ValueError (rather than crashing on a bare assertion) so callers can
+    catch a malformed response and retry or fall back.
+    """
+    cleaned = llm_output_string.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.strip("`")
+        if cleaned[:4].lower() == "json":
+            cleaned = cleaned[4:]
+        cleaned = cleaned.strip()
+
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"LLM output was not valid JSON: {exc}") from exc
+
+    if not isinstance(parsed, list) or not all(isinstance(item, dict) for item in parsed):
+        raise ValueError("LLM output must be a JSON array of objects.")
+
+    return parsed
