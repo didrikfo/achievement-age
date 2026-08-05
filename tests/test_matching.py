@@ -1,4 +1,8 @@
-from core.matching import name_matches_text, normalize_name
+from datetime import date
+
+from core.matching import events_by_age_days, name_matches_text, normalize_name
+from core.models.event import Event
+from core.models.person import Person
 
 
 def test_true_positive_with_punctuation():
@@ -16,3 +20,37 @@ def test_diacritic_normalization():
 
 def test_normalize_name_strips_diacritics_and_punctuation():
     assert normalize_name("José O'Brien") == "jose o brien"
+
+
+def _event(name, birth_date, event_date, display_text=""):
+    person = Person(
+        name=name,
+        birth_date=birth_date,
+        description="",
+        occupation="",
+        industry="",
+        domain="",
+    )
+    return Event(date=event_date, person=person, description="", display_text=display_text)
+
+
+def test_events_by_age_days_groups_by_age():
+    washington = _event("George Washington", date(1732, 2, 22), date(1776, 1, 1))
+    einstein = _event("Albert Einstein", date(1879, 3, 14), date(1905, 11, 21))
+
+    index = events_by_age_days([washington, einstein])
+
+    assert index[washington.age_at_event] == [washington]
+    assert index[einstein.age_at_event] == [einstein]
+
+
+def test_events_by_age_days_same_age_shares_bucket():
+    same_age_date = date(2000, 1, 1)
+    person_a = _event("Person A", date(1990, 1, 1), same_age_date)
+    person_b = _event("Person B", date(1985, 1, 1), date(1995, 1, 1))
+
+    assert person_a.age_at_event == person_b.age_at_event
+
+    index = events_by_age_days([person_a, person_b])
+
+    assert index[person_a.age_at_event] == [person_a, person_b]
