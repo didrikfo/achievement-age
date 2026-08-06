@@ -10,7 +10,7 @@ import streamlit as st
 
 from core.age import age_breakdown
 from core.db import create_subscription, fetch_events, get_subscription
-from core.matching import events_by_age_days
+from core.matching import events_by_age_days, full_sentence
 
 APP_BASE_URL = st.secrets.get("APP_BASE_URL", "")
 
@@ -71,7 +71,14 @@ def show_event_dialog(day_date: date, matches: List[Dict]) -> None:
         f"**{match_years} years, {match_months} months, {match_days} days** old:"
     )
     for event in matches:
-        st.markdown(f"- {event['display_text']}")
+        st.markdown(f"- {full_sentence(event)}")
+        description = event.get("detailed_description") or event.get("text")
+        if description:
+            st.caption(description)
+        person = event.get("persons") or {}
+        wikipedia_url = person.get("wikipedia_url")
+        if wikipedia_url:
+            st.markdown(f"[Read more on Wikipedia]({wikipedia_url})")
 
 
 today = date.today()
