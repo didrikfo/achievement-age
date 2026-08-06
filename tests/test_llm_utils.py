@@ -13,7 +13,7 @@ def test_merge_reworded_chunk_uses_result_and_falls_back(tmp_path):
 
     # Only the first record comes back reworded; the second is missing entirely.
     result = [
-        {**chunk[0], "display_text": "The same age that George Washington was when he hoisted the flag"},
+        {**chunk[0], "event_phrase": "he hoisted the flag over Prospect Hill"},
     ]
     result_path = tmp_path / "chunk_0000_result.json"
     result_path.write_text(json.dumps(result), encoding="utf-8")
@@ -26,10 +26,8 @@ def test_merge_reworded_chunk_uses_result_and_falls_back(tmp_path):
     merged = json.loads(displayable_path.read_text(encoding="utf-8"))
     by_name = {event["name"]: event for event in merged}
 
-    assert by_name["George Washington"]["display_text"] == (
-        "The same age that George Washington was when he hoisted the flag"
-    )
-    assert by_name["Anton Chekhov"]["display_text"] == "The same age that Anton Chekhov was when wrote a play"
+    assert by_name["George Washington"]["event_phrase"] == "he hoisted the flag over Prospect Hill"
+    assert by_name["Anton Chekhov"]["event_phrase"] == "wrote a play"
 
 
 def test_merge_reworded_chunk_falls_back_on_missing_result_file(tmp_path):
@@ -44,13 +42,13 @@ def test_merge_reworded_chunk_falls_back_on_missing_result_file(tmp_path):
 
     assert merged_count == 1
     merged = json.loads(displayable_path.read_text(encoding="utf-8"))
-    assert merged[0]["display_text"] == "The same age that Ada Lovelace was when published notes"
+    assert merged[0]["event_phrase"] == "published notes"
 
 
 def test_merge_reworded_chunk_appends_to_existing_file(tmp_path):
     displayable_path = tmp_path / "displayable_events.json"
     displayable_path.write_text(
-        json.dumps([{"name": "Existing Person", "text": "did something", "display_text": "already here"}]),
+        json.dumps([{"name": "Existing Person", "text": "did something", "event_phrase": "already here"}]),
         encoding="utf-8",
     )
 

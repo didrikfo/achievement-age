@@ -20,7 +20,7 @@ def _to_event_row(entry: Dict) -> Dict:
     return {
         "name": entry["name"],
         "text": entry["text"],
-        "display_text": entry["display_text"],
+        "event_phrase": entry["event_phrase"],
         "year": int(entry["year"]),
         "month": int(entry["month"]),
         "day": int(entry["day"]),

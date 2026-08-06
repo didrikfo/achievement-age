@@ -25,19 +25,21 @@ def _event_key(event: Dict) -> Tuple[object, object]:
     return (event.get("name"), event.get("text"))
 
 
-def _fallback_display_text(event: Dict) -> str:
-    """Deterministic display_text used when a subagent can't produce usable output."""
+def _fallback_event_phrase(event: Dict) -> str:
+    """Deterministic event_phrase suffix used when a subagent can't produce usable output.
+
+    Returns only the fragment that goes after "The same age that {name} was when " —
+    that static prefix is built at display time by core.matching.full_sentence, not stored.
+    """
     text = event.get("text", "") or ""
-    name = event.get("name", "")
-    lowered = text[:1].lower() + text[1:] if text else text
-    return f"The same age that {name} was when {lowered}"
+    return text[:1].lower() + text[1:] if text else text
 
 
 def get_pending_events(
     events_path=DATA_DIR / "events_with_age.json",
     displayable_path=DATA_DIR / "displayable_events.json",
 ) -> Tuple[List[Dict], List[Dict]]:
-    """Return (already_processed, pending) events, split by whether display_text exists."""
+    """Return (already_processed, pending) events, split by whether event_phrase exists."""
     all_events = load_json(events_path)
     try:
         processed = load_json(displayable_path)
@@ -53,7 +55,7 @@ def prepare_reword_chunks(chunk_size: int = CHUNK_SIZE, max_events: int | None =
     """Split pending events into numbered chunk files for a subagent to process.
 
     Returns the chunk file paths. Each is a JSON array of event records still
-    missing display_text.
+    missing event_phrase.
     """
     _, pending = get_pending_events()
     if max_events is not None:
@@ -75,7 +77,7 @@ def merge_reworded_chunk(chunk_path, result_path, displayable_path=DATA_DIR / "d
     Records are matched back to the original chunk by (name, text), not by
     list order/position, so a subagent that drops or reorders a record is
     still handled correctly. Any record that doesn't come back with a usable
-    display_text (missing result file, invalid JSON, or a blank field) gets
+    event_phrase (missing result file, invalid JSON, or a blank field) gets
     the deterministic fallback template instead. Returns how many records
     were merged.
     """
@@ -91,10 +93,10 @@ def merge_reworded_chunk(chunk_path, result_path, displayable_path=DATA_DIR / "d
     merged: List[Dict] = []
     for event in chunk:
         result = reworded_by_key.get(_event_key(event))
-        if result and result.get("display_text"):
+        if result and result.get("event_phrase"):
             merged.append(result)
         else:
-            merged.append({**event, "display_text": _fallback_display_text(event)})
+            merged.append({**event, "event_phrase": _fallback_event_phrase(event)})
 
     try:
         existing = load_json(displayable_path)
