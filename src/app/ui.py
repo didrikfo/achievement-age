@@ -20,6 +20,8 @@ from core.age import age_breakdown
 from core.db import create_subscription, fetch_events, get_config_value, get_subscription
 from core.matching import events_by_age_days, full_sentence
 
+from app.styles import MASTHEAD_HTML, PAGE_CSS
+
 APP_BASE_URL = get_config_value("APP_BASE_URL", default="")
 
 
@@ -30,7 +32,8 @@ def load_events() -> List[Dict]:
 
 EVENTS_BY_AGE: Dict[int, List[Dict]] = events_by_age_days(load_events())
 
-st.title("Achievement Age Calendar")
+st.markdown(PAGE_CSS, unsafe_allow_html=True)
+st.markdown(MASTHEAD_HTML, unsafe_allow_html=True)
 
 st.write(
     "Enter your birthday, then browse the calendar for days when you were "
@@ -66,9 +69,12 @@ else:
 
 # Show age
 years, months, days = age_breakdown(birthdate, date.today())
-st.markdown(f"You are **{years} years, {months} months, and {days} days** old today.")
+st.markdown(
+    f"<p class='aa-age'>You are <b>{years} years, {months} months, and {days} days</b> old today.</p>",
+    unsafe_allow_html=True,
+)
 
-st.caption("⭐ marks a day that matches a historical event - click it for details. 🔵 marks today.")
+st.caption("A red circle marks a day that matches a historical event — click it for details. A filled black date marks today.")
 
 
 @st.dialog("Matching event")
@@ -98,18 +104,20 @@ if "view_month" not in st.session_state:
 nav_prev, nav_month, nav_year, nav_next = st.columns([1, 2, 2, 1])
 
 with nav_prev:
-    if st.button("◀", use_container_width=True):
-        st.session_state.view_month -= 1
-        if st.session_state.view_month < 1:
-            st.session_state.view_month = 12
-            st.session_state.view_year -= 1
+    with st.container(key="nav-prev"):
+        if st.button("‹", use_container_width=True):
+            st.session_state.view_month -= 1
+            if st.session_state.view_month < 1:
+                st.session_state.view_month = 12
+                st.session_state.view_year -= 1
 
 with nav_next:
-    if st.button("▶", use_container_width=True):
-        st.session_state.view_month += 1
-        if st.session_state.view_month > 12:
-            st.session_state.view_month = 1
-            st.session_state.view_year += 1
+    with st.container(key="nav-next"):
+        if st.button("›", use_container_width=True):
+            st.session_state.view_month += 1
+            if st.session_state.view_month > 12:
+                st.session_state.view_month = 1
+                st.session_state.view_year += 1
 
 with nav_month:
     st.session_state.view_month = st.selectbox(
@@ -134,39 +142,46 @@ with nav_year:
 view_year = st.session_state.view_year
 view_month = st.session_state.view_month
 
-st.subheader(f"{calendar.month_name[view_month]} {view_year}")
+st.markdown(
+    f"<p class='aa-cal-heading'>{calendar.month_name[view_month].upper()} {view_year}</p>",
+    unsafe_allow_html=True,
+)
 
-weekday_cols = st.columns(7)
-for col, weekday_name in zip(weekday_cols, calendar.day_abbr):
-    col.markdown(f"**{weekday_name}**")
+with st.container(key="calendar-grid"):
+    weekday_cols = st.columns(7)
+    for col, weekday_name in zip(weekday_cols, calendar.day_abbr):
+        col.markdown(f"<div class='aa-cal-dow'>{weekday_name}</div>", unsafe_allow_html=True)
 
-for week in calendar.monthcalendar(view_year, view_month):
-    week_cols = st.columns(7)
-    for col, day in zip(week_cols, week):
-        if day == 0:
-            col.write("")
-            continue
+    for week in calendar.monthcalendar(view_year, view_month):
+        week_cols = st.columns(7)
+        for col, day in zip(week_cols, week):
+            if day == 0:
+                col.markdown("<div class='aa-cal-cell aa-blank'></div>", unsafe_allow_html=True)
+                continue
 
-        day_date = date(view_year, view_month, day)
-        age_days = (day_date - birthdate).days
-        day_matches = EVENTS_BY_AGE.get(age_days, [])
-        is_today = day_date == today
+            day_date = date(view_year, view_month, day)
+            age_days = (day_date - birthdate).days
+            day_matches = EVENTS_BY_AGE.get(age_days, [])
+            is_today = day_date == today
 
-        if day_matches:
-            label = f"{day} ⭐" + (" \U0001f535" if is_today else "")
-            if col.button(
-                label,
-                key=f"day_{view_year}_{view_month}_{day}",
-                type="primary",
-                use_container_width=True,
-            ):
-                show_event_dialog(day_date, day_matches)
-        elif is_today:
-            col.markdown(
-                "<div style='text-align:center; border-radius:50%; "
-                "background-color:#1c83e1; color:white; padding:4px 0;'>"
-                f"{day}</div>",
-                unsafe_allow_html=True,
-            )
-        else:
-            col.markdown(f"<div style='text-align:center;'>{day}</div>", unsafe_allow_html=True)
+            if day_matches and is_today:
+                with col.container(key=f"today-match-{view_year}-{view_month}-{day}"):
+                    if st.button(
+                        str(day),
+                        key=f"day_{view_year}_{view_month}_{day}",
+                        type="primary",
+                        use_container_width=True,
+                    ):
+                        show_event_dialog(day_date, day_matches)
+            elif day_matches:
+                if col.button(
+                    str(day),
+                    key=f"day_{view_year}_{view_month}_{day}",
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    show_event_dialog(day_date, day_matches)
+            elif is_today:
+                col.markdown(f"<div class='aa-cal-cell aa-today'>{day}</div>", unsafe_allow_html=True)
+            else:
+                col.markdown(f"<div class='aa-cal-cell'>{day}</div>", unsafe_allow_html=True)
