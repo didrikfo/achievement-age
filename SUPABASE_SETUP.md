@@ -55,7 +55,39 @@ python -m ingest.migrate_to_supabase
 
 Confirm in the Supabase table editor that `events` now has 1232 rows.
 
-## 3. Configure secrets
+## 3. Persons and event detail fields
+
+Run this in the SQL editor to add the `persons` table and the new optional event fields:
+
+```sql
+create table persons (
+    id bigint generated always as identity primary key,
+    name text not null unique,
+    wikipedia_url text,
+    created_at timestamptz not null default now()
+);
+
+alter table events add column person_id bigint references persons (id);
+alter table events add column detailed_description text;
+alter table events rename column display_text to event_phrase;
+```
+
+Then run the one-off backfill (same environment/credentials as the original migration):
+
+```bash
+python -m ingest.backfill_persons_and_phrases
+```
+
+This creates one `persons` row per distinct event name, links every event to its person, and
+splits each `event_phrase` value down to just the suffix after "The same age that {name} was
+when " (the prefix is now built at display time). Any row whose text didn't match that exact
+prefix is printed at the end instead of being silently mangled — check the output for stragglers
+and fix them by hand in the Supabase table editor if any show up.
+
+`wikipedia_url` (on `persons`) and `detailed_description` (on `events`) are left empty — fill
+them in later, e.g. via the Supabase table editor, as you get to it.
+
+## 4. Configure secrets
 
 **Streamlit Community Cloud** (App settings -> Secrets), as TOML:
 
@@ -71,11 +103,11 @@ APP_BASE_URL = "https://your-app-name.streamlit.app"
 
 For local development, create `.streamlit/secrets.toml` (already gitignored by Streamlit's default `.gitignore` template — double check it's not tracked) with the same three keys.
 
-## 4. Install ntfy
+## 5. Install ntfy
 
 Install the [ntfy app](https://ntfy.sh) (iOS/Android) or use the ntfy web app. No account needed — after clicking "Get notified" in the web app, subscribe to the topic name it shows you.
 
-## 5. Test end-to-end
+## 6. Test end-to-end
 
 - Run `streamlit run src/app/ui.py` locally, click "Get notified", subscribe to the shown topic in the ntfy app.
 - Manually trigger `.github/workflows/daily_notify.yml` from the GitHub Actions tab (`Run workflow`) — with a birthday chosen so today is a match, you should get a push notification within a few seconds.
