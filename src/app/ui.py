@@ -20,6 +20,8 @@ from core.age import age_breakdown
 from core.db import create_subscription, fetch_events, get_config_value, get_subscription
 from core.matching import events_by_age_days, full_sentence
 
+from app.styles import MASTHEAD_HTML, PAGE_CSS
+
 APP_BASE_URL = get_config_value("APP_BASE_URL", default="")
 
 
@@ -30,7 +32,8 @@ def load_events() -> List[Dict]:
 
 EVENTS_BY_AGE: Dict[int, List[Dict]] = events_by_age_days(load_events())
 
-st.title("Achievement Age Calendar")
+st.markdown(PAGE_CSS, unsafe_allow_html=True)
+st.markdown(MASTHEAD_HTML, unsafe_allow_html=True)
 
 st.write(
     "Enter your birthday, then browse the calendar for days when you were "
@@ -66,7 +69,10 @@ else:
 
 # Show age
 years, months, days = age_breakdown(birthdate, date.today())
-st.markdown(f"You are **{years} years, {months} months, and {days} days** old today.")
+st.markdown(
+    f"<p class='aa-age'>You are <b>{years} years, {months} months, and {days} days</b> old today.</p>",
+    unsafe_allow_html=True,
+)
 
 st.caption("⭐ marks a day that matches a historical event - click it for details. 🔵 marks today.")
 
