@@ -9,16 +9,18 @@ from typing import Dict, List
 import streamlit as st
 
 from core.age import age_breakdown
-from core.config import DATA_DIR
-from core.io import load_events_from_json, load_persons_from_json
+from core.db import create_subscription, fetch_events, get_subscription
 from core.matching import events_by_age_days
-from core.models.event import Event
-from core.models.person import Person
 
-# Load your preprocessed events file once at startup
-PERSONS: Dict[str, Person] = load_persons_from_json(DATA_DIR / "top_1000_births.json")
-EVENTS: List[Event] = load_events_from_json(DATA_DIR / "displayable_events.json", PERSONS)
-EVENTS_BY_AGE: Dict[int, List[Event]] = events_by_age_days(EVENTS)
+APP_BASE_URL = st.secrets.get("APP_BASE_URL", "")
+
+
+@st.cache_data(ttl=3600)
+def load_events() -> List[Dict]:
+    return fetch_events()
+
+
+EVENTS_BY_AGE: Dict[int, List[Dict]] = events_by_age_days(load_events())
 
 st.title("Achievement Age Calendar")
 
@@ -27,8 +29,32 @@ st.write(
     "(or will be) the same age as someone famous at a notable moment."
 )
 
-# Input
-birthdate = st.date_input("Your birthday", value=date(2000, 1, 1), min_value=date(1900, 1, 1))
+# Resolve identity: a magic-link token in the URL means a returning subscriber.
+token = st.query_params.get("u")
+subscription = get_subscription(token) if token else None
+
+if subscription:
+    birthdate = date.fromisoformat(subscription["birthday"])
+    st.caption("Welcome back — this link remembers your birthday.")
+else:
+    birthdate = st.date_input("Your birthday", value=date(2000, 1, 1), min_value=date(1900, 1, 1))
+
+    with st.expander("Get notified when your age matches an event"):
+        st.write(
+            "Get a push notification (via the free [ntfy](https://ntfy.sh) app) on days "
+            "when your age matches a historical event, without having to check the calendar yourself."
+        )
+        if st.button("Get notified"):
+            new_subscription = create_subscription(birthdate)
+            link = f"{APP_BASE_URL}?u={new_subscription['token']}"
+            st.success("Subscription created! Save this link and subscribe to your notification topic:")
+            st.code(link, language=None)
+            st.markdown(
+                f"1. **Bookmark or add this page to your home screen** — it remembers your birthday.\n"
+                f"2. Install the [ntfy app](https://ntfy.sh) and subscribe to the topic "
+                f"`{new_subscription['ntfy_topic']}`.\n"
+                f"3. You'll get a notification whenever your age matches an event."
+            )
 
 # Show age
 years, months, days = age_breakdown(birthdate, date.today())
@@ -38,14 +64,14 @@ st.caption("⭐ marks a day that matches a historical event - click it for detai
 
 
 @st.dialog("Matching event")
-def show_event_dialog(day_date: date, matches: List[Event]) -> None:
+def show_event_dialog(day_date: date, matches: List[Dict]) -> None:
     match_years, match_months, match_days = age_breakdown(birthdate, day_date)
     st.markdown(
         f"On **{day_date.strftime('%B %d, %Y')}** you are/were "
         f"**{match_years} years, {match_months} months, {match_days} days** old:"
     )
     for event in matches:
-        st.markdown(f"- {event.display_text}")
+        st.markdown(f"- {event['display_text']}")
 
 
 today = date.today()

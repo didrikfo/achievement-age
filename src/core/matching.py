@@ -6,19 +6,17 @@ import re
 import unicodedata
 from typing import Dict, Iterable, List
 
-from .models.event import Event
 
-
-def find_matching_events(events: Iterable[Event], age_in_days: int) -> List[Event]:
+def find_matching_events(events: Iterable[Dict], age_in_days: int) -> List[Dict]:
     """Return events where the person's age at the event matches age_in_days exactly."""
-    return [event for event in events if event.age_at_event == age_in_days]
+    return [event for event in events if event["age_days"] == age_in_days]
 
 
-def events_by_age_days(events: Iterable[Event]) -> Dict[int, List[Event]]:
-    """Group events by age_at_event so any day's age can be looked up in O(1)."""
-    index: Dict[int, List[Event]] = {}
+def events_by_age_days(events: Iterable[Dict]) -> Dict[int, List[Dict]]:
+    """Group events by age_days so any day's age can be looked up in O(1)."""
+    index: Dict[int, List[Dict]] = {}
     for event in events:
-        index.setdefault(event.age_at_event, []).append(event)
+        index.setdefault(event["age_days"], []).append(event)
     return index
 
 
