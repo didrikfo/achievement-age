@@ -75,6 +75,28 @@ PAGE_CSS = """
 [class*="st-key-today-match-"] button[data-testid="stBaseButton-primary"] {
     background: var(--aa-ink) !important; color: var(--aa-bg) !important;
 }
+
+/* Mobile fix: keep the calendar grid 7-wide at any viewport width.
+   Streamlit stacks stColumn to full-width below ~640px by default. */
+.st-key-calendar-grid [data-testid="stHorizontalBlock"] {
+    gap: 0 !important;
+    flex-wrap: nowrap !important;
+}
+.st-key-calendar-grid [data-testid="stColumn"] {
+    min-width: 0 !important;
+    flex: 1 1 0 !important;
+}
+
+@media (max-width: 480px) {
+    .aa-masthead-title { font-size: 24px; }
+    .aa-cal-cell,
+    .st-key-calendar-grid button[data-testid="stBaseButton-primary"] {
+        font-size: 12px;
+    }
+    .st-key-calendar-grid button[data-testid="stBaseButton-primary"]::before {
+        width: 24px; height: 24px; margin: -12px 0 0 -12px; border-width: 2px;
+    }
+}
 </style>
 """
 
