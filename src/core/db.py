@@ -38,9 +38,9 @@ def get_client() -> Client:
 
 
 def fetch_events() -> List[Dict]:
-    """Return every row from the events table."""
+    """Return every row from the events table, joined with each event's person data."""
     client = get_client()
-    response = client.table("events").select("*").execute()
+    response = client.table("events").select("*, persons(wikipedia_url)").execute()
     return response.data
 
 
