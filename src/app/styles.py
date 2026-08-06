@@ -22,6 +22,12 @@ PAGE_CSS = """
     font-family: Georgia, 'Times New Roman', serif;
     color: var(--aa-ink);
 }
+/* Streamlit renders icons (e.g. the expander's toggle chevron) as ligature
+   text in this font - the blanket font-family override above breaks the
+   ligature and shows the raw icon name ("keyboard_arrow_down") instead. */
+[data-testid="stAppViewContainer"] [data-testid="stIconMaterial"] {
+    font-family: 'Material Symbols Rounded' !important;
+}
 
 /* Masthead */
 .aa-masthead { text-align: center; margin-bottom: 4px; }
