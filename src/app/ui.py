@@ -3,8 +3,16 @@
 from __future__ import annotations
 
 import calendar
+import sys
 from datetime import date
+from pathlib import Path
 from typing import Dict, List
+
+# Streamlit Community Cloud only runs `pip install -r requirements.txt`, not
+# `pip install -e .` - so unlike local dev, src/ never lands on sys.path on
+# its own. Add it here so `core`/`ingest` imports work regardless of how the
+# app was installed.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st
 
