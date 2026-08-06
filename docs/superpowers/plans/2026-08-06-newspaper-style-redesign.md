@@ -6,15 +6,17 @@
 
 **Architecture:** All CSS and static HTML fragments live in a new `src/app/styles.py` module, injected once via `st.markdown(..., unsafe_allow_html=True)`. `ui.py` keeps its existing control flow (same `st.button`/`st.dialog` interaction model) but swaps inline styles/emoji for CSS classes and wraps the calendar grid in a keyed `st.container` so CSS can target it specifically. No changes to `core/` or `ingest/` — this is a presentation-only change.
 
-**Tech Stack:** Streamlit 1.45.1, plain CSS injected via `unsafe_allow_html=True`. No new dependencies.
+**Tech Stack:** Streamlit (`requirements.txt` has no version pin — this worktree's fresh `pip install` resolved 1.61.1; do not assume 1.45.1, which was installed in the original checkout's older venv). All DOM selectors below were re-verified live against 1.61.1 in this worktree before any task was dispatched. Plain CSS injected via `unsafe_allow_html=True`. No new dependencies.
 
 ## Global Constraints
 
 - Light theme only. Dark theme is explicitly out of scope (deferred to a future pass).
 - Font stack is `Georgia, 'Times New Roman', serif` everywhere — no external/Google Fonts (avoids a CDN dependency on Streamlit Community Cloud).
 - Palette: background `#f2efe6`, ink `#1a1a1a`, accent `#a01f1f`.
-- `st.container(key="calendar-grid")` produces a wrapper `<div>` with CSS class `st-key-calendar-grid` — verified live against Streamlit 1.45.1 in this repo's venv.
+- `st.container(key="calendar-grid")` produces a wrapper `<div>` with CSS class `st-key-calendar-grid` — verified live against the installed Streamlit 1.61.1 in this worktree's venv.
 - Match-day buttons use `type="primary"` and render with `data-testid="stBaseButton-primary"`; all other buttons (`type` unset/`"secondary"`) render `data-testid="stBaseButton-secondary"` — verified live.
+- The birthday `st.date_input` still exposes `[data-testid="stDateInput"] [data-baseweb="base-input"]` — verified live, unchanged from earlier Streamlit versions.
+- **`st.selectbox` no longer uses BaseWeb** in this version — it was rewritten to React Aria. There is no `[data-baseweb="select"]` element inside it anymore. The stable hook, verified live, is `[data-testid="stSelectbox"] [role="group"]` (the one non-template, visibly-rendered control wrapper — confirmed via `getBoundingClientRect` to be the real 343x40px rendered box, not the inert `<template>` duplicate Streamlit also renders internally).
 - Every match day must remain a real `st.button` (not a static div) so `show_event_dialog` still fires on click. Only non-match days (blank padding + plain + today-only) may be static `st.markdown` divs, matching current behavior.
 - No change to `core.age`, `core.matching`, `core.db`, or any test in `tests/` — this plan touches only `src/app/ui.py` and the new `src/app/styles.py`. No test file currently imports `app.ui` (confirmed via grep), so `pytest` must still pass unmodified at the end.
 - Verification in this plan is browser-based (via the project's Streamlit dev server, `.claude/launch.json` config `achievement-age-streamlit`, port 8517) rather than pytest, since this is a pure styling/layout change with no unit-testable logic. Each task's verification step gives exact DOM/computed-style assertions to check, not just "looks right".
@@ -421,7 +423,7 @@ git commit -m "Fix calendar grid collapsing to a vertical list on mobile widths"
 
 /* Birthday date input, month/year selects, notify expander: thin ink borders */
 [data-testid="stDateInput"] [data-baseweb="base-input"],
-[data-testid="stSelectbox"] [data-baseweb="select"] > div {
+[data-testid="stSelectbox"] [role="group"] {
     border: 1px solid var(--aa-ink) !important;
     border-radius: 2px !important;
     box-shadow: none !important;
