@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from core.config import DATA_DIR
-from core.io import load_json
+from core.io import load_json, save_to_json
 from core.matching import name_matches_text, normalize_name
 from ingest.pipeline import calculate_age
 
@@ -103,3 +103,21 @@ def resolve_subject(
         return None, f"could not compute a valid age for {suggested_name!r}"
 
     return {"name": birth["name"], "age_days": age_days}, None
+
+
+def write_review_entries(entries: List[Dict], review_path: Path) -> None:
+    """Append entries to the enrichment review report, creating it if missing."""
+    if not entries:
+        return
+    try:
+        existing = load_json(review_path)
+    except FileNotFoundError:
+        existing = []
+    existing.extend(entries)
+    review_path.parent.mkdir(parents=True, exist_ok=True)
+    save_to_json(review_path, existing)
+
+
+def build_tag_rows(event_id: int, tags: List[str], tag_name_to_id: Dict[str, int]) -> List[Dict]:
+    """Build event_tags insert rows for one event's validated tag names."""
+    return [{"event_id": event_id, "tag_id": tag_name_to_id[tag]} for tag in tags if tag in tag_name_to_id]

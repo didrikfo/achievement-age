@@ -1,4 +1,6 @@
-from ingest.enrichment import TAG_TAXONOMY, validate_tags, resolve_subject, build_prompt
+import json
+
+from ingest.enrichment import TAG_TAXONOMY, validate_tags, resolve_subject, build_prompt, build_tag_rows, write_review_entries
 
 
 def _births_lookup():
@@ -82,3 +84,36 @@ def test_build_prompt_substitutes_tag_list():
     assert "{tags}" not in prompt
     for tag in TAG_TAXONOMY:
         assert tag in prompt
+
+
+def test_write_review_entries_creates_file(tmp_path):
+    review_path = tmp_path / "sub" / "review.json"
+    write_review_entries([{"issue_type": "tags", "detail": "x"}], review_path)
+    assert json.loads(review_path.read_text(encoding="utf-8")) == [{"issue_type": "tags", "detail": "x"}]
+
+
+def test_write_review_entries_appends_to_existing(tmp_path):
+    review_path = tmp_path / "review.json"
+    review_path.write_text(json.dumps([{"issue_type": "tags", "detail": "first"}]), encoding="utf-8")
+    write_review_entries([{"issue_type": "subject", "detail": "second"}], review_path)
+    result = json.loads(review_path.read_text(encoding="utf-8"))
+    assert result == [
+        {"issue_type": "tags", "detail": "first"},
+        {"issue_type": "subject", "detail": "second"},
+    ]
+
+
+def test_write_review_entries_noop_on_empty_list(tmp_path):
+    review_path = tmp_path / "review.json"
+    write_review_entries([], review_path)
+    assert not review_path.exists()
+
+
+def test_build_tag_rows_maps_names_to_ids():
+    rows = build_tag_rows(42, ["science", "military"], {"science": 5, "military": 9})
+    assert rows == [{"event_id": 42, "tag_id": 5}, {"event_id": 42, "tag_id": 9}]
+
+
+def test_build_tag_rows_skips_unknown_tag_names():
+    rows = build_tag_rows(42, ["science", "not-seeded-yet"], {"science": 5})
+    assert rows == [{"event_id": 42, "tag_id": 5}]
