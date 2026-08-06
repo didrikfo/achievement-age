@@ -35,6 +35,46 @@ PAGE_CSS = """
 
 /* Age line accent */
 .aa-age b { border-bottom: 1px solid var(--aa-accent); color: var(--aa-accent); }
+
+/* Calendar grid: table borders */
+.st-key-calendar-grid { border-top: 1px solid var(--aa-ink); border-left: 1px solid var(--aa-ink); }
+.st-key-calendar-grid [data-testid="stColumn"] {
+    border-right: 1px solid var(--aa-ink);
+    border-bottom: 1px solid var(--aa-ink);
+}
+
+/* Day-of-week header cells */
+.aa-cal-dow {
+    text-align: center; font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+    padding: 5px 0; background: var(--aa-ink); color: var(--aa-bg);
+}
+
+/* Plain / blank / today calendar cells (non-interactive divs) */
+.aa-cal-cell {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    font-size: 14px; width: 100%;
+}
+.aa-cal-cell.aa-blank {
+    background: repeating-linear-gradient(135deg, transparent, transparent 4px, #1a1a1a08 4px, #1a1a1a08 5px);
+}
+.aa-cal-cell.aa-today { background: var(--aa-ink); color: var(--aa-bg); font-weight: 700; }
+
+/* Match-day buttons (type="primary") get the hand-circled-in-red-pen mark */
+.st-key-calendar-grid button[data-testid="stBaseButton-primary"] {
+    position: relative; aspect-ratio: 1; width: 100%;
+    background: transparent !important; border: none !important; box-shadow: none !important;
+    color: var(--aa-accent) !important; font-weight: 700;
+}
+.st-key-calendar-grid button[data-testid="stBaseButton-primary"]::before {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    width: 30px; height: 30px; margin: -15px 0 0 -15px;
+    border: 2.5px solid var(--aa-accent); border-radius: 50%; transform: rotate(-8deg);
+}
+
+/* A day that is both today AND a match: black fill, still red-circled */
+[class*="st-key-today-match-"] button[data-testid="stBaseButton-primary"] {
+    background: var(--aa-ink) !important; color: var(--aa-bg) !important;
+}
 </style>
 """
 

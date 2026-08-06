@@ -74,7 +74,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.caption("⭐ marks a day that matches a historical event - click it for details. 🔵 marks today.")
+st.caption("A red circle marks a day that matches a historical event — click it for details. A filled black date marks today.")
 
 
 @st.dialog("Matching event")
@@ -142,37 +142,41 @@ view_month = st.session_state.view_month
 
 st.subheader(f"{calendar.month_name[view_month]} {view_year}")
 
-weekday_cols = st.columns(7)
-for col, weekday_name in zip(weekday_cols, calendar.day_abbr):
-    col.markdown(f"**{weekday_name}**")
+with st.container(key="calendar-grid"):
+    weekday_cols = st.columns(7)
+    for col, weekday_name in zip(weekday_cols, calendar.day_abbr):
+        col.markdown(f"<div class='aa-cal-dow'>{weekday_name}</div>", unsafe_allow_html=True)
 
-for week in calendar.monthcalendar(view_year, view_month):
-    week_cols = st.columns(7)
-    for col, day in zip(week_cols, week):
-        if day == 0:
-            col.write("")
-            continue
+    for week in calendar.monthcalendar(view_year, view_month):
+        week_cols = st.columns(7)
+        for col, day in zip(week_cols, week):
+            if day == 0:
+                col.markdown("<div class='aa-cal-cell aa-blank'></div>", unsafe_allow_html=True)
+                continue
 
-        day_date = date(view_year, view_month, day)
-        age_days = (day_date - birthdate).days
-        day_matches = EVENTS_BY_AGE.get(age_days, [])
-        is_today = day_date == today
+            day_date = date(view_year, view_month, day)
+            age_days = (day_date - birthdate).days
+            day_matches = EVENTS_BY_AGE.get(age_days, [])
+            is_today = day_date == today
 
-        if day_matches:
-            label = f"{day} ⭐" + (" \U0001f535" if is_today else "")
-            if col.button(
-                label,
-                key=f"day_{view_year}_{view_month}_{day}",
-                type="primary",
-                use_container_width=True,
-            ):
-                show_event_dialog(day_date, day_matches)
-        elif is_today:
-            col.markdown(
-                "<div style='text-align:center; border-radius:50%; "
-                "background-color:#1c83e1; color:white; padding:4px 0;'>"
-                f"{day}</div>",
-                unsafe_allow_html=True,
-            )
-        else:
-            col.markdown(f"<div style='text-align:center;'>{day}</div>", unsafe_allow_html=True)
+            if day_matches and is_today:
+                with col.container(key=f"today-match-{view_year}-{view_month}-{day}"):
+                    if st.button(
+                        str(day),
+                        key=f"day_{view_year}_{view_month}_{day}",
+                        type="primary",
+                        use_container_width=True,
+                    ):
+                        show_event_dialog(day_date, day_matches)
+            elif day_matches:
+                if col.button(
+                    str(day),
+                    key=f"day_{view_year}_{view_month}_{day}",
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    show_event_dialog(day_date, day_matches)
+            elif is_today:
+                col.markdown(f"<div class='aa-cal-cell aa-today'>{day}</div>", unsafe_allow_html=True)
+            else:
+                col.markdown(f"<div class='aa-cal-cell'>{day}</div>", unsafe_allow_html=True)
