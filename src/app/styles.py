@@ -97,6 +97,28 @@ PAGE_CSS = """
         width: 24px; height: 24px; margin: -12px 0 0 -12px; border-width: 2px;
     }
 }
+
+/* Nav prev/next arrows: minimal, no button chrome */
+.st-key-nav-prev button[data-testid="stBaseButton-secondary"],
+.st-key-nav-next button[data-testid="stBaseButton-secondary"] {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    font-size: 15px;
+    opacity: .6;
+}
+
+/* Birthday date input, month/year selects, notify expander: thin ink borders */
+[data-testid="stDateInput"] [data-baseweb="base-input"],
+[data-testid="stSelectbox"] [role="group"] {
+    border: 1px solid var(--aa-ink) !important;
+    border-radius: 2px !important;
+    box-shadow: none !important;
+}
+[data-testid="stExpander"] {
+    border: 1px solid var(--aa-ink) !important;
+    border-radius: 2px !important;
+}
 </style>
 """
 

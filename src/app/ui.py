@@ -104,18 +104,20 @@ if "view_month" not in st.session_state:
 nav_prev, nav_month, nav_year, nav_next = st.columns([1, 2, 2, 1])
 
 with nav_prev:
-    if st.button("◀", use_container_width=True):
-        st.session_state.view_month -= 1
-        if st.session_state.view_month < 1:
-            st.session_state.view_month = 12
-            st.session_state.view_year -= 1
+    with st.container(key="nav-prev"):
+        if st.button("◀", use_container_width=True):
+            st.session_state.view_month -= 1
+            if st.session_state.view_month < 1:
+                st.session_state.view_month = 12
+                st.session_state.view_year -= 1
 
 with nav_next:
-    if st.button("▶", use_container_width=True):
-        st.session_state.view_month += 1
-        if st.session_state.view_month > 12:
-            st.session_state.view_month = 1
-            st.session_state.view_year += 1
+    with st.container(key="nav-next"):
+        if st.button("▶", use_container_width=True):
+            st.session_state.view_month += 1
+            if st.session_state.view_month > 12:
+                st.session_state.view_month = 1
+                st.session_state.view_year += 1
 
 with nav_month:
     st.session_state.view_month = st.selectbox(
