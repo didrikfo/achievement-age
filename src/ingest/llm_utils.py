@@ -1,6 +1,6 @@
 """LLM helpers used during data preparation.
 
-Rewording (adding display_text to matched events) is done by spawning Claude
+Rewording (adding event_phrase to matched events) is done by spawning Claude
 Haiku subagents from within a Claude Code session - see prepare_reword_chunks
 and merge_reworded_chunk. This module has no network/API-calling code itself;
 it only prepares chunk files for a subagent to process and merges the result

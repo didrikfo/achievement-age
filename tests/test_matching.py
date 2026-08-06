@@ -20,11 +20,11 @@ def test_normalize_name_strips_diacritics_and_punctuation():
     assert normalize_name("José O'Brien") == "jose o brien"
 
 
-def _event(name, birth_date, event_date, display_text=""):
+def _event(name, birth_date, event_date, event_phrase=""):
     return {
         "name": name,
         "age_days": (event_date - birth_date).days,
-        "display_text": display_text,
+        "event_phrase": event_phrase,
     }
 
 

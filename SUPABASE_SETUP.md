@@ -10,7 +10,7 @@ create table events (
     id bigint generated always as identity primary key,
     name text not null,
     text text not null,
-    display_text text not null,
+    event_phrase text not null,
     year int not null,
     month int not null,
     day int not null,
@@ -57,7 +57,12 @@ Confirm in the Supabase table editor that `events` now has 1232 rows.
 
 ## 3. Persons and event detail fields
 
-Run this in the SQL editor to add the `persons` table and the new optional event fields:
+Run this in the SQL editor to add the `persons` table and the new optional event fields.
+This SQL and the backfill script below must be run before deploying/merging the updated
+application code: the app's `fetch_events()` queries a `persons` join that doesn't exist
+until this SQL runs, and both the Streamlit UI and the daily notification script call
+`fetch_events()` — running the new app code against a database missing this SQL will crash
+the whole app.
 
 ```sql
 create table persons (
@@ -69,7 +74,6 @@ create table persons (
 
 alter table events add column person_id bigint references persons (id);
 alter table events add column detailed_description text;
-alter table events rename column display_text to event_phrase;
 ```
 
 Then run the one-off backfill (same environment/credentials as the original migration):

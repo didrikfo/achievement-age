@@ -14,6 +14,27 @@ from typing import Dict, List, Optional, Tuple
 
 from core.db import get_client
 
+EVENTS_PAGE_SIZE = 1000
+
+
+def _fetch_all_events(client) -> List[Dict]:
+    """Page through all events (Supabase/PostgREST caps a single response at ~1000 rows)."""
+    events: List[Dict] = []
+    start = 0
+    while True:
+        page = (
+            client.table("events")
+            .select("id, name, event_phrase")
+            .range(start, start + EVENTS_PAGE_SIZE - 1)
+            .execute()
+            .data
+        )
+        events.extend(page)
+        if len(page) < EVENTS_PAGE_SIZE:
+            break
+        start += EVENTS_PAGE_SIZE
+    return events
+
 
 def expected_prefix(name: str) -> str:
     """The static prefix that used to be baked into every display_text value."""
@@ -36,7 +57,7 @@ def build_person_rows(names: List[str]) -> List[Dict]:
 def main() -> None:
     client = get_client()
 
-    events = client.table("events").select("id, name, event_phrase").execute().data
+    events = _fetch_all_events(client)
 
     # 1. One persons row per distinct name (does not attempt to split real name collisions).
     person_rows = build_person_rows([event["name"] for event in events])
