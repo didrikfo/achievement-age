@@ -53,11 +53,30 @@ def get_client() -> Client:
     return create_client(url, key)
 
 
+EVENTS_PAGE_SIZE = 1000
+
+
 def fetch_events() -> List[Dict]:
-    """Return every row from the events table, joined with each event's person data."""
+    """Return every row from the events table, joined with each event's person data.
+
+    Paginates because Supabase/PostgREST caps a single response at ~1000 rows.
+    """
     client = get_client()
-    response = client.table("events").select("*, persons(wikipedia_url)").execute()
-    return response.data
+    events: List[Dict] = []
+    start = 0
+    while True:
+        page = (
+            client.table("events")
+            .select("*, persons(wikipedia_url)")
+            .range(start, start + EVENTS_PAGE_SIZE - 1)
+            .execute()
+            .data
+        )
+        events.extend(page)
+        if len(page) < EVENTS_PAGE_SIZE:
+            break
+        start += EVENTS_PAGE_SIZE
+    return events
 
 
 def fetch_tags() -> List[Dict]:
