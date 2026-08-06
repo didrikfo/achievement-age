@@ -105,7 +105,7 @@ nav_prev, nav_month, nav_year, nav_next = st.columns([1, 2, 2, 1])
 
 with nav_prev:
     with st.container(key="nav-prev"):
-        if st.button("◀", use_container_width=True):
+        if st.button("‹", use_container_width=True):
             st.session_state.view_month -= 1
             if st.session_state.view_month < 1:
                 st.session_state.view_month = 12
@@ -113,7 +113,7 @@ with nav_prev:
 
 with nav_next:
     with st.container(key="nav-next"):
-        if st.button("▶", use_container_width=True):
+        if st.button("›", use_container_width=True):
             st.session_state.view_month += 1
             if st.session_state.view_month > 12:
                 st.session_state.view_month = 1
@@ -142,7 +142,10 @@ with nav_year:
 view_year = st.session_state.view_year
 view_month = st.session_state.view_month
 
-st.subheader(f"{calendar.month_name[view_month]} {view_year}")
+st.markdown(
+    f"<p class='aa-cal-heading'>{calendar.month_name[view_month].upper()} {view_year}</p>",
+    unsafe_allow_html=True,
+)
 
 with st.container(key="calendar-grid"):
     weekday_cols = st.columns(7)

@@ -63,8 +63,10 @@ PAGE_CSS = """
 .st-key-calendar-grid button[data-testid="stBaseButton-primary"] {
     position: relative; aspect-ratio: 1; width: 100%;
     background: transparent !important; border: none !important; box-shadow: none !important;
-    color: var(--aa-accent) !important; font-weight: 700;
+    font-weight: 700;
 }
+.st-key-calendar-grid button[data-testid="stBaseButton-primary"],
+.st-key-calendar-grid button[data-testid="stBaseButton-primary"] * { color: var(--aa-accent) !important; }
 .st-key-calendar-grid button[data-testid="stBaseButton-primary"]::before {
     content: ''; position: absolute; top: 50%; left: 50%;
     width: 30px; height: 30px; margin: -15px 0 0 -15px;
@@ -73,8 +75,10 @@ PAGE_CSS = """
 
 /* A day that is both today AND a match: black fill, still red-circled */
 [class*="st-key-today-match-"] button[data-testid="stBaseButton-primary"] {
-    background: var(--aa-ink) !important; color: var(--aa-bg) !important;
+    background: var(--aa-ink) !important;
 }
+[class*="st-key-today-match-"] button[data-testid="stBaseButton-primary"],
+[class*="st-key-today-match-"] button[data-testid="stBaseButton-primary"] * { color: var(--aa-bg) !important; }
 
 /* Mobile fix: keep the calendar grid 7-wide at any viewport width.
    Streamlit stacks stColumn to full-width below ~640px by default. */
@@ -118,6 +122,10 @@ PAGE_CSS = """
 [data-testid="stExpander"] {
     border: 1px solid var(--aa-ink) !important;
     border-radius: 2px !important;
+}
+
+.aa-cal-heading {
+    font-weight: 700; letter-spacing: .05em; text-align: center; margin: 0 0 10px 0;
 }
 </style>
 """
