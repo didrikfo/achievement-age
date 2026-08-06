@@ -7,4 +7,5 @@ data/
 !data/top_1000_births.json
 .streamlit/secrets.toml
 .worktrees/
+.claude/worktrees/
 .superpowers/
