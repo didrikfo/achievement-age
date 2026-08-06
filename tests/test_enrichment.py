@@ -1,4 +1,4 @@
-from ingest.enrichment import validate_tags, resolve_subject
+from ingest.enrichment import TAG_TAXONOMY, validate_tags, resolve_subject, build_prompt
 
 
 def _births_lookup():
@@ -75,3 +75,10 @@ def test_validate_tags_handles_empty_input():
     valid, reason = validate_tags([])
     assert valid == []
     assert reason == "no valid tags in []"
+
+
+def test_build_prompt_substitutes_tag_list():
+    prompt = build_prompt()
+    assert "{tags}" not in prompt
+    for tag in TAG_TAXONOMY:
+        assert tag in prompt

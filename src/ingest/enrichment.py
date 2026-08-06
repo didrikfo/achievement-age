@@ -17,11 +17,19 @@ from core.io import load_json
 from core.matching import name_matches_text, normalize_name
 from ingest.pipeline import calculate_age
 
+PROMPT_TEMPLATE_PATH = Path(__file__).parent / "reword_prompt.md"
+
 TAG_TAXONOMY = [
     "military", "politics", "science", "technology", "exploration", "space", "arts", "music",
     "film", "sports", "religion", "royalty", "economics", "law", "disaster", "health", "social",
     "education", "philosophy", "engineering",
 ]
+
+
+def build_prompt() -> str:
+    """Read reword_prompt.md and substitute the {tags} placeholder with TAG_TAXONOMY."""
+    template = PROMPT_TEMPLATE_PATH.read_text(encoding="utf-8")
+    return template.replace("{tags}", ", ".join(TAG_TAXONOMY))
 
 
 def validate_tags(raw_tags: List[str]) -> Tuple[List[str], Optional[str]]:
