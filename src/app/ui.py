@@ -9,10 +9,10 @@ from typing import Dict, List
 import streamlit as st
 
 from core.age import age_breakdown
-from core.db import create_subscription, fetch_events, get_subscription
+from core.db import create_subscription, fetch_events, get_config_value, get_subscription
 from core.matching import events_by_age_days, full_sentence
 
-APP_BASE_URL = st.secrets.get("APP_BASE_URL", "")
+APP_BASE_URL = get_config_value("APP_BASE_URL", default="")
 
 
 @st.cache_data(ttl=3600)

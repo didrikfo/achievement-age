@@ -3,7 +3,10 @@
 Used both by the Streamlit app (reads SUPABASE_URL/SUPABASE_KEY from
 st.secrets) and by standalone scripts like the ingest migration and the
 daily-notification cron job (reads the same two values from the
-environment, since those run outside of Streamlit).
+environment, since those run outside of Streamlit). A local .env file
+(see .env at the repo root) is loaded into the environment automatically,
+so a single .env covers both local `streamlit run` and standalone scripts
+without needing .streamlit/secrets.toml too.
 """
 
 from __future__ import annotations
@@ -13,10 +16,21 @@ import secrets
 from datetime import date
 from typing import Dict, List, Optional
 
+from dotenv import load_dotenv
 from supabase import Client, create_client
 
+load_dotenv()
 
-def _get_config_value(key: str) -> str:
+
+def get_config_value(key: str, default: str | None = None) -> str:
+    """Look up a config value from st.secrets, then the environment.
+
+    Safe to call whether or not .streamlit/secrets.toml exists at all —
+    accessing st.secrets when there's no secrets file raises, not just a
+    missing-key lookup, so that's caught here too. If the key is missing
+    from both sources: returns `default` if one was given (for optional
+    values like APP_BASE_URL), otherwise raises.
+    """
     try:
         import streamlit as st
 
@@ -27,13 +41,15 @@ def _get_config_value(key: str) -> str:
 
     value = os.environ.get(key)
     if not value:
+        if default is not None:
+            return default
         raise RuntimeError(f"{key} is not set (checked st.secrets and the environment).")
     return value
 
 
 def get_client() -> Client:
-    url = _get_config_value("SUPABASE_URL")
-    key = _get_config_value("SUPABASE_KEY")
+    url = get_config_value("SUPABASE_URL")
+    key = get_config_value("SUPABASE_KEY")
     return create_client(url, key)
 
 

@@ -45,7 +45,10 @@ create table subscriptions (
 
 ## 2. Run the one-off data migration
 
-Locally, with `SUPABASE_URL`/`SUPABASE_KEY` set as environment variables (or in a `.env` you source):
+Locally, fill in `SUPABASE_URL`/`SUPABASE_KEY` in the `.env` file at the repo root (created for
+you, gitignored — `core/db.py` loads it automatically via `python-dotenv`, so this one file
+covers both standalone scripts and a local `streamlit run`, no `.streamlit/secrets.toml` needed
+for local dev):
 
 ```bash
 pip install -e .
@@ -105,7 +108,10 @@ APP_BASE_URL = "https://your-app-name.streamlit.app"
 
 **GitHub repo secrets** (Settings -> Secrets and variables -> Actions), same three: `SUPABASE_URL`, `SUPABASE_KEY`, `APP_BASE_URL`.
 
-For local development, create `.streamlit/secrets.toml` (already gitignored by Streamlit's default `.gitignore` template — double check it's not tracked) with the same three keys.
+Local development uses the `.env` file from step 2 (gitignored) for all three keys — no separate
+`.streamlit/secrets.toml` needed. `APP_BASE_URL` can be left blank locally; it's only used to
+build the "Click" link in a push notification and to build the magic-link signup URL, neither of
+which matters for local testing.
 
 ## 5. Install ntfy
 
