@@ -26,10 +26,10 @@ PAGE_CSS = """
 /* Masthead */
 .aa-masthead { text-align: center; margin-bottom: 4px; }
 .aa-masthead-title {
-    font-size: 34px; font-weight: 700; letter-spacing: .04em;
+    font-size: 34px !important; font-weight: 700; letter-spacing: .04em;
     text-transform: uppercase; margin: 0;
 }
-.aa-masthead-tagline { font-style: italic; font-size: 13px; opacity: .7; margin-top: 2px; }
+.aa-masthead-tagline { font-style: italic; font-size: 13px !important; opacity: .7; margin-top: 2px; }
 .aa-rule-thick { border: none; border-top: 3px solid var(--aa-ink); margin: 10px 0 3px 0; }
 .aa-rule-thin { border: none; border-top: 1px solid var(--aa-ink); margin: 0 0 14px 0; }
 
@@ -88,7 +88,7 @@ PAGE_CSS = """
 }
 
 @media (max-width: 480px) {
-    .aa-masthead-title { font-size: 24px; }
+    .aa-masthead-title { font-size: 24px !important; }
     .aa-cal-cell,
     .st-key-calendar-grid button[data-testid="stBaseButton-primary"] {
         font-size: 12px;
