@@ -19,7 +19,7 @@ from typing import Callable, Dict, List
 import requests
 
 from core.db import fetch_all_subscriptions, fetch_events
-from core.matching import events_by_age_days
+from core.matching import events_by_age_days, full_sentence
 
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "")
 
@@ -44,7 +44,7 @@ def _send_ntfy_notification(topic: str, event: Dict, token: str) -> None:
         headers["Click"] = f"{APP_BASE_URL}?u={token}"
     requests.post(
         f"https://ntfy.sh/{topic}",
-        data=event["display_text"].encode("utf-8"),
+        data=full_sentence(event).encode("utf-8"),
         headers=headers,
         timeout=10,
     )
