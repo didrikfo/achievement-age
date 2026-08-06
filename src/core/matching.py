@@ -20,6 +20,11 @@ def events_by_age_days(events: Iterable[Dict]) -> Dict[int, List[Dict]]:
     return index
 
 
+def full_sentence(event: Dict) -> str:
+    """Build the full display sentence from an event's name and event_phrase suffix."""
+    return f"The same age that {event['name']} was when {event['event_phrase']}"
+
+
 def normalize_name(text: str) -> str:
     """Casefold text and strip diacritics/punctuation for robust name comparison."""
     decomposed = unicodedata.normalize("NFKD", text)

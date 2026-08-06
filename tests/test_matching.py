@@ -1,6 +1,6 @@
 from datetime import date
 
-from core.matching import events_by_age_days, name_matches_text, normalize_name
+from core.matching import events_by_age_days, full_sentence, name_matches_text, normalize_name
 
 
 def test_true_positive_with_punctuation():
@@ -48,3 +48,8 @@ def test_events_by_age_days_same_age_shares_bucket():
     index = events_by_age_days([person_a, person_b])
 
     assert index[person_a["age_days"]] == [person_a, person_b]
+
+
+def test_full_sentence_combines_name_and_phrase():
+    event = {"name": "George Washington", "event_phrase": "he hoisted the flag"}
+    assert full_sentence(event) == "The same age that George Washington was when he hoisted the flag"
