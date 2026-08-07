@@ -36,7 +36,7 @@ PROMPT_TEMPLATE_PATH = Path(__file__).parent / "subject_prompt.md"
 SUBJECT_CHUNK_DIR = DATA_DIR / "tmp" / "subject_chunks"
 CHUNK_SIZE = 100
 NO_SUBJECT_CACHE_PATH = DATA_DIR / "no_subject_cache.json"
-PROMPT_VERSION = 1
+PROMPT_VERSION = 2
 
 
 def load_no_subject_cache(path: Path = NO_SUBJECT_CACHE_PATH) -> Dict[str, int]:

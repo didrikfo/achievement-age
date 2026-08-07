@@ -348,3 +348,25 @@ def test_merge_subject_chunk_does_not_cache_when_the_result_file_is_missing(tmp_
     )
 
     assert load_no_subject_cache(cache_path) == {}
+
+
+def test_build_prompt_explains_named_after_and_anniversary_references():
+    prompt = build_prompt()
+    assert "named after" in prompt.lower()
+    assert "anniversary" in prompt.lower()
+
+
+def test_build_prompt_asks_for_the_persons_full_name():
+    prompt = build_prompt()
+    assert "full name" in prompt.lower()
+
+
+def test_build_prompt_documents_the_possible_reference_reason():
+    prompt = build_prompt()
+    assert "possible_reference" in prompt
+
+
+def test_prompt_version_was_bumped_for_the_commemorative_instructions():
+    from ingest.subject_extraction import PROMPT_VERSION
+
+    assert PROMPT_VERSION == 2
