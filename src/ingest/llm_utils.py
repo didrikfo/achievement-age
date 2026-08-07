@@ -22,11 +22,22 @@ CHUNK_SIZE = 100
 CHUNK_DIR = DATA_DIR / "tmp" / "reword_chunks"
 REVIEW_PATH = DATA_DIR / "tmp" / "enrichment_review.json"
 
+#: Field stamped on a merged record whose `name` was changed by a reword-time
+#: subject correction, holding the name it had in events_with_age.json. Needed
+#: because _event_key includes `name` - see get_pending_events.
+ORIGINAL_NAME_FIELD = "original_name"
 
-def _event_key(event: Dict) -> object:
-    """Natural key for an event: text - stable across pipeline reruns, even across a
-    subject correction that changes name."""
-    return event.get("text")
+
+def _event_key(event: Dict) -> Tuple[object, object]:
+    """Natural key for an event record: (name, text).
+
+    A single text can legitimately carry several records - one per co-subject
+    named in it (see ingest.match_events.classify_event) - so `text` alone does
+    not identify a record. ingest.match_events._event_key and
+    ingest.migrate_to_supabase.filter_new_entries key on (name, text) too, so
+    all three agree about what counts as the same record.
+    """
+    return (event.get("name"), event.get("text"))
 
 
 def _fallback_event_phrase(event: Dict) -> str:
@@ -43,14 +54,32 @@ def get_pending_events(
     events_path=DATA_DIR / "events_with_age.json",
     displayable_path=DATA_DIR / "displayable_events.json",
 ) -> Tuple[List[Dict], List[Dict]]:
-    """Return (already_processed, pending) events, split by whether event_phrase exists."""
+    """Return (already_processed, pending) events, split by whether they're displayable yet.
+
+    Keyed on (name, text), so a text already displayable under one name is
+    still pending under a *different* one - a text can name several
+    co-subjects and each needs its own event_phrase, and a name corrected in
+    events_with_age.json (see match_events.append_matched_events's truncation
+    rule) needs re-rewording under the corrected name.
+
+    A record whose name was changed by a reword-time subject correction also
+    carries ORIGINAL_NAME_FIELD; that pre-correction key counts as processed
+    too, so the untouched source record in events_with_age.json isn't
+    re-queued on every run.
+    """
     all_events = load_json(events_path)
     try:
         processed = load_json(displayable_path)
     except FileNotFoundError:
         processed = []
 
-    processed_keys = {_event_key(event) for event in processed}
+    processed_keys = set()
+    for event in processed:
+        processed_keys.add(_event_key(event))
+        original_name = event.get(ORIGINAL_NAME_FIELD)
+        if original_name:
+            processed_keys.add((original_name, event.get("text")))
+
     pending = [event for event in all_events if _event_key(event) not in processed_keys]
     return processed, pending
 
@@ -85,9 +114,12 @@ def merge_reworded_chunk(
 ) -> int:
     """Merge a subagent's reworded chunk into displayable_path (default data/displayable_events.json).
 
-    Records are matched back to the original chunk by text, not by
+    Records are matched back to the original chunk by (name, text), not by
     list order/position, so a subagent that drops or reorders a record is
-    still handled correctly. Any record that doesn't come back with a usable
+    still handled correctly - and two co-subject records sharing a text stay
+    distinct instead of collapsing onto one another's event_phrase. Both the
+    chunk and the subagent's response carry `name` per record (reword_prompt.md
+    asks for it back unchanged). Any record that doesn't come back with a usable
     event_phrase (missing result file, invalid JSON, or a blank field) gets
     the deterministic fallback template instead, with no tags and no subject
     correction attempted.
@@ -128,6 +160,8 @@ def merge_reworded_chunk(
 
         correction, subject_reason = resolve_subject(event, result.get("suggested_subject"), births_lookup)
         if correction:
+            if correction["name"] != event.get("name"):
+                merged_event[ORIGINAL_NAME_FIELD] = event.get("name")
             merged_event["name"] = correction["name"]
             merged_event["age"] = correction["age_days"]
         if subject_reason:
