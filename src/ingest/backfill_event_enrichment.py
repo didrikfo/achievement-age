@@ -48,9 +48,27 @@ def _fetch_all_events(client) -> List[Dict]:
 
 
 def _fetch_tagged_event_ids(client) -> Set[int]:
-    """Every event_id that already has at least one row in event_tags."""
-    response = client.table("event_tags").select("event_id").execute()
-    return {row["event_id"] for row in response.data}
+    """Every event_id that already has at least one row in event_tags.
+
+    Paginated the same way as _fetch_all_events: event_tags has 1-3 rows per
+    event, so an unpaginated select can silently truncate at Supabase's ~1000
+    row cap and make already-tagged events look pending again on a rerun.
+    """
+    event_ids: Set[int] = set()
+    start = 0
+    while True:
+        page = (
+            client.table("event_tags")
+            .select("event_id")
+            .range(start, start + EVENTS_PAGE_SIZE - 1)
+            .execute()
+            .data
+        )
+        event_ids.update(row["event_id"] for row in page)
+        if len(page) < EVENTS_PAGE_SIZE:
+            break
+        start += EVENTS_PAGE_SIZE
+    return event_ids
 
 
 def pending_events(all_events: List[Dict], tagged_event_ids: Set[int]) -> List[Dict]:
@@ -107,6 +125,22 @@ def resolve_event_update(
     return update, tags, review_entries
 
 
+def _find_result(
+    event: Dict,
+    reworded_by_id: Dict[int, Dict],
+    reworded_by_name_text: Dict[Tuple[object, object], Dict],
+) -> Optional[Dict]:
+    """Look up a chunk event's reworded result, by id first, falling back to (name, text).
+
+    A subagent that doesn't echo `id` back (it's easy to miss in the prompt's output
+    schema) would otherwise fail to match every event in the chunk.
+    """
+    result = reworded_by_id.get(event["id"])
+    if result is not None:
+        return result
+    return reworded_by_name_text.get((event.get("name"), event.get("text")))
+
+
 def merge_chunk(chunk_path, result_path, review_path: Path = REVIEW_PATH) -> int:
     """Validate one chunk's subagent output and write event/event_tags updates to Supabase.
 
@@ -118,27 +152,47 @@ def merge_chunk(chunk_path, result_path, review_path: Path = REVIEW_PATH) -> int
     except (FileNotFoundError, json.JSONDecodeError):
         reworded = []
     reworded_by_id = {event["id"]: event for event in reworded if "id" in event}
+    reworded_by_name_text = {(event.get("name"), event.get("text")): event for event in reworded}
 
     client = get_client()
     tag_name_to_id = {tag["name"]: tag["id"] for tag in client.table("tags").select("id, name").execute().data}
     births_lookup = load_births_lookup()
 
     all_review_entries: List[Dict] = []
-    for event in chunk:
-        result = reworded_by_id.get(event["id"])
-        update, tags, review_entries = resolve_event_update(event, result, births_lookup)
-        all_review_entries.extend(review_entries)
+    try:
+        for event in chunk:
+            result = _find_result(event, reworded_by_id, reworded_by_name_text)
+            update, tags, review_entries = resolve_event_update(event, result, births_lookup)
+            all_review_entries.extend(review_entries)
 
-        if update is None:
-            continue
+            if update is None:
+                continue
 
-        client.table("events").update(update).eq("id", event["id"]).execute()
+            try:
+                if "name" in update:
+                    # A subject correction was accepted: make sure the corrected person
+                    # has a persons row, and point the event at it so the UI's
+                    # Wikipedia link (joined via person_id) matches the new name.
+                    person_rows = (
+                        client.table("persons")
+                        .upsert({"name": update["name"]}, on_conflict="name")
+                        .execute()
+                        .data
+                    )
+                    update["person_id"] = person_rows[0]["id"]
 
-        tag_rows = build_tag_rows(event["id"], tags, tag_name_to_id)
-        if tag_rows:
-            client.table("event_tags").insert(tag_rows).execute()
+                client.table("events").update(update).eq("id", event["id"]).execute()
 
-    write_review_entries(all_review_entries, review_path)
+                tag_rows = build_tag_rows(event["id"], tags, tag_name_to_id)
+                if tag_rows:
+                    client.table("event_tags").insert(tag_rows).execute()
+            except Exception as exc:  # noqa: BLE001 - one event's failure shouldn't sink the whole chunk
+                all_review_entries.append(
+                    {"event_id": event["id"], "issue_type": "error", "detail": str(exc)}
+                )
+    finally:
+        write_review_entries(all_review_entries, review_path)
+
     return len(chunk)
 
 

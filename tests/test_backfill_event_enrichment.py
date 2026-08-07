@@ -1,5 +1,13 @@
 # tests/test_backfill_event_enrichment.py
-from ingest.backfill_event_enrichment import pending_events, resolve_event_update
+import json
+from unittest.mock import MagicMock, patch
+
+from ingest.backfill_event_enrichment import (
+    _fetch_tagged_event_ids,
+    merge_chunk,
+    pending_events,
+    resolve_event_update,
+)
 
 
 def test_pending_events_excludes_already_tagged():
@@ -42,3 +50,150 @@ def test_resolve_event_update_flags_invalid_tags_but_still_writes_phrase():
     assert tags == []
     assert len(review_entries) == 1
     assert review_entries[0]["issue_type"] == "tags"
+
+
+def test_fetch_tagged_event_ids_paginates_past_the_page_size():
+    mock_client = MagicMock()
+    full_page = [{"event_id": i} for i in range(1000)]
+    short_page = [{"event_id": 1000}]
+
+    mock_execute = mock_client.table.return_value.select.return_value.range.return_value.execute
+    mock_execute.side_effect = [
+        MagicMock(data=full_page),
+        MagicMock(data=short_page),
+    ]
+
+    result = _fetch_tagged_event_ids(mock_client)
+
+    assert result == set(range(1001))
+    range_calls = mock_client.table.return_value.select.return_value.range.call_args_list
+    assert range_calls[0].args == (0, 999)
+    assert range_calls[1].args == (1000, 1999)
+
+
+def _make_mock_client(tags=None, persons_upsert_data=None):
+    """A MagicMock Supabase client with distinct, independently-assertable sub-mocks per table."""
+    tags = tags if tags is not None else []
+    table_mocks = {
+        "tags": MagicMock(),
+        "persons": MagicMock(),
+        "events": MagicMock(),
+        "event_tags": MagicMock(),
+    }
+    table_mocks["tags"].select.return_value.execute.return_value.data = tags
+    if persons_upsert_data is not None:
+        table_mocks["persons"].upsert.return_value.execute.return_value.data = persons_upsert_data
+
+    client = MagicMock()
+    client.table.side_effect = lambda name: table_mocks[name]
+    client._table_mocks = table_mocks
+    return client
+
+
+def test_merge_chunk_falls_back_to_name_text_match_when_result_has_no_id(tmp_path):
+    chunk = [{"id": 5, "name": "Ada Lovelace", "text": "did X", "year": 2000, "month": 1, "day": 1}]
+    chunk_path = tmp_path / "chunk_0000.json"
+    chunk_path.write_text(json.dumps(chunk), encoding="utf-8")
+
+    # A subagent that faithfully followed a prompt lacking `id` in its output schema -
+    # no "id" key at all, so the id-keyed lookup alone would miss this event entirely.
+    result = [{"name": "Ada Lovelace", "text": "did X", "event_phrase": "she did X", "tags": ["science"]}]
+    result_path = tmp_path / "chunk_0000_result.json"
+    result_path.write_text(json.dumps(result), encoding="utf-8")
+
+    review_path = tmp_path / "review.json"
+    mock_client = _make_mock_client(tags=[{"id": 1, "name": "science"}])
+
+    with patch("ingest.backfill_event_enrichment.get_client", return_value=mock_client), patch(
+        "ingest.backfill_event_enrichment.load_births_lookup", return_value={}
+    ):
+        merged_count = merge_chunk(chunk_path, result_path, review_path=review_path)
+
+    assert merged_count == 1
+    mock_client._table_mocks["events"].update.assert_called_once_with({"event_phrase": "she did X"})
+    mock_client._table_mocks["events"].update.return_value.eq.assert_called_once_with("id", 5)
+    mock_client._table_mocks["event_tags"].insert.assert_called_once_with([{"event_id": 5, "tag_id": 1}])
+    assert not review_path.exists()
+
+
+def test_merge_chunk_continues_past_a_per_event_failure_and_still_flushes_review(tmp_path):
+    chunk = [
+        {"id": 1, "name": "Person One", "text": "did A", "year": 2000, "month": 1, "day": 1},
+        {"id": 2, "name": "Person Two", "text": "did B", "year": 2000, "month": 1, "day": 1},
+    ]
+    chunk_path = tmp_path / "chunk_0000.json"
+    chunk_path.write_text(json.dumps(chunk), encoding="utf-8")
+
+    result = [
+        {"id": 1, "event_phrase": "they did A", "tags": ["science"]},
+        {"id": 2, "event_phrase": "they did B", "tags": ["science"]},
+    ]
+    result_path = tmp_path / "chunk_0000_result.json"
+    result_path.write_text(json.dumps(result), encoding="utf-8")
+
+    review_path = tmp_path / "review.json"
+    mock_client = _make_mock_client(tags=[{"id": 1, "name": "science"}])
+    # Simulate event id=1's events.update() blowing up (e.g. the duplicate-tag-insert
+    # crash fix 2 describes), while event id=2 should still be processed normally.
+    mock_client._table_mocks["events"].update.return_value.eq.return_value.execute.side_effect = [
+        Exception("boom"),
+        MagicMock(),
+    ]
+
+    with patch("ingest.backfill_event_enrichment.get_client", return_value=mock_client), patch(
+        "ingest.backfill_event_enrichment.load_births_lookup", return_value={}
+    ):
+        merged_count = merge_chunk(chunk_path, result_path, review_path=review_path)
+
+    assert merged_count == 2
+    # Both events were attempted despite the first raising.
+    assert mock_client._table_mocks["events"].update.call_count == 2
+
+    review = json.loads(review_path.read_text(encoding="utf-8"))
+    assert review == [{"event_id": 1, "issue_type": "error", "detail": "boom"}]
+
+
+def test_merge_chunk_upserts_person_and_sets_person_id_on_accepted_correction(tmp_path):
+    chunk = [
+        {
+            "id": 10,
+            "name": "George Washington",
+            "text": "George Washington and John Adams hoisted the flag",
+            "year": 1776,
+            "month": 1,
+            "day": 1,
+        }
+    ]
+    chunk_path = tmp_path / "chunk_0000.json"
+    chunk_path.write_text(json.dumps(chunk), encoding="utf-8")
+
+    result = [
+        {
+            "id": 10,
+            "event_phrase": "he hoisted the flag",
+            "tags": ["military"],
+            "suggested_subject": "John Adams",
+        }
+    ]
+    result_path = tmp_path / "chunk_0000_result.json"
+    result_path.write_text(json.dumps(result), encoding="utf-8")
+
+    births_lookup = {"john adams": {"name": "John Adams", "year": 1735, "month": 10, "day": 30}}
+    mock_client = _make_mock_client(
+        tags=[{"id": 2, "name": "military"}],
+        persons_upsert_data=[{"id": 99, "name": "John Adams"}],
+    )
+
+    with patch("ingest.backfill_event_enrichment.get_client", return_value=mock_client), patch(
+        "ingest.backfill_event_enrichment.load_births_lookup", return_value=births_lookup
+    ):
+        merge_chunk(chunk_path, result_path, review_path=tmp_path / "review.json")
+
+    mock_client._table_mocks["persons"].upsert.assert_called_once_with({"name": "John Adams"}, on_conflict="name")
+
+    update_call = mock_client._table_mocks["events"].update.call_args
+    update_payload = update_call.args[0]
+    assert update_payload["name"] == "John Adams"
+    assert update_payload["person_id"] == 99
+    assert update_payload["age_days"] > 0
+    assert update_payload["event_phrase"] == "he hoisted the flag"

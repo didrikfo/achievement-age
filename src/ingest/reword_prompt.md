@@ -1,13 +1,17 @@
 # Event rewording instructions
 
 You will receive a JSON array of historical event records, each with:
+- `id`: present for backfill-style processing of already-stored events (not present for
+  local-JSON batches of newly matched events)
 - `name`: the person currently matched to this event
 - `text`: the raw event description (as scraped from Wikipedia's "on this day" data)
 - `year`, `month`, `day`: the event's date
-- `age`: the person's age in days at the time of the event
+- `age`: the person's age in days at the time of the event (present for local-JSON batches;
+  not present for Supabase backfill batches, which only have `year`/`month`/`day`)
 
 For each record, return a JSON object with these fields:
 
+- `id`: copied unchanged from the input (when the input record has one).
 - `name`: copied unchanged from the input.
 - `text`: copied unchanged from the input.
 - `event_phrase`: a rewording of `text` that reads as a natural continuation of the sentence
