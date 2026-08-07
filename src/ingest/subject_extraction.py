@@ -44,13 +44,16 @@ def load_no_subject_cache(path: Path = NO_SUBJECT_CACHE_PATH) -> Dict[str, int]:
 
     A missing or corrupt cache file is treated as empty - same tolerance as
     ingest.sources.wikidata's cache, since Stage 2 runs into the same
-    crash-mid-write risk during a long chunk-processing session.
+    crash-mid-write risk during a long chunk-processing session. Valid JSON of
+    the wrong type (a hand-edited list, say) is treated as empty too, so
+    callers can rely on getting a dict back.
     """
     try:
         with open(path, "r", encoding="utf-8") as handle:
-            return json.load(handle)
+            cache = json.load(handle)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
+    return cache if isinstance(cache, dict) else {}
 
 
 def save_no_subject_cache(cache: Dict[str, int], path: Path = NO_SUBJECT_CACHE_PATH) -> None:
@@ -137,18 +140,23 @@ def merge_subject_chunk(
     """Validate one chunk's subagent output and route each event to its next step.
 
     Records are matched back to the chunk by `text`, not list position, so a
-    subagent that reorders or drops records is still handled. A missing or
-    malformed result file, or a record the subagent dropped, leaves that
-    event as "no_subject" for this run - but only a genuine `subject: null`
-    response is cached (no_subject_cache_path) as a confirmed verdict, so a
-    technical failure (missing file) doesn't get mistaken for an LLM having
-    actually looked and found nobody.
+    subagent that reorders or drops records is still handled. A result file
+    that is missing, unparseable, or not the expected list-of-objects shape
+    (a bare object, or a list with junk entries in it), and any record the
+    subagent simply dropped, leaves the affected event(s) as "no_subject" for
+    this run - but only a genuine `subject: null` response is cached
+    (no_subject_cache_path) as a confirmed verdict, so a technical failure
+    doesn't get mistaken for an LLM having actually looked and found nobody.
     """
     chunk = load_json(chunk_path)
     try:
         results = load_json(result_path)
-        results_by_text = {result.get("text"): result for result in results}
-    except (FileNotFoundError, json.JSONDecodeError):
+        # isinstance guard: valid JSON of the wrong shape is not a JSONDecodeError,
+        # and .get() on a str/int entry would blow up mid-comprehension.
+        results_by_text = {
+            result.get("text"): result for result in results if isinstance(result, dict)
+        }
+    except (FileNotFoundError, json.JSONDecodeError, TypeError):
         results_by_text = {}
 
     births_lookup = load_widened_births_lookup(births_path)

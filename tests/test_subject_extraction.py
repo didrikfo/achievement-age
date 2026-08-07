@@ -210,6 +210,63 @@ def test_merge_subject_chunk_survives_a_missing_result_file(tmp_path):
     assert counts["matched"] == 0
 
 
+def test_merge_subject_chunk_survives_a_wrong_shaped_result_file(tmp_path):
+    # Valid JSON, but a list of strings rather than a list of result objects: not a
+    # JSONDecodeError, so it has to be caught on shape, not on parsing.
+    chunk_path = tmp_path / "chunk_0000.json"
+    chunk_path.write_text(json.dumps([EVENT]), encoding="utf-8")
+    result_path = tmp_path / "chunk_0000_result.json"
+    result_path.write_text(json.dumps(["Albert Einstein published a paper.", 42]), encoding="utf-8")
+    births_path = tmp_path / "births.json"
+    births_path.write_text(json.dumps([EINSTEIN]), encoding="utf-8")
+    cache_path = tmp_path / "no_subject_cache.json"
+
+    counts = merge_subject_chunk(
+        chunk_path,
+        result_path,
+        births_path=births_path,
+        matched_path=tmp_path / "events_with_age.json",
+        wikidata_pending_path=tmp_path / "wikidata_pending.json",
+        review_path=tmp_path / "matching_review.json",
+        no_subject_cache_path=cache_path,
+    )
+
+    assert counts["no_subject"] == 1
+    assert counts["matched"] == 0
+    # A technical failure is not a confirmed "nobody in this text" verdict.
+    assert load_no_subject_cache(cache_path) == {}
+
+
+def test_merge_subject_chunk_survives_a_result_file_that_is_not_a_list(tmp_path):
+    chunk_path = tmp_path / "chunk_0000.json"
+    chunk_path.write_text(json.dumps([EVENT]), encoding="utf-8")
+    result_path = tmp_path / "chunk_0000_result.json"
+    result_path.write_text(json.dumps({"text": EVENT["text"], "subject": "Albert Einstein"}), encoding="utf-8")
+    births_path = tmp_path / "births.json"
+    births_path.write_text(json.dumps([EINSTEIN]), encoding="utf-8")
+    cache_path = tmp_path / "no_subject_cache.json"
+
+    counts = merge_subject_chunk(
+        chunk_path,
+        result_path,
+        births_path=births_path,
+        matched_path=tmp_path / "events_with_age.json",
+        wikidata_pending_path=tmp_path / "wikidata_pending.json",
+        review_path=tmp_path / "matching_review.json",
+        no_subject_cache_path=cache_path,
+    )
+
+    assert counts["no_subject"] == 1
+    assert load_no_subject_cache(cache_path) == {}
+
+
+def test_load_no_subject_cache_returns_empty_for_valid_json_that_is_not_a_dict(tmp_path):
+    path = tmp_path / "cache.json"
+    path.write_text(json.dumps(["A treaty was signed."]), encoding="utf-8")
+
+    assert load_no_subject_cache(path) == {}
+
+
 def test_load_no_subject_cache_returns_empty_when_missing(tmp_path):
     assert load_no_subject_cache(tmp_path / "absent.json") == {}
 
