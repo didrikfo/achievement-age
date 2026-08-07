@@ -83,6 +83,25 @@ def test_widened_lookup_drops_single_token_names(tmp_path):
     assert "cicero" not in lookup
 
 
+def test_widened_lookup_drops_names_two_different_people_share(tmp_path):
+    # Two "John Smith" records with genuinely different birth dates: the name is
+    # unresolvable, so it must become unknown rather than silently pick a winner.
+    births = tmp_path / "births.json"
+    births.write_text(
+        '[{"name": "John Smith", "year": 1800, "month": 1, "day": 3},'
+        ' {"name": "John Smith", "year": 1920, "month": 5, "day": 9},'
+        ' {"name": "Marie Curie", "year": 1867, "month": 11, "day": 7},'
+        ' {"name": "Marie Curie", "year": 1867, "month": 11, "day": 7}]',
+        encoding="utf-8",
+    )
+
+    lookup = load_widened_births_lookup(births)
+
+    assert "john smith" not in lookup
+    # A name repeated with the *same* date is not a collision - it still resolves.
+    assert lookup["marie curie"]["year"] == 1867
+
+
 import json
 
 from ingest.match_events import append_matched_events, run_stage_one
@@ -183,3 +202,50 @@ def test_run_stage_one_records_implausible_matches_for_review(tmp_path):
     review = json.loads(review_path.read_text(encoding="utf-8"))
     assert review[0]["issue_type"] == "implausible_age"
     assert review[0]["stage"] == "stage_1"
+
+
+def test_rerunning_stage_one_does_not_duplicate_review_entries(tmp_path):
+    events_path = tmp_path / "events.json"
+    events_path.write_text(
+        json.dumps([{"year": 1800, "month": 1, "day": 1, "text": "Albert Einstein appears."}]),
+        encoding="utf-8",
+    )
+    births_path = tmp_path / "births.json"
+    births_path.write_text(
+        json.dumps([{"name": "Albert Einstein", "year": 1879, "month": 3, "day": 14}]),
+        encoding="utf-8",
+    )
+    review_path = tmp_path / "matching_review.json"
+    kwargs = dict(
+        events_path=events_path,
+        births_path=births_path,
+        matched_path=tmp_path / "events_with_age.json",
+        pending_path=tmp_path / "subject_pending.json",
+        review_path=review_path,
+    )
+
+    run_stage_one(**kwargs)
+    run_stage_one(**kwargs)
+
+    assert len(json.loads(review_path.read_text(encoding="utf-8"))) == 1
+
+
+def test_same_text_under_a_different_name_is_reviewed_not_appended(tmp_path):
+    path = tmp_path / "events_with_age.json"
+    review_path = tmp_path / "matching_review.json"
+    path.write_text(
+        json.dumps([{"name": "Marie Curie", "text": "she won a prize", "age": 1}]),
+        encoding="utf-8",
+    )
+
+    added = append_matched_events(
+        [{"name": "Pierre Curie", "text": "she won a prize", "age": 2}],
+        path,
+        review_path=review_path,
+    )
+
+    assert added == 0
+    assert len(json.loads(path.read_text(encoding="utf-8"))) == 1
+    review = json.loads(review_path.read_text(encoding="utf-8"))
+    assert review[0]["issue_type"] == "conflicting_subject"
+    assert review[0]["name"] == "Pierre Curie"

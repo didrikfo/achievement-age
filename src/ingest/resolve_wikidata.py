@@ -21,6 +21,7 @@ from ingest.match_events import (
     MATCHING_REVIEW_PATH,
     MAX_AGE_DAYS,
     append_matched_events,
+    dedup_against_file,
 )
 from ingest.pipeline import calculate_age
 from ingest.sources import wikidata
@@ -39,14 +40,29 @@ def run_stage_three(
 
     counts = {
         "resolved": 0, "ambiguous": 0, "not_found": 0,
-        "insufficient_precision": 0, "implausible": 0,
+        "insufficient_precision": 0, "implausible": 0, "unusable": 0,
     }
     matched: List[Dict] = []
     review: List[Dict] = []
 
     for entry in pending:
         subject = entry["subject"]
-        event_year = int(entry["year"]) if str(entry.get("year", "")).isdigit() else None
+        if not str(entry.get("year", "")).isdigit():
+            # Stage 1 never queues one of these, but a hand-edited queue file
+            # could - and no age is computable from a non-numeric year.
+            counts["unusable"] += 1
+            review.append(
+                {
+                    "stage": "stage_3",
+                    "issue_type": "unusable_year",
+                    "name": subject,
+                    "text": entry.get("text"),
+                    "detail": f"event year {entry.get('year')!r} is not numeric",
+                }
+            )
+            continue
+
+        event_year = int(entry["year"])
         result = wikidata.lookup_birth_date(subject, event_year, cache)
         status = result["status"]
 
@@ -65,7 +81,7 @@ def run_stage_three(
 
         age = calculate_age(
             result["year"], result["month"], result["day"],
-            int(entry["year"]), int(entry["month"]), int(entry["day"]),
+            event_year, int(entry["month"]), int(entry["day"]),
         )
         if age is None or not (0 <= age <= MAX_AGE_DAYS):
             counts["implausible"] += 1
@@ -88,9 +104,9 @@ def run_stage_three(
             }
         )
 
-    counts["appended"] = append_matched_events(matched, matched_path)
+    counts["appended"] = append_matched_events(matched, matched_path, review_path)
     wikidata.save_cache(cache, cache_path)
-    write_review_entries(review, review_path)
+    write_review_entries(dedup_against_file(review_path, review), review_path)
     return counts
 
 

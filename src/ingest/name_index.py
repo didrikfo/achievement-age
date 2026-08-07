@@ -44,14 +44,29 @@ def _is_whole_word(text: str, start: int, end: int) -> bool:
 
 
 def find_names_in_text(automaton: ahocorasick.Automaton, text: str) -> List[str]:
-    """Return every indexed name occurring as a whole word in text, normalized and sorted."""
+    """Return every maximal indexed name occurring as a whole word in text, normalized and sorted.
+
+    "Maximal" means a match whose span is contained inside another match's span
+    is dropped: "john iv" and "john iv laskaris" both fire on the same text, but
+    that is one person, not two candidates. A shorter name occurring at its own
+    separate position in the text is still returned.
+    """
     if len(automaton) == 0:
         return []
 
     normalized_text = normalize_name(text)
-    found = set()
+    spans = []
     for end_index, name in automaton.iter(normalized_text):
         start_index = end_index - len(name) + 1
         if _is_whole_word(normalized_text, start_index, end_index):
-            found.add(name)
+            spans.append((start_index, end_index, name))
+
+    found = {
+        name
+        for start, end, name in spans
+        if not any(
+            other_start <= start and end <= other_end and (other_start, other_end) != (start, end)
+            for other_start, other_end, _ in spans
+        )
+    }
     return sorted(found)

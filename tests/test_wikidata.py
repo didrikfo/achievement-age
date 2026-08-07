@@ -171,3 +171,18 @@ def test_cache_round_trips_through_disk(tmp_path):
 
 def test_load_cache_returns_empty_when_missing(tmp_path):
     assert wikidata.load_cache(tmp_path / "absent.json") == {}
+
+
+def test_load_cache_survives_a_truncated_file(tmp_path):
+    # A run interrupted mid-write must not poison every later run.
+    path = tmp_path / "cache.json"
+    path.write_text('{"marie curie": {"status": "reso', encoding="utf-8")
+
+    assert wikidata.load_cache(path) == {}
+
+
+def test_save_cache_leaves_no_temp_file_behind(tmp_path):
+    path = tmp_path / "cache.json"
+    wikidata.save_cache({"marie curie": {"status": "resolved"}}, path)
+
+    assert [item.name for item in tmp_path.iterdir()] == ["cache.json"]

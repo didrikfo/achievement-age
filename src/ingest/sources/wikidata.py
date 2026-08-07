@@ -12,6 +12,7 @@ it is a large and predictable category.
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -32,19 +33,32 @@ CACHE_PATH = DATA_DIR / "wikidata_persons_cache.json"
 
 
 def load_cache(path: Path = CACHE_PATH) -> Dict:
-    """Load the name -> outcome cache, or an empty dict if it doesn't exist yet."""
+    """Load the name -> outcome cache, or an empty dict if it isn't usable.
+
+    A truncated file (from a run killed mid-write before save_cache became
+    atomic) is treated like a missing one: Stage 3 is meant to be resumable, and
+    re-fetching is far better than crashing every subsequent run.
+    """
     try:
         with open(path, "r", encoding="utf-8") as handle:
             return json.load(handle)
-    except FileNotFoundError:
+    except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
 
 def save_cache(cache: Dict, path: Path = CACHE_PATH) -> None:
-    """Persist the cache. Written as a JSON object, not the array core.io expects."""
+    """Persist the cache. Written as a JSON object, not the array core.io expects.
+
+    Written to a temp file in the same directory and then os.replace'd into
+    place, so interrupting a long Stage 3 run can never leave a half-written
+    cache behind.
+    """
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as handle:
+    temp_path = path.with_name(path.name + ".tmp")
+    with open(temp_path, "w", encoding="utf-8") as handle:
         json.dump(cache, handle, ensure_ascii=False, indent=2)
+    os.replace(temp_path, path)
 
 
 def _get_json(params: Dict) -> Dict:

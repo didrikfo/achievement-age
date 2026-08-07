@@ -27,6 +27,7 @@ from ingest.match_events import (
     SUBJECT_PENDING_PATH,
     WIDENED_BIRTHS_PATH,
     append_matched_events,
+    dedup_against_file,
     load_widened_births_lookup,
 )
 
@@ -131,23 +132,31 @@ def merge_subject_chunk(
                 {
                     "stage": "stage_2",
                     "issue_type": status,
+                    # The name the subagent proposed, so the report has the same
+                    # {stage, issue_type, name, text, detail} shape as Stage 1
+                    # and 3. None when it found nobody at all.
+                    "name": result.get("subject") or None,
                     "text": event.get("text"),
                     "detail": payload if status == "rejected" else "no subject identified in the text",
                 }
             )
 
-    counts["appended"] = append_matched_events(matched, matched_path)
+    counts["appended"] = append_matched_events(matched, matched_path, review_path)
     _append_json_list(wikidata_pending_path, wikidata_pending)
-    write_review_entries(review, review_path)
+    write_review_entries(dedup_against_file(review_path, review), review_path)
     return counts
 
 
 def _append_json_list(path: Path, entries: List[Dict]) -> None:
-    """Append entries to a JSON array file, creating it if missing."""
+    """Append entries to a JSON array file, creating it if missing.
+
+    Entries already present are skipped, so re-merging a chunk (or rerunning a
+    whole stage) doesn't queue the same event for Stage 3 twice.
+    """
     try:
         existing = load_json(path)
-    except FileNotFoundError:
+    except (FileNotFoundError, json.JSONDecodeError):
         existing = []
-    existing.extend(entries)
+    existing.extend(dedup_against_file(path, entries))
     path.parent.mkdir(parents=True, exist_ok=True)
     save_to_json(path, existing)

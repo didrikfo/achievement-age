@@ -117,6 +117,70 @@ def test_merge_subject_chunk_routes_each_outcome(tmp_path):
     assert json.loads(review_path.read_text(encoding="utf-8"))[0]["issue_type"] == "no_subject"
 
 
+def test_stage_2_review_entries_carry_the_attempted_name(tmp_path):
+    chunk_path = tmp_path / "chunk_0000.json"
+    chunk_path.write_text(json.dumps([EVENT]), encoding="utf-8")
+    result_path = tmp_path / "chunk_0000_result.json"
+    result_path.write_text(
+        json.dumps([{"text": EVENT["text"], "subject": "Niels Bohr"}]), encoding="utf-8"
+    )
+    births_path = tmp_path / "births.json"
+    births_path.write_text(json.dumps([EINSTEIN]), encoding="utf-8")
+    review_path = tmp_path / "matching_review.json"
+
+    merge_subject_chunk(
+        chunk_path,
+        result_path,
+        births_path=births_path,
+        matched_path=tmp_path / "events_with_age.json",
+        wikidata_pending_path=tmp_path / "wikidata_pending.json",
+        review_path=review_path,
+    )
+
+    review = json.loads(review_path.read_text(encoding="utf-8"))
+    assert review[0]["issue_type"] == "rejected"
+    assert review[0]["name"] == "Niels Bohr"
+
+
+def test_merging_the_same_chunk_twice_does_not_duplicate_the_queues(tmp_path):
+    chunk_path = tmp_path / "chunk_0000.json"
+    chunk_path.write_text(
+        json.dumps(
+            [
+                {"year": 1905, "month": 1, "day": 1, "text": "Mileva Maric reviewed the draft."},
+                {"year": 1919, "month": 6, "day": 28, "text": "A treaty was signed at Versailles."},
+            ]
+        ),
+        encoding="utf-8",
+    )
+    result_path = tmp_path / "chunk_0000_result.json"
+    result_path.write_text(
+        json.dumps(
+            [
+                {"text": "Mileva Maric reviewed the draft.", "subject": "Mileva Maric"},
+                {"text": "A treaty was signed at Versailles.", "subject": None},
+            ]
+        ),
+        encoding="utf-8",
+    )
+    births_path = tmp_path / "births.json"
+    births_path.write_text(json.dumps([EINSTEIN]), encoding="utf-8")
+    wikidata_path = tmp_path / "wikidata_pending.json"
+    review_path = tmp_path / "matching_review.json"
+    kwargs = dict(
+        births_path=births_path,
+        matched_path=tmp_path / "events_with_age.json",
+        wikidata_pending_path=wikidata_path,
+        review_path=review_path,
+    )
+
+    merge_subject_chunk(chunk_path, result_path, **kwargs)
+    merge_subject_chunk(chunk_path, result_path, **kwargs)
+
+    assert len(json.loads(wikidata_path.read_text(encoding="utf-8"))) == 1
+    assert len(json.loads(review_path.read_text(encoding="utf-8"))) == 1
+
+
 def test_merge_subject_chunk_survives_a_missing_result_file(tmp_path):
     chunk_path = tmp_path / "chunk_0000.json"
     chunk_path.write_text(json.dumps([EVENT]), encoding="utf-8")
