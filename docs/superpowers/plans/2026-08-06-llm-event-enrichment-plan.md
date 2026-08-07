@@ -14,7 +14,7 @@
 - Every successfully-enriched event gets 1–3 tags. If a subagent returns more than 3 valid tags, keep only the first 3 in the order returned. If none of the returned tags are valid, the event gets 0 tags (not a fabricated one) plus a review-report entry.
 - There is no code-level check for phrasing quality (grammar/"reads nicely") — only the existing structural fallback for a missing/blank `event_phrase`. Do not add heuristics that try to grade prose quality.
 - A subject correction is only ever applied when **both** hold: the suggested name is literally present in the event's `text` (`core.matching.name_matches_text`), and it resolves to an entry in `data/top_1000_births.json` (matched via `core.matching.normalize_name`) with a computable, plausible age (`0 <= age_days <= 120 * 365`, same bound `ingest.pipeline.match_births_to_events` already uses). If either check fails, the event's subject is left untouched.
-- Every validation failure (invalid tags, rejected subject correction, missing `event_phrase`) is recorded as an entry in an enrichment review report — never silently dropped.
+- Every validation failure (invalid tags, rejected subject correction) is recorded as an entry in an enrichment review report — never silently dropped. A missing/blank `event_phrase` is handled by the existing deterministic fallback alone; that's considered sufficient and does not also get a review-report entry.
 - The reword prompt lives in `src/ingest/reword_prompt.md` (versioned, diffable) — not crafted live per batch run.
 
 ---

@@ -50,6 +50,12 @@ you, gitignored — `core/db.py` loads it automatically via `python-dotenv`, so 
 covers both standalone scripts and a local `streamlit run`, no `.streamlit/secrets.toml` needed
 for local dev):
 
+If the local `displayable_events.json` being migrated already has `tags` populated on its events
+(i.e. this isn't the very first migration into a fresh project), run the tag-seeding SQL in
+section 4 first — `migrate_to_supabase` looks up each tag name in the `tags` table and silently
+skips any tag it can't find, so migrating tagged events against an empty `tags` table loses every
+tag with no error.
+
 ```bash
 pip install -e .
 pip install -r requirements.txt
@@ -94,7 +100,62 @@ and fix them by hand in the Supabase table editor if any show up.
 `wikipedia_url` (on `persons`) and `detailed_description` (on `events`) are left empty — fill
 them in later, e.g. via the Supabase table editor, as you get to it.
 
-## 4. Configure secrets
+## 4. LLM event enrichment (tags and subject corrections)
+
+Run this in the SQL editor to seed the fixed tag taxonomy into the `tags` table (already created
+in step 1) — the backfill script below assigns tags by name, so the rows need to exist first.
+`on conflict (name) do nothing` makes this safe to run more than once.
+
+```sql
+insert into tags (name, color) values
+    ('military', '#6B4226'),
+    ('politics', '#1E3A8A'),
+    ('science', '#0F766E'),
+    ('technology', '#2563EB'),
+    ('exploration', '#B45309'),
+    ('space', '#312E81'),
+    ('arts', '#A21CAF'),
+    ('music', '#7C3AED'),
+    ('film', '#BE123C'),
+    ('sports', '#EA580C'),
+    ('religion', '#A16207'),
+    ('royalty', '#86198F'),
+    ('economics', '#15803D'),
+    ('law', '#334155'),
+    ('disaster', '#B91C1C'),
+    ('health', '#0D9488'),
+    ('social', '#C2410C'),
+    ('education', '#1D4ED8'),
+    ('philosophy', '#4338CA'),
+    ('engineering', '#57534E')
+on conflict (name) do nothing;
+```
+
+Then run the one-off backfill (same environment/credentials as the earlier migrations):
+
+```bash
+python -c "from ingest.backfill_event_enrichment import prepare_chunks; print(prepare_chunks())"
+```
+
+This writes chunk files under `data/tmp/enrichment_chunks/`. Dispatch a Claude Haiku subagent per
+chunk file, using `ingest.enrichment.build_prompt()` for instructions, and save each subagent's
+JSON response next to its chunk as `<chunk>_result.json`. Then merge each chunk:
+
+```bash
+python -c "from ingest.backfill_event_enrichment import merge_chunk; merge_chunk('data/tmp/enrichment_chunks/chunk_0000.json', 'data/tmp/enrichment_chunks/chunk_0000_result.json')"
+```
+
+This regenerates each event's `event_phrase` from its raw `text` (the existing `event_phrase` in
+the database isn't fetched or reviewed — it's simply overwritten), assigns 1-3 tags from the list above, and
+flags cases where the matched name looks like the wrong subject. Tag assignments are written to
+`event_tags`; subject corrections are only applied when the suggested alternate is both mentioned
+in the event text and a known person with a computable birth date — anything that doesn't clear
+that bar is written to `data/tmp/enrichment_review.json` for a manual look instead of being
+guessed. The script is resumable: `prepare_chunks()` only includes events that don't already have
+`event_tags` rows, so re-running the whole process after fixing something picks up where it left
+off.
+
+## 5. Configure secrets
 
 **Streamlit Community Cloud** (App settings -> Secrets), as TOML:
 
@@ -113,11 +174,11 @@ Local development uses the `.env` file from step 2 (gitignored) for all three ke
 build the "Click" link in a push notification and to build the magic-link signup URL, neither of
 which matters for local testing.
 
-## 5. Install ntfy
+## 6. Install ntfy
 
 Install the [ntfy app](https://ntfy.sh) (iOS/Android) or use the ntfy web app. No account needed — after clicking "Get notified" in the web app, subscribe to the topic name it shows you.
 
-## 6. Test end-to-end
+## 7. Test end-to-end
 
 - Run `streamlit run src/app/ui.py` locally, click "Get notified", subscribe to the shown topic in the ntfy app.
 - Manually trigger `.github/workflows/daily_notify.yml` from the GitHub Actions tab (`Run workflow`) — with a birthday chosen so today is a match, you should get a push notification within a few seconds.
