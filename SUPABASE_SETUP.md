@@ -182,3 +182,83 @@ Install the [ntfy app](https://ntfy.sh) (iOS/Android) or use the ntfy web app. N
 
 - Run `streamlit run src/app/ui.py` locally, click "Get notified", subscribe to the shown topic in the ntfy app.
 - Manually trigger `.github/workflows/daily_notify.yml` from the GitHub Actions tab (`Run workflow`) — with a birthday chosen so today is a match, you should get a push notification within a few seconds.
+
+## 8. Matching expansion runbook
+
+Grows the pool of age-matchable events beyond the original 1232. Requires the ingest-only
+dependencies (not installed by Streamlit Community Cloud, which only installs
+`requirements.txt` — see `requirements-ingest.txt`'s header comment):
+
+```bash
+pip install -r requirements-ingest.txt
+```
+
+**Stage 0/1 — widened local matching** (no network, no LLM; a few seconds):
+
+```bash
+python -m ingest.match_events
+```
+
+Appends matches to `data/events_with_age.json`, queues the rest in
+`data/tmp/subject_pending.json`, and logs implausible ages to
+`data/tmp/matching_review.json`. Safe to rerun — matches are deduped by
+`(name, text)`, so a second run appends nothing new.
+
+**Stage 2 — LLM subject extraction** (run from inside a Claude Code session):
+
+```bash
+python -c "from ingest.subject_extraction import prepare_subject_chunks; print(prepare_subject_chunks())"
+```
+
+This splits `data/tmp/subject_pending.json` into chunk files under
+`data/tmp/subject_chunks/`. Dispatch one Haiku subagent per chunk file using
+`ingest.subject_extraction.build_prompt()` as the instructions, write each subagent's
+JSON array to `<chunk>_result.json` next to it, then merge each chunk:
+
+```bash
+python -c "from ingest.subject_extraction import merge_subject_chunk; print(merge_subject_chunk('data/tmp/subject_chunks/chunk_0000.json', 'data/tmp/subject_chunks/chunk_0000_result.json'))"
+```
+
+Matched subjects are appended to `data/events_with_age.json`; subjects that are real people
+but unknown locally are queued in `data/tmp/wikidata_pending.json` for Stage 3; everything
+else lands in `data/tmp/matching_review.json`.
+
+**Stage 3 — Wikidata resolution** (hits the network; rate-limited and cached):
+
+```bash
+python -m ingest.resolve_wikidata
+```
+
+Resolves `data/tmp/wikidata_pending.json` against Wikidata and appends any match to
+`data/events_with_age.json`. Safe to rerun — every lookup outcome is cached by name in
+`data/wikidata_persons_cache.json`, so a second run makes no network requests for names
+already attempted.
+
+**Then reword for display and migrate.** New matched events in `data/events_with_age.json`
+still need an `event_phrase` (and tags, and any final subject correction) before they're
+displayable — the same reword step used to prepare the original 1232 events, not otherwise
+documented as its own section in this file:
+
+```bash
+python -c "from ingest.llm_utils import prepare_reword_chunks; print(prepare_reword_chunks())"
+```
+
+This splits whatever in `data/events_with_age.json` isn't already in
+`data/displayable_events.json` into chunk files under `data/tmp/reword_chunks/`. Dispatch a
+Haiku subagent per chunk using `ingest.enrichment.build_prompt()` for instructions, then
+merge each chunk:
+
+```bash
+python -c "from ingest.llm_utils import merge_reworded_chunk; print(merge_reworded_chunk('data/tmp/reword_chunks/chunk_0000.json', 'data/tmp/reword_chunks/chunk_0000_result.json'))"
+```
+
+This appends to `data/displayable_events.json`. Then run the migration from section 2,
+which skips anything already in Supabase and so only inserts the newly added events:
+
+```bash
+python -m ingest.migrate_to_supabase
+```
+
+**Review before trusting the output.** `data/tmp/matching_review.json` collects every
+event that could not be auto-accepted — ambiguous subjects, birth dates that are only
+year-precision, implausible ages. Nothing in it was guessed at or silently dropped.
