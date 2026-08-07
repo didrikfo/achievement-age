@@ -1,0 +1,4 @@
+# Ingest/data-preparation dependencies only. NOT installed by Streamlit
+# Community Cloud (which installs requirements.txt), so nothing here may be
+# imported by src/app/ or src/core/.
+pyahocorasick
