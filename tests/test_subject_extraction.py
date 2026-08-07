@@ -114,6 +114,7 @@ def test_merge_subject_chunk_routes_each_outcome(tmp_path):
         matched_path=matched_path,
         wikidata_pending_path=wikidata_path,
         review_path=review_path,
+        no_subject_cache_path=tmp_path / "no_subject_cache.json",
     )
 
     assert counts["matched"] == 1
@@ -180,6 +181,7 @@ def test_merging_the_same_chunk_twice_does_not_duplicate_the_queues(tmp_path):
         matched_path=tmp_path / "events_with_age.json",
         wikidata_pending_path=wikidata_path,
         review_path=review_path,
+        no_subject_cache_path=tmp_path / "no_subject_cache.json",
     )
 
     merge_subject_chunk(chunk_path, result_path, **kwargs)
