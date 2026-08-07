@@ -33,21 +33,25 @@ unused, and that is accepted.
 
 ## Relationship to the LLM event enrichment spec
 
-`2026-08-06-llm-event-enrichment-design.md` (spec and plan both written, **neither implemented** —
-`src/ingest/enrichment.py` does not exist yet) covers tags, phrasing quality, and subject correction
-for events already in the pipeline. This spec composes with it rather than replacing it:
+`2026-08-06-llm-event-enrichment-design.md` is now **implemented** (branch
+`worktree-llm-event-enrichment`, all 7 plan tasks complete) — `src/ingest/enrichment.py`,
+`ingest.llm_utils.prepare_reword_chunks`/`merge_reworded_chunk`, and
+`ingest.backfill_event_enrichment.py` all exist and work as that spec describes. This spec builds on
+that real code rather than a hypothetical:
 
-- **Ordering:** matching expansion runs first and grows the pool; enrichment then processes the
-  larger pool. Running enrichment first would mean backfilling twice.
-- **Shared module:** subject disambiguation here reuses `enrichment.resolve_subject` rather than
-  building a parallel mechanism. Because that module does not exist yet, the implementation plan
-  derived from this spec must either sequence the enrichment plan's Task covering
-  `resolve_subject` first, or create the module as part of this work.
-- **Required amendment to the enrichment spec:** its Global Constraints pin subject resolution to
-  `data/top_1000_births.json`. Stage 1 below deliberately abandons that file as the gate. When
-  `resolve_subject` is implemented it must take the known-person lookup as an injected argument
-  rather than hardcoding a path, so both specs share one widened pool. This spec supersedes the
-  enrichment spec on that one point.
+- **`enrichment.resolve_subject(event, suggested_name, births_lookup)` already takes the known-person
+  lookup as an injected argument**, not a hardcoded path — `births_lookup` is built separately by
+  `enrichment.load_births_lookup(path=...)`, which defaults to `top_1000_births.json` but accepts any
+  path. No amendment to the enrichment module is needed: Stage 2 below simply calls
+  `load_births_lookup` with the Stage 1 widened births file and passes the result in, same as every
+  existing caller does.
+- **No explicit ordering dependency is needed.** `ingest.llm_utils.get_pending_events` treats
+  anything not yet keyed by `(name, text)` in `displayable_events.json` as pending, and
+  `backfill_event_enrichment.pending_events` treats anything with no `event_tags` rows yet in
+  Supabase as pending. Both are safe to rerun. So this spec's job is only to grow
+  `events_with_age.json` with new matched events (Stage 0-3 below); the existing enrichment flow
+  picks up whatever is new automatically the next time it runs, local-JSON or Supabase side, without
+  needing to be sequenced or reinvoked specially.
 
 ## Stage 0: replace the matching algorithm
 
@@ -111,8 +115,10 @@ The returned name is then resolved in Python, never trusted directly:
    offline, with no network call.
 3. A name that passes (1) but misses (2) is a genuinely unknown person and falls through to Stage 3.
 
-Both checks are `enrichment.resolve_subject`'s existing responsibility, with the known-person lookup
-injected per the amendment noted above.
+Both checks are already `enrichment.resolve_subject`'s job: call `enrichment.load_births_lookup(path=
+<Stage 1 widened births file>)` and pass the result in as `births_lookup`, exactly the pattern
+`llm_utils.merge_reworded_chunk` and `backfill_event_enrichment.merge_chunk` already use with their
+own `births_path`/default lookup.
 
 ## Stage 3: Wikidata resolution
 
@@ -154,17 +160,31 @@ sentence the whole product exists to deliver. So every stage prefers review over
 ## Data flow
 
 The existing local-JSON-then-migrate shape is preserved, leaving a reviewable artifact at each step
-rather than writing to Supabase mid-pipeline:
+rather than writing to Supabase mid-pipeline. This spec's output is simply a bigger
+`events_with_age.json` (same `{year, month, day, text, name, age}` shape `pipeline.py` already
+produces) — everything downstream of that file already exists and already reruns safely:
 
 ```
 historical_events.json
   → Stage 0/1  Aho-Corasick match against widened local pool
   → Stage 2    LLM subject extraction (unmatched + multi-candidate events)
   → Stage 3    Wikidata resolution (subjects still unresolved)
-  → combined matched set  (+ data/tmp/matching_review.json)
-  → LLM enrichment backfill (tags, phrasing — separate spec)
-  → migrate_to_supabase.py
+  → combined matched set → extends data/events_with_age.json
+       (+ data/tmp/matching_review.json for anything not auto-acceptable)
+  → [existing, unchanged] llm_utils.prepare_reword_chunks / merge_reworded_chunk
+       — picks up anything not yet keyed by (name, text) in displayable_events.json
+  → migrate_to_supabase.py  ← NEEDS A FIX, see below
 ```
+
+**Gap this spec must close:** `migrate_to_supabase.main()` unconditionally loads all of
+`displayable_events.json` and `.insert()`s every row — no check against what's already in Supabase.
+It was written for a one-time initial load and was never made incremental. Run as-is against a
+`displayable_events.json` that has grown past the original 1,232, it would insert duplicates of
+events already migrated. This spec's implementation must extend `migrate_to_supabase.py` (or add a
+sibling script) to skip events already present in Supabase — matching on the same natural key
+`llm_utils._event_key` already uses locally, `(name, text)` — before inserting. Newly-resolved people
+(Stage 3) still go through the existing upsert-by-name pattern in
+`ingest.backfill_persons_and_phrases.build_person_rows`, unchanged.
 
 No UI change is required. Newly matched events flow into the existing calendar mechanic once
 migrated, because they have the same shape as the 1,232 already there.
@@ -178,6 +198,8 @@ migrated, because they have the same shape as the 1,232 already there.
   accepted, coarser precision routed to review, ambiguous candidates routed to review, cache written
   on every outcome and honoured on rerun.
 - **Review report:** entries are produced for each failure class rather than dropped.
+- **`migrate_to_supabase.py` dedup fix:** a rerun with previously-migrated events already present in
+  the input does not insert duplicates.
 - Full `pytest` run after implementation.
 
 ## Out of scope
@@ -189,7 +211,8 @@ migrated, because they have the same shape as the 1,232 already there.
 - **Same-name-different-person disambiguation** beyond the context heuristics in Stage 3. Two real
   people sharing a name is a known unsolved edge case, already deferred by the enrichment spec;
   unresolvable cases go to review.
-- **Tags, phrasing, and `detailed_description`/`wikipedia_url` population** — all owned by the LLM
-  event enrichment spec, which runs after this work.
+- **Tags, phrasing, and `detailed_description`/`wikipedia_url` population** — already handled by the
+  (now implemented) LLM event enrichment pipeline, which picks up this spec's new events
+  automatically on its next run; no new code for that part.
 - **Re-scraping or expanding the source event list.** The 19,207 events on disk are the input; this
   spec grows how many of them are *usable*, not how many exist.
