@@ -201,6 +201,10 @@ def append_matched_events(
     case). When a new (name, text) candidate's text already has a *different*
     stored name, the two normalized names are compared against every existing
     name recorded for that text:
+    - Same normalized name (differs only in casing/diacritics/punctuation
+      from the raw-string `seen` check above) -> already present under a
+      near-duplicate spelling. Skipped silently: not appended, not counted
+      in `added`, no review entry.
     - One a substring of the other -> the same person, mis-truncated in one
       of the two records. The longer (more complete) name wins: if the new
       candidate is longer it replaces that one shorter existing record;
@@ -237,16 +241,21 @@ def append_matched_events(
 
         replaced_name = None
         rejected_reason = None
+        already_present = False
         for existing_name in names_by_text.get(text, set()):
             norm_existing = normalize_name(existing_name)
             if norm_new == norm_existing:
-                continue
+                already_present = True
+                break
             if norm_new in norm_existing or norm_existing in norm_new:
                 if len(norm_new) > len(norm_existing):
                     replaced_name = existing_name
                 else:
                     rejected_reason = f"a fuller name is already recorded: {existing_name!r}"
                 break
+
+        if already_present:
+            continue
 
         if rejected_reason:
             review_entries.append(

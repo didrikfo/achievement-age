@@ -454,3 +454,25 @@ def test_append_matched_events_only_replaces_the_matching_co_subject(tmp_path):
     stored = json.loads(path.read_text(encoding="utf-8"))
     names = sorted(entry["name"] for entry in stored)
     assert names == ["Liaquat Ali Khan", "Muhammad Ali Jinnah"]
+
+
+def test_append_matched_events_skips_a_name_that_only_differs_by_normalization(tmp_path):
+    # "MUHAMMAD ALI" normalizes identically to "Muhammad Ali" (casefold), so the
+    # raw-string `seen` check at the top of the function doesn't catch it - this
+    # must be caught by the norm_new == norm_existing case in the substring loop
+    # instead, and skipped silently rather than appended as a spurious duplicate.
+    path = tmp_path / "events_with_age.json"
+    text = "Muhammad Ali gives a speech."
+    path.write_text(
+        json.dumps([{"name": "Muhammad Ali", "text": text, "age": 1}]), encoding="utf-8"
+    )
+
+    added = append_matched_events(
+        [{"name": "MUHAMMAD ALI", "text": text, "age": 2}], path, review_path=tmp_path / "matching_review.json"
+    )
+
+    assert added == 0
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    assert len(stored) == 1
+    assert stored[0]["name"] == "Muhammad Ali"
+    assert stored[0]["age"] == 1
