@@ -190,13 +190,13 @@ dependencies (not installed by Streamlit Community Cloud, which only installs
 `requirements.txt` — see `requirements-ingest.txt`'s header comment):
 
 ```bash
-pip install -r requirements-ingest.txt
+venv\Scripts\python.exe -m pip install -r requirements-ingest.txt
 ```
 
 **Stage 0/1 — widened local matching** (no network, no LLM; a few seconds):
 
 ```bash
-python -m ingest.match_events
+venv\Scripts\python.exe -m ingest.match_events
 ```
 
 Appends matches to `data/events_with_age.json`, queues the rest in
@@ -207,7 +207,7 @@ Appends matches to `data/events_with_age.json`, queues the rest in
 **Stage 2 — LLM subject extraction** (run from inside a Claude Code session):
 
 ```bash
-python -c "from ingest.subject_extraction import prepare_subject_chunks; print(prepare_subject_chunks())"
+venv\Scripts\python.exe -c "from ingest.subject_extraction import prepare_subject_chunks; print(prepare_subject_chunks())"
 ```
 
 This splits `data/tmp/subject_pending.json` into chunk files under
@@ -216,7 +216,7 @@ This splits `data/tmp/subject_pending.json` into chunk files under
 JSON array to `<chunk>_result.json` next to it, then merge each chunk:
 
 ```bash
-python -c "from ingest.subject_extraction import merge_subject_chunk; print(merge_subject_chunk('data/tmp/subject_chunks/chunk_0000.json', 'data/tmp/subject_chunks/chunk_0000_result.json'))"
+venv\Scripts\python.exe -c "from ingest.subject_extraction import merge_subject_chunk; print(merge_subject_chunk('data/tmp/subject_chunks/chunk_0000.json', 'data/tmp/subject_chunks/chunk_0000_result.json'))"
 ```
 
 Matched subjects are appended to `data/events_with_age.json`; subjects that are real people
@@ -226,7 +226,7 @@ else lands in `data/tmp/matching_review.json`.
 **Stage 3 — Wikidata resolution** (hits the network; rate-limited and cached):
 
 ```bash
-python -m ingest.resolve_wikidata
+venv\Scripts\python.exe -m ingest.resolve_wikidata
 ```
 
 Resolves `data/tmp/wikidata_pending.json` against Wikidata and appends any match to
@@ -240,7 +240,7 @@ displayable — the same reword step used to prepare the original 1232 events, n
 documented as its own section in this file:
 
 ```bash
-python -c "from ingest.llm_utils import prepare_reword_chunks; print(prepare_reword_chunks())"
+venv\Scripts\python.exe -c "from ingest.llm_utils import prepare_reword_chunks; print(prepare_reword_chunks())"
 ```
 
 This splits whatever in `data/events_with_age.json` isn't already in
@@ -249,14 +249,20 @@ Haiku subagent per chunk using `ingest.enrichment.build_prompt()` for instructio
 merge each chunk:
 
 ```bash
-python -c "from ingest.llm_utils import merge_reworded_chunk; print(merge_reworded_chunk('data/tmp/reword_chunks/chunk_0000.json', 'data/tmp/reword_chunks/chunk_0000_result.json'))"
+venv\Scripts\python.exe -c "from ingest.llm_utils import merge_reworded_chunk; print(merge_reworded_chunk('data/tmp/reword_chunks/chunk_0000.json', 'data/tmp/reword_chunks/chunk_0000_result.json', births_path='data/historical_births_cleaned.json'))"
 ```
+
+Pass `births_path` explicitly here — it defaults to `data/top_1000_births.json`, and by
+construction almost everyone newly matched by the stages above is *not* in the top 1000, so
+every subject correction the reword subagent suggests for them would be rejected as "not in
+known births list" and dumped into the review report. `data/historical_births_cleaned.json` is
+the same widened pool `ingest.match_events` uses (`WIDENED_BIRTHS_PATH`).
 
 This appends to `data/displayable_events.json`. Then run the migration from section 2,
 which skips anything already in Supabase and so only inserts the newly added events:
 
 ```bash
-python -m ingest.migrate_to_supabase
+venv\Scripts\python.exe -m ingest.migrate_to_supabase
 ```
 
 **Review before trusting the output.** `data/tmp/matching_review.json` collects every
