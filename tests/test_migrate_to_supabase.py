@@ -1,4 +1,4 @@
-from ingest.migrate_to_supabase import _to_event_row
+from ingest.migrate_to_supabase import _to_event_row, filter_new_entries
 
 
 def test_to_event_row_includes_person_id_and_age():
@@ -38,3 +38,30 @@ def test_to_event_row_person_id_none_when_name_not_upserted_yet():
     }
     row = _to_event_row(entry, {})
     assert row["person_id"] is None
+
+
+def test_filter_new_entries_drops_already_migrated_events():
+    entries = [
+        {"name": "Marie Curie", "text": "she won a prize"},
+        {"name": "Albert Einstein", "text": "he published a paper"},
+    ]
+    existing = {("Marie Curie", "she won a prize")}
+
+    assert filter_new_entries(entries, existing) == [
+        {"name": "Albert Einstein", "text": "he published a paper"}
+    ]
+
+
+def test_filter_new_entries_keeps_everything_when_supabase_is_empty():
+    entries = [{"name": "Marie Curie", "text": "she won a prize"}]
+
+    assert filter_new_entries(entries, set()) == entries
+
+
+def test_filter_new_entries_deduplicates_within_the_input():
+    entries = [
+        {"name": "Marie Curie", "text": "she won a prize"},
+        {"name": "Marie Curie", "text": "she won a prize"},
+    ]
+
+    assert len(filter_new_entries(entries, set())) == 1
