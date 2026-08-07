@@ -1,6 +1,13 @@
 import json
 
-from ingest.subject_extraction import build_prompt, merge_subject_chunk, prepare_subject_chunks, route_subject
+from ingest.subject_extraction import (
+    build_prompt,
+    load_no_subject_cache,
+    merge_subject_chunk,
+    prepare_subject_chunks,
+    route_subject,
+    save_no_subject_cache,
+)
 
 
 def test_build_prompt_describes_the_subject_field():
@@ -198,3 +205,28 @@ def test_merge_subject_chunk_survives_a_missing_result_file(tmp_path):
 
     assert counts["no_subject"] == 1
     assert counts["matched"] == 0
+
+
+def test_load_no_subject_cache_returns_empty_when_missing(tmp_path):
+    assert load_no_subject_cache(tmp_path / "absent.json") == {}
+
+
+def test_no_subject_cache_round_trips_through_disk(tmp_path):
+    path = tmp_path / "cache.json"
+    save_no_subject_cache({"A treaty was signed.": 1}, path)
+
+    assert load_no_subject_cache(path) == {"A treaty was signed.": 1}
+
+
+def test_load_no_subject_cache_survives_a_truncated_file(tmp_path):
+    path = tmp_path / "cache.json"
+    path.write_text("{not valid json", encoding="utf-8")
+
+    assert load_no_subject_cache(path) == {}
+
+
+def test_save_no_subject_cache_leaves_no_temp_file_behind(tmp_path):
+    path = tmp_path / "cache.json"
+    save_no_subject_cache({"x": 1}, path)
+
+    assert not path.with_name(path.name + ".tmp").exists()

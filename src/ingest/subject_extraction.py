@@ -14,6 +14,7 @@ the text. Everything it returns is validated in Python before use.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -34,6 +35,31 @@ from ingest.match_events import (
 PROMPT_TEMPLATE_PATH = Path(__file__).parent / "subject_prompt.md"
 SUBJECT_CHUNK_DIR = DATA_DIR / "tmp" / "subject_chunks"
 CHUNK_SIZE = 100
+NO_SUBJECT_CACHE_PATH = DATA_DIR / "no_subject_cache.json"
+PROMPT_VERSION = 1
+
+
+def load_no_subject_cache(path: Path = NO_SUBJECT_CACHE_PATH) -> Dict[str, int]:
+    """text -> the PROMPT_VERSION in effect when it was confirmed to have no subject.
+
+    A missing or corrupt cache file is treated as empty - same tolerance as
+    ingest.sources.wikidata's cache, since Stage 2 runs into the same
+    crash-mid-write risk during a long chunk-processing session.
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def save_no_subject_cache(cache: Dict[str, int], path: Path = NO_SUBJECT_CACHE_PATH) -> None:
+    """Write atomically (temp file + os.replace) so a crash mid-write can't corrupt the cache."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(path.name + ".tmp")
+    with open(temp_path, "w", encoding="utf-8") as handle:
+        json.dump(cache, handle, ensure_ascii=False, indent=2)
+    os.replace(temp_path, path)
 
 
 def build_prompt() -> str:
