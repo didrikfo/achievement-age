@@ -23,20 +23,40 @@ def test_single_known_name_matches_and_computes_age():
     status, payload = classify_event(_event("Albert Einstein published a paper."), automaton, lookup)
 
     assert status == "matched"
-    assert payload["name"] == "Albert Einstein"
+    assert payload["implausible"] == []
+    assert len(payload["matched"]) == 1
+    record = payload["matched"][0]
+    assert record["name"] == "Albert Einstein"
     # 1879-03-14 to 1905-11-21, verified: (date(1905,11,21) - date(1879,3,14)).days
-    assert payload["age"] == 9748
-    assert payload["text"] == "Albert Einstein published a paper."
+    assert record["age"] == 9748
+    assert record["text"] == "Albert Einstein published a paper."
 
 
-def test_two_known_names_are_ambiguous_not_guessed():
+def test_two_known_names_both_become_separate_matched_records():
     lookup = _lookup(EINSTEIN, CURIE)
     automaton = build_name_index(lookup.keys())
 
     status, payload = classify_event(_event("Marie Curie wrote to Albert Einstein."), automaton, lookup)
 
-    assert status == "ambiguous"
-    assert payload == ["albert einstein", "marie curie"]
+    assert status == "matched"
+    assert payload["implausible"] == []
+    names = sorted(record["name"] for record in payload["matched"])
+    assert names == ["Albert Einstein", "Marie Curie"]
+
+
+def test_multi_candidate_event_can_partially_fail_the_plausibility_bound():
+    # 1870 predates Einstein's 1879 birth (a negative, implausible age) while
+    # Curie (born 1867) already existed and gets a plausible age.
+    lookup = _lookup(EINSTEIN, CURIE)
+    automaton = build_name_index(lookup.keys())
+
+    status, payload = classify_event(
+        _event("Marie Curie wrote to Albert Einstein.", year=1870), automaton, lookup
+    )
+
+    assert status == "matched"
+    assert [record["name"] for record in payload["matched"]] == ["Marie Curie"]
+    assert payload["implausible"] == ["Albert Einstein"]
 
 
 def test_no_known_name_is_unmatched():
@@ -55,7 +75,7 @@ def test_event_before_the_persons_birth_is_implausible():
     status, payload = classify_event(_event("Albert Einstein appears.", year=1800), automaton, lookup)
 
     assert status == "implausible"
-    assert payload == "Albert Einstein"
+    assert payload == ["Albert Einstein"]
 
 
 def test_non_numeric_year_is_unusable():
@@ -67,6 +87,68 @@ def test_non_numeric_year_is_unusable():
     )
 
     assert status == "unusable"
+
+
+def test_named_after_phrase_routes_to_possible_reference_with_a_plausible_single_match():
+    lookup = _lookup(EINSTEIN)
+    automaton = build_name_index(lookup.keys())
+
+    status, payload = classify_event(
+        _event("Einstein Elementary School, named after Albert Einstein, opens its doors."),
+        automaton,
+        lookup,
+    )
+
+    assert status == "possible_reference"
+    assert payload == ["albert einstein"]
+
+
+def test_named_after_phrase_routes_to_possible_reference_with_no_known_candidates():
+    lookup = _lookup(EINSTEIN)
+    automaton = build_name_index(lookup.keys())
+
+    status, payload = classify_event(
+        _event("A new bridge, named after a local poet, opens to traffic."), automaton, lookup
+    )
+
+    assert status == "possible_reference"
+    assert payload == []
+
+
+def test_named_after_phrase_routes_to_possible_reference_with_multiple_known_candidates():
+    lookup = _lookup(EINSTEIN, CURIE)
+    automaton = build_name_index(lookup.keys())
+
+    status, payload = classify_event(
+        _event("The Einstein-Curie Prize, named after Albert Einstein and Marie Curie, is awarded."),
+        automaton,
+        lookup,
+    )
+
+    assert status == "possible_reference"
+    assert sorted(payload) == ["albert einstein", "marie curie"]
+
+
+def test_anniversary_phrase_also_routes_to_possible_reference():
+    lookup = _lookup(EINSTEIN)
+    automaton = build_name_index(lookup.keys())
+
+    status, _ = classify_event(
+        _event("On the 10th anniversary of Albert Einstein's famous paper, a conference is held."),
+        automaton,
+        lookup,
+    )
+
+    assert status == "possible_reference"
+
+
+def test_ordinary_text_without_a_commemorative_phrase_is_unaffected():
+    lookup = _lookup(EINSTEIN)
+    automaton = build_name_index(lookup.keys())
+
+    status, _ = classify_event(_event("Albert Einstein published a paper."), automaton, lookup)
+
+    assert status == "matched"
 
 
 def test_widened_lookup_drops_single_token_names(tmp_path):

@@ -95,39 +95,80 @@ def dedup_against_file(path: Path, entries: List[Dict]) -> List[Dict]:
     return fresh
 
 
+COMMEMORATIVE_PATTERNS = (
+    "named after", "in honor of", "in honour of", "anniversary of",
+    "in memory of", "dedicated to", "commemorat",
+)
+
+
+def _mentions_commemorative_reference(text: str) -> bool:
+    """True if text suggests a person is only referenced, not acting.
+
+    A school "named after" someone, or text describing an "anniversary of"
+    someone's death, does not mean that person did anything on this date -
+    the age bound alone can't catch this within a normal lifespan window.
+    Checked case-insensitively against the raw text (these are literal
+    English phrases, not names, so normalize_name's punctuation-stripping
+    isn't relevant here).
+    """
+    lowered = text.lower()
+    return any(pattern in lowered for pattern in COMMEMORATIVE_PATTERNS)
+
+
 def classify_event(event: Dict, automaton, births_lookup: Dict[str, Dict]) -> Tuple[str, object]:
     """Classify one event against the known-person index.
 
     Returns (status, payload):
-    - ("matched", event_record)   - exactly one known person, plausible age.
-                                    event_record adds "name" and "age" to event.
-    - ("ambiguous", names)        - several known people named; needs Stage 2.
-    - ("unmatched", None)         - no known person named; needs Stage 2.
-    - ("implausible", name)       - one person, but the age fails the bound.
-    - ("unusable", None)          - the event has no numeric year.
+    - ("matched", {"matched": [...], "implausible": [...]})
+        "matched": one record per candidate whose computed age is plausible
+        (event dict + name + age) - always non-empty when status is
+        "matched". A single-candidate text yields a one-element list; a
+        multi-candidate text (several distinct, non-nested real people
+        literally named in the text) yields one per person.
+        "implausible": names of candidates from the same text that
+        individually failed the bound - possible even when others in the
+        same text passed.
+    - ("possible_reference", names)  - the text matched a commemorative/
+        named-after phrase; never auto-accepted regardless of candidate
+        count. names is whatever known candidates were found (may be []).
+    - ("unmatched", None)            - no known person named, and no
+        commemorative phrase either.
+    - ("implausible", names)         - every candidate found failed the
+        bound (none passed).
+    - ("unusable", None)             - the event has no numeric year.
     """
     year = event.get("year")
     if year is None or not str(year).isdigit():
         return "unusable", None
 
     names = find_names_in_text(automaton, event["text"])
+
+    if _mentions_commemorative_reference(event["text"]):
+        return "possible_reference", names
+
     if not names:
         return "unmatched", None
-    if len(names) > 1:
-        return "ambiguous", names
 
-    birth = births_lookup.get(names[0])
-    if birth is None:
-        return "unmatched", None
+    matched: List[Dict] = []
+    implausible: List[str] = []
+    for name in names:
+        birth = births_lookup.get(name)
+        if birth is None:
+            continue
+        age = calculate_age(
+            birth["year"], birth["month"], birth["day"],
+            int(year), int(event["month"]), int(event["day"]),
+        )
+        if age is None or not (0 <= age <= MAX_AGE_DAYS):
+            implausible.append(birth["name"])
+        else:
+            matched.append({**event, "name": birth["name"], "age": age})
 
-    age = calculate_age(
-        birth["year"], birth["month"], birth["day"],
-        int(year), int(event["month"]), int(event["day"]),
-    )
-    if age is None or not (0 <= age <= MAX_AGE_DAYS):
-        return "implausible", birth["name"]
-
-    return "matched", {**event, "name": birth["name"], "age": age}
+    if matched:
+        return "matched", {"matched": matched, "implausible": implausible}
+    if implausible:
+        return "implausible", implausible
+    return "unmatched", None
 
 
 EVENTS_WITH_AGE_PATH = DATA_DIR / "events_with_age.json"
