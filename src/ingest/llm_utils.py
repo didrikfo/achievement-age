@@ -23,9 +23,10 @@ CHUNK_DIR = DATA_DIR / "tmp" / "reword_chunks"
 REVIEW_PATH = DATA_DIR / "tmp" / "enrichment_review.json"
 
 
-def _event_key(event: Dict) -> Tuple[object, object]:
-    """Natural key for an event: (name, text) - stable across pipeline reruns."""
-    return (event.get("name"), event.get("text"))
+def _event_key(event: Dict) -> object:
+    """Natural key for an event: text - stable across pipeline reruns, even across a
+    subject correction that changes name."""
+    return event.get("text")
 
 
 def _fallback_event_phrase(event: Dict) -> str:
@@ -84,7 +85,7 @@ def merge_reworded_chunk(
 ) -> int:
     """Merge a subagent's reworded chunk into displayable_path (default data/displayable_events.json).
 
-    Records are matched back to the original chunk by (name, text), not by
+    Records are matched back to the original chunk by text, not by
     list order/position, so a subagent that drops or reorders a record is
     still handled correctly. Any record that doesn't come back with a usable
     event_phrase (missing result file, invalid JSON, or a blank field) gets
@@ -99,7 +100,7 @@ def merge_reworded_chunk(
     """
     chunk = load_json(chunk_path)
 
-    reworded_by_key: Dict[Tuple[object, object], Dict] = {}
+    reworded_by_key: Dict[object, Dict] = {}
     try:
         reworded = load_json(result_path)
         reworded_by_key = {_event_key(event): event for event in reworded}

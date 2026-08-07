@@ -1,7 +1,7 @@
 # tests/test_llm_utils.py
 import json
 
-from ingest.llm_utils import merge_reworded_chunk
+from ingest.llm_utils import get_pending_events, merge_reworded_chunk
 
 
 def _empty_births_path(tmp_path):
@@ -153,3 +153,47 @@ def test_merge_reworded_chunk_writes_review_entry_for_invalid_tags(tmp_path):
     assert review == [
         {"name": "Ada Lovelace", "text": "published notes", "issue_type": "tags", "detail": "no valid tags in ['not-a-real-tag']"}
     ]
+
+
+def test_get_pending_events_not_stuck_pending_after_subject_correction(tmp_path):
+    # events_with_age.json always holds the original matched name for an event...
+    events_path = tmp_path / "events_with_age.json"
+    events_path.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "George Washington",
+                    "text": "George Washington and John Adams hoisted the flag",
+                    "year": "1776",
+                    "month": 1,
+                    "day": 1,
+                    "age": 100,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    # ...but once a subject correction is accepted, displayable_events.json holds the
+    # corrected name for the same event (same text). Keying solely on (name, text) would
+    # make this look like a different, still-pending event forever.
+    displayable_path = tmp_path / "displayable_events.json"
+    displayable_path.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "John Adams",
+                    "text": "George Washington and John Adams hoisted the flag",
+                    "event_phrase": "he hoisted the flag",
+                    "tags": ["military"],
+                    "age": 12345,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    processed, pending = get_pending_events(events_path=events_path, displayable_path=displayable_path)
+
+    assert pending == []
+    assert len(processed) == 1
