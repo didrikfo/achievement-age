@@ -1,6 +1,7 @@
 import json
 
 from ingest.subject_extraction import (
+    PROMPT_VERSION,
     build_prompt,
     load_no_subject_cache,
     merge_subject_chunk,
@@ -230,3 +231,118 @@ def test_save_no_subject_cache_leaves_no_temp_file_behind(tmp_path):
     save_no_subject_cache({"x": 1}, path)
 
     assert not path.with_name(path.name + ".tmp").exists()
+
+
+def test_prepare_subject_chunks_skips_a_text_already_confirmed_at_the_current_prompt_version(tmp_path):
+    pending_path = tmp_path / "subject_pending.json"
+    pending_path.write_text(
+        json.dumps(
+            [
+                {"text": "Already checked.", "reason": "unmatched"},
+                {"text": "Never checked.", "reason": "unmatched"},
+            ]
+        ),
+        encoding="utf-8",
+    )
+    cache_path = tmp_path / "no_subject_cache.json"
+    save_no_subject_cache({"Already checked.": PROMPT_VERSION}, cache_path)
+
+    paths = prepare_subject_chunks(
+        pending_path=pending_path, chunk_dir=tmp_path / "chunks", cache_path=cache_path
+    )
+
+    chunked = json.loads(paths[0].read_text(encoding="utf-8"))
+    assert [entry["text"] for entry in chunked] == ["Never checked."]
+
+
+def test_prepare_subject_chunks_includes_a_text_cached_at_a_stale_prompt_version(tmp_path):
+    pending_path = tmp_path / "subject_pending.json"
+    pending_path.write_text(
+        json.dumps([{"text": "Checked under an older prompt.", "reason": "unmatched"}]),
+        encoding="utf-8",
+    )
+    cache_path = tmp_path / "no_subject_cache.json"
+    save_no_subject_cache({"Checked under an older prompt.": PROMPT_VERSION - 1}, cache_path)
+
+    paths = prepare_subject_chunks(
+        pending_path=pending_path, chunk_dir=tmp_path / "chunks", cache_path=cache_path
+    )
+
+    chunked = json.loads(paths[0].read_text(encoding="utf-8"))
+    assert len(chunked) == 1
+
+
+def test_merge_subject_chunk_caches_a_confirmed_no_subject_result(tmp_path):
+    chunk_path = tmp_path / "chunk_0000.json"
+    chunk_path.write_text(
+        json.dumps([{"year": 1919, "month": 6, "day": 28, "text": "A treaty was signed."}]),
+        encoding="utf-8",
+    )
+    result_path = tmp_path / "chunk_0000_result.json"
+    result_path.write_text(
+        json.dumps([{"text": "A treaty was signed.", "subject": None}]), encoding="utf-8"
+    )
+    births_path = tmp_path / "births.json"
+    births_path.write_text("[]", encoding="utf-8")
+    cache_path = tmp_path / "no_subject_cache.json"
+
+    merge_subject_chunk(
+        chunk_path,
+        result_path,
+        births_path=births_path,
+        matched_path=tmp_path / "events_with_age.json",
+        wikidata_pending_path=tmp_path / "wikidata_pending.json",
+        review_path=tmp_path / "matching_review.json",
+        no_subject_cache_path=cache_path,
+    )
+
+    cache = load_no_subject_cache(cache_path)
+    assert cache["A treaty was signed."] == PROMPT_VERSION
+
+
+def test_merge_subject_chunk_does_not_cache_a_rejected_suggestion(tmp_path):
+    chunk_path = tmp_path / "chunk_0000.json"
+    chunk_path.write_text(
+        json.dumps([{"year": 1919, "month": 6, "day": 28, "text": "A treaty was signed."}]),
+        encoding="utf-8",
+    )
+    result_path = tmp_path / "chunk_0000_result.json"
+    result_path.write_text(
+        json.dumps([{"text": "A treaty was signed.", "subject": "Someone Not In The Text"}]),
+        encoding="utf-8",
+    )
+    births_path = tmp_path / "births.json"
+    births_path.write_text("[]", encoding="utf-8")
+    cache_path = tmp_path / "no_subject_cache.json"
+
+    merge_subject_chunk(
+        chunk_path,
+        result_path,
+        births_path=births_path,
+        matched_path=tmp_path / "events_with_age.json",
+        wikidata_pending_path=tmp_path / "wikidata_pending.json",
+        review_path=tmp_path / "matching_review.json",
+        no_subject_cache_path=cache_path,
+    )
+
+    assert load_no_subject_cache(cache_path) == {}
+
+
+def test_merge_subject_chunk_does_not_cache_when_the_result_file_is_missing(tmp_path):
+    chunk_path = tmp_path / "chunk_0000.json"
+    chunk_path.write_text(json.dumps([EVENT]), encoding="utf-8")
+    births_path = tmp_path / "births.json"
+    births_path.write_text(json.dumps([EINSTEIN]), encoding="utf-8")
+    cache_path = tmp_path / "no_subject_cache.json"
+
+    merge_subject_chunk(
+        chunk_path,
+        tmp_path / "does_not_exist.json",
+        births_path=births_path,
+        matched_path=tmp_path / "events_with_age.json",
+        wikidata_pending_path=tmp_path / "wikidata_pending.json",
+        review_path=tmp_path / "matching_review.json",
+        no_subject_cache_path=cache_path,
+    )
+
+    assert load_no_subject_cache(cache_path) == {}

@@ -71,9 +71,18 @@ def prepare_subject_chunks(
     pending_path: Path = SUBJECT_PENDING_PATH,
     chunk_size: int = CHUNK_SIZE,
     chunk_dir: Path = SUBJECT_CHUNK_DIR,
+    cache_path: Path = NO_SUBJECT_CACHE_PATH,
 ) -> List[Path]:
-    """Split the Stage 2 queue into numbered chunk files for a subagent to process."""
+    """Split the Stage 2 queue into numbered chunk files for a subagent to process.
+
+    Events already confirmed to have no subject under the current
+    PROMPT_VERSION are skipped - Stage 1 requeues everything unmatched on
+    every run, with no memory of what Stage 2 already checked, so this
+    filtering has to happen here.
+    """
     pending = load_json(pending_path)
+    cache = load_no_subject_cache(cache_path)
+    pending = [event for event in pending if cache.get(event.get("text")) != PROMPT_VERSION]
 
     chunk_dir.mkdir(parents=True, exist_ok=True)
     paths: List[Path] = []
@@ -123,12 +132,17 @@ def merge_subject_chunk(
     matched_path: Path = EVENTS_WITH_AGE_PATH,
     wikidata_pending_path: Path = WIKIDATA_PENDING_PATH,
     review_path: Path = MATCHING_REVIEW_PATH,
+    no_subject_cache_path: Path = NO_SUBJECT_CACHE_PATH,
 ) -> Dict[str, int]:
     """Validate one chunk's subagent output and route each event to its next step.
 
     Records are matched back to the chunk by `text`, not list position, so a
     subagent that reorders or drops records is still handled. A missing or
-    malformed result file leaves every record in the chunk as "no_subject".
+    malformed result file, or a record the subagent dropped, leaves that
+    event as "no_subject" for this run - but only a genuine `subject: null`
+    response is cached (no_subject_cache_path) as a confirmed verdict, so a
+    technical failure (missing file) doesn't get mistaken for an LLM having
+    actually looked and found nobody.
     """
     chunk = load_json(chunk_path)
     try:
@@ -143,10 +157,11 @@ def merge_subject_chunk(
     matched: List[Dict] = []
     wikidata_pending: List[Dict] = []
     review: List[Dict] = []
+    no_subject_texts: List[str] = []
 
     for event in chunk:
-        result = results_by_text.get(event.get("text")) or {}
-        status, payload = route_subject(event, result.get("subject"), births_lookup)
+        result = results_by_text.get(event.get("text"))
+        status, payload = route_subject(event, (result or {}).get("subject"), births_lookup)
         counts[status] += 1
 
         if status == "matched":
@@ -154,6 +169,8 @@ def merge_subject_chunk(
         elif status == "wikidata_candidate":
             wikidata_pending.append({**event, "subject": payload})
         else:
+            if status == "no_subject" and result is not None:
+                no_subject_texts.append(event.get("text"))
             review.append(
                 {
                     "stage": "stage_2",
@@ -161,7 +178,7 @@ def merge_subject_chunk(
                     # The name the subagent proposed, so the report has the same
                     # {stage, issue_type, name, text, detail} shape as Stage 1
                     # and 3. None when it found nobody at all.
-                    "name": result.get("subject") or None,
+                    "name": result.get("subject") if result else None,
                     "text": event.get("text"),
                     "detail": payload if status == "rejected" else "no subject identified in the text",
                 }
@@ -170,6 +187,13 @@ def merge_subject_chunk(
     counts["appended"] = append_matched_events(matched, matched_path, review_path)
     _append_json_list(wikidata_pending_path, wikidata_pending)
     write_review_entries(dedup_against_file(review_path, review), review_path)
+
+    if no_subject_texts:
+        cache = load_no_subject_cache(no_subject_cache_path)
+        for text in no_subject_texts:
+            cache[text] = PROMPT_VERSION
+        save_no_subject_cache(cache, no_subject_cache_path)
+
     return counts
 
 
