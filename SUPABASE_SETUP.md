@@ -50,6 +50,12 @@ you, gitignored — `core/db.py` loads it automatically via `python-dotenv`, so 
 covers both standalone scripts and a local `streamlit run`, no `.streamlit/secrets.toml` needed
 for local dev):
 
+If the local `displayable_events.json` being migrated already has `tags` populated on its events
+(i.e. this isn't the very first migration into a fresh project), run the tag-seeding SQL in
+section 4 first — `migrate_to_supabase` looks up each tag name in the `tags` table and silently
+skips any tag it can't find, so migrating tagged events against an empty `tags` table loses every
+tag with no error.
+
 ```bash
 pip install -e .
 pip install -r requirements.txt
@@ -139,7 +145,8 @@ JSON response next to its chunk as `<chunk>_result.json`. Then merge each chunk:
 python -c "from ingest.backfill_event_enrichment import merge_chunk; merge_chunk('data/tmp/enrichment_chunks/chunk_0000.json', 'data/tmp/enrichment_chunks/chunk_0000_result.json')"
 ```
 
-This re-checks each event's `event_phrase` wording, assigns 1-3 tags from the list above, and
+This regenerates each event's `event_phrase` from its raw `text` (the existing `event_phrase` in
+the database isn't fetched or reviewed — it's simply overwritten), assigns 1-3 tags from the list above, and
 flags cases where the matched name looks like the wrong subject. Tag assignments are written to
 `event_tags`; subject corrections are only applied when the suggested alternate is both mentioned
 in the event text and a known person with a computable birth date — anything that doesn't clear
