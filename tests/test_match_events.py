@@ -223,19 +223,13 @@ def test_run_stage_one_splits_events_and_writes_pending(tmp_path):
             [
                 {"year": 1905, "month": 11, "day": 21, "text": "Albert Einstein published a paper."},
                 {"year": 1911, "month": 12, "day": 10, "text": "A committee met in Oslo."},
-                {"year": 1905, "month": 1, "day": 1, "text": "Marie Curie wrote to Albert Einstein."},
             ]
         ),
         encoding="utf-8",
     )
     births_path = tmp_path / "births.json"
     births_path.write_text(
-        json.dumps(
-            [
-                {"name": "Albert Einstein", "year": 1879, "month": 3, "day": 14},
-                {"name": "Marie Curie", "year": 1867, "month": 11, "day": 7},
-            ]
-        ),
+        json.dumps([{"name": "Albert Einstein", "year": 1879, "month": 3, "day": 14}]),
         encoding="utf-8",
     )
     matched_path = tmp_path / "events_with_age.json"
@@ -252,11 +246,80 @@ def test_run_stage_one_splits_events_and_writes_pending(tmp_path):
 
     assert counts["matched"] == 1
     assert counts["unmatched"] == 1
-    assert counts["ambiguous"] == 1
 
     pending = json.loads(pending_path.read_text(encoding="utf-8"))
-    assert len(pending) == 2
-    assert {entry["reason"] for entry in pending} == {"unmatched", "ambiguous"}
+    assert len(pending) == 1
+    assert pending[0]["reason"] == "unmatched"
+
+    matched = json.loads(matched_path.read_text(encoding="utf-8"))
+    assert matched[0]["name"] == "Albert Einstein"
+
+
+def test_run_stage_one_auto_matches_every_candidate_in_a_multi_person_event(tmp_path):
+    events_path = tmp_path / "events.json"
+    events_path.write_text(
+        json.dumps(
+            [{"year": 1905, "month": 1, "day": 1, "text": "Marie Curie wrote to Albert Einstein."}]
+        ),
+        encoding="utf-8",
+    )
+    births_path = tmp_path / "births.json"
+    births_path.write_text(
+        json.dumps(
+            [
+                {"name": "Albert Einstein", "year": 1879, "month": 3, "day": 14},
+                {"name": "Marie Curie", "year": 1867, "month": 11, "day": 7},
+            ]
+        ),
+        encoding="utf-8",
+    )
+    matched_path = tmp_path / "events_with_age.json"
+
+    counts = run_stage_one(
+        events_path=events_path,
+        births_path=births_path,
+        matched_path=matched_path,
+        pending_path=tmp_path / "subject_pending.json",
+        review_path=tmp_path / "matching_review.json",
+    )
+
+    assert counts["matched"] == 1  # one EVENT classified matched...
+    assert counts["appended"] == 2  # ...producing two separate person-records
+
+    matched = json.loads(matched_path.read_text(encoding="utf-8"))
+    names = sorted(record["name"] for record in matched)
+    assert names == ["Albert Einstein", "Marie Curie"]
+
+
+def test_run_stage_one_routes_named_after_text_to_possible_reference(tmp_path):
+    events_path = tmp_path / "events.json"
+    events_path.write_text(
+        json.dumps(
+            [{"year": 1950, "month": 1, "day": 1, "text": "A new school, named after Albert Einstein, opens."}]
+        ),
+        encoding="utf-8",
+    )
+    births_path = tmp_path / "births.json"
+    births_path.write_text(
+        json.dumps([{"name": "Albert Einstein", "year": 1879, "month": 3, "day": 14}]),
+        encoding="utf-8",
+    )
+    pending_path = tmp_path / "subject_pending.json"
+
+    counts = run_stage_one(
+        events_path=events_path,
+        births_path=births_path,
+        matched_path=tmp_path / "events_with_age.json",
+        pending_path=pending_path,
+        review_path=tmp_path / "matching_review.json",
+    )
+
+    assert counts["possible_reference"] == 1
+    assert counts["appended"] == 0
+
+    pending = json.loads(pending_path.read_text(encoding="utf-8"))
+    assert pending[0]["reason"] == "possible_reference"
+    assert pending[0]["candidates"] == ["albert einstein"]
 
 
 def test_run_stage_one_records_implausible_matches_for_review(tmp_path):

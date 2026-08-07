@@ -247,6 +247,20 @@ def append_matched_events(
     return added
 
 
+def _implausible_review_entries(event: Dict, names: List[str]) -> List[Dict]:
+    """One review entry per name whose computed age failed the plausibility bound."""
+    return [
+        {
+            "stage": "stage_1",
+            "issue_type": "implausible_age",
+            "name": name,
+            "text": event["text"],
+            "detail": f"age for {name!r} outside 0..{MAX_AGE_DAYS} days",
+        }
+        for name in names
+    ]
+
+
 def run_stage_one(
     events_path: Path = DATA_DIR / "historical_events.json",
     births_path: Path = WIDENED_BIRTHS_PATH,
@@ -256,14 +270,15 @@ def run_stage_one(
 ) -> Dict[str, int]:
     """Classify every scraped event, appending matches and queueing the rest for Stage 2.
 
-    Writes three files: matched events (appended), the Stage 2 queue
-    (unmatched + ambiguous events), and review entries for implausible ages.
+    Writes three files: matched events (appended - possibly several per event
+    when a text names multiple real people), the Stage 2 queue (unmatched +
+    possible-reference events), and review entries for implausible ages.
     """
     events = load_json(events_path)
     births_lookup = load_widened_births_lookup(births_path)
     automaton = build_name_index(births_lookup.keys())
 
-    counts = {"matched": 0, "ambiguous": 0, "unmatched": 0, "implausible": 0, "unusable": 0}
+    counts = {"matched": 0, "possible_reference": 0, "unmatched": 0, "implausible": 0, "unusable": 0}
     matched: List[Dict] = []
     pending: List[Dict] = []
     review: List[Dict] = []
@@ -273,22 +288,17 @@ def run_stage_one(
         counts[status] += 1
 
         if status == "matched":
-            matched.append(payload)
-        elif status in ("unmatched", "ambiguous"):
-            entry = {**event, "reason": status}
-            if status == "ambiguous":
+            matched.extend(payload["matched"])
+            review.extend(_implausible_review_entries(event, payload["implausible"]))
+        elif status == "possible_reference":
+            entry = {**event, "reason": "possible_reference"}
+            if payload:
                 entry["candidates"] = payload
             pending.append(entry)
+        elif status == "unmatched":
+            pending.append({**event, "reason": "unmatched"})
         elif status == "implausible":
-            review.append(
-                {
-                    "stage": "stage_1",
-                    "issue_type": "implausible_age",
-                    "name": payload,
-                    "text": event["text"],
-                    "detail": f"age for {payload!r} outside 0..{MAX_AGE_DAYS} days",
-                }
-            )
+            review.extend(_implausible_review_entries(event, payload))
 
     counts["appended"] = append_matched_events(matched, matched_path, review_path)
 
