@@ -181,10 +181,10 @@ def _event_key(event: Dict):
     Deliberately not the same key as elsewhere in the pipeline, and the
     difference matters. llm_utils._event_key and llm_utils.get_pending_events
     key on `text` alone, while migrate_to_supabase.filter_new_entries keys on
-    (name, text) like this function. So a text stored twice under two different
-    names is a duplicate to llm_utils but two distinct records here - which is
-    why append_matched_events refuses to create that situation in the first
-    place and sends the conflict to review instead.
+    (name, text) like this function. So a text stored twice under two
+    different names is a duplicate to llm_utils but two distinct records
+    here - which is legitimate when they're genuinely different people (see
+    append_matched_events's substring rule for how that's decided).
     """
     return (event.get("name"), event.get("text"))
 
@@ -194,17 +194,26 @@ def append_matched_events(
     path: Path = EVENTS_WITH_AGE_PATH,
     review_path: Path = MATCHING_REVIEW_PATH,
 ) -> int:
-    """Append matched events to path, skipping any whose (name, text) is already there.
+    """Append matched events to path, applying the substring correction rule.
 
-    An event whose `text` is already stored under a *different* name is not
-    appended either: a rerun of a Stage 2 chunk can get a different subject back
-    from the (nondeterministic) subagent, and storing both would show the same
-    event to users twice, attributed to two people with two different ages.
-    Those go to the review report instead, like every other case this pipeline
-    cannot decide on its own.
+    A text can legitimately carry more than one matched record (several real
+    people named in the same event - see classify_event's multi-candidate
+    case). When a new (name, text) candidate's text already has a *different*
+    stored name, the two normalized names are compared against every existing
+    name recorded for that text:
+    - One a substring of the other -> the same person, mis-truncated in one
+      of the two records. The longer (more complete) name wins: if the new
+      candidate is longer it replaces that one shorter existing record;
+      otherwise the new candidate is rejected and logged to review
+      (issue_type "shorter_duplicate"), since a fuller name is already
+      recorded.
+    - No substring relationship with any existing name for that text -> a
+      genuinely different person, and a legitimate additional co-subject.
+      Both are kept.
 
-    Returns how many were actually added. Safe to call repeatedly - Stage 1, 2
-    and 3 all append to the same file across separate runs.
+    Returns how many records were actually added (a correction counts as 1,
+    same as a fresh addition). Safe to call repeatedly - Stage 1, 2 and 3 all
+    append to the same file across separate runs.
     """
     try:
         existing = load_json(path)
@@ -212,38 +221,60 @@ def append_matched_events(
         existing = []
 
     seen = {_event_key(event) for event in existing}
-    names_by_text: Dict[object, Set[object]] = {}
+    names_by_text: Dict[object, Set[str]] = {}
     for event in existing:
         names_by_text.setdefault(event.get("text"), set()).add(event.get("name"))
 
     added = 0
-    conflicts: List[Dict] = []
+    review_entries: List[Dict] = []
     for event in new_events:
         if _event_key(event) in seen:
             continue
 
         text = event.get("text")
-        stored_names = names_by_text.get(text)
-        if stored_names:
-            conflicts.append(
+        new_name = event.get("name")
+        norm_new = normalize_name(new_name)
+
+        replaced_name = None
+        rejected_reason = None
+        for existing_name in names_by_text.get(text, set()):
+            norm_existing = normalize_name(existing_name)
+            if norm_new == norm_existing:
+                continue
+            if norm_new in norm_existing or norm_existing in norm_new:
+                if len(norm_new) > len(norm_existing):
+                    replaced_name = existing_name
+                else:
+                    rejected_reason = f"a fuller name is already recorded: {existing_name!r}"
+                break
+
+        if rejected_reason:
+            review_entries.append(
                 {
                     "stage": "append",
-                    "issue_type": "conflicting_subject",
-                    "name": event.get("name"),
+                    "issue_type": "shorter_duplicate",
+                    "name": new_name,
                     "text": text,
-                    "detail": f"text already attributed to {sorted(map(str, stored_names))}",
+                    "detail": rejected_reason,
                 }
             )
             continue
 
+        if replaced_name is not None:
+            existing = [
+                e for e in existing if not (e.get("text") == text and e.get("name") == replaced_name)
+            ]
+            seen.discard((replaced_name, text))
+            names_by_text[text].discard(replaced_name)
+
         existing.append(event)
         seen.add(_event_key(event))
-        names_by_text.setdefault(text, set()).add(event.get("name"))
+        names_by_text.setdefault(text, set()).add(new_name)
         added += 1
 
     path.parent.mkdir(parents=True, exist_ok=True)
     save_to_json(path, existing)
-    write_review_entries(dedup_against_file(review_path, conflicts), review_path)
+    write_review_entries(dedup_against_file(review_path, review_entries), review_path)
     return added
 
 

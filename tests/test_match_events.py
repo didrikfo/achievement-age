@@ -375,22 +375,82 @@ def test_rerunning_stage_one_does_not_duplicate_review_entries(tmp_path):
     assert len(json.loads(review_path.read_text(encoding="utf-8"))) == 1
 
 
-def test_same_text_under_a_different_name_is_reviewed_not_appended(tmp_path):
+def test_append_matched_events_replaces_a_shorter_existing_match_with_a_fuller_name(tmp_path):
     path = tmp_path / "events_with_age.json"
     review_path = tmp_path / "matching_review.json"
+    text = "The founder of Pakistan, Quaid-i-Azam Muhammad Ali Jinnah, joins a school."
     path.write_text(
-        json.dumps([{"name": "Marie Curie", "text": "she won a prize", "age": 1}]),
+        json.dumps([{"name": "Muhammad Ali", "text": text, "age": 43000}]), encoding="utf-8"
+    )
+
+    added = append_matched_events(
+        [{"name": "Muhammad Ali Jinnah", "text": text, "age": 4000}], path, review_path=review_path
+    )
+
+    assert added == 1
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    assert len(stored) == 1
+    assert stored[0]["name"] == "Muhammad Ali Jinnah"
+    assert stored[0]["age"] == 4000
+
+
+def test_append_matched_events_rejects_a_shorter_candidate_when_the_fuller_name_is_already_recorded(tmp_path):
+    path = tmp_path / "events_with_age.json"
+    review_path = tmp_path / "matching_review.json"
+    text = "The founder of Pakistan, Quaid-i-Azam Muhammad Ali Jinnah, joins a school."
+    path.write_text(
+        json.dumps([{"name": "Muhammad Ali Jinnah", "text": text, "age": 4000}]), encoding="utf-8"
+    )
+
+    added = append_matched_events(
+        [{"name": "Muhammad Ali", "text": text, "age": 43000}], path, review_path=review_path
+    )
+
+    assert added == 0
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    assert len(stored) == 1
+    assert stored[0]["name"] == "Muhammad Ali Jinnah"
+    review = json.loads(review_path.read_text(encoding="utf-8"))
+    assert review[0]["issue_type"] == "shorter_duplicate"
+    assert review[0]["name"] == "Muhammad Ali"
+
+
+def test_append_matched_events_keeps_two_unrelated_names_for_the_same_text(tmp_path):
+    path = tmp_path / "events_with_age.json"
+    text = "Churchill and Stalin met in Potsdam."
+    path.write_text(
+        json.dumps([{"name": "Winston Churchill", "text": text, "age": 1}]), encoding="utf-8"
+    )
+
+    added = append_matched_events(
+        [{"name": "Joseph Stalin", "text": text, "age": 2}], path, review_path=tmp_path / "matching_review.json"
+    )
+
+    assert added == 1
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    names = sorted(entry["name"] for entry in stored)
+    assert names == ["Joseph Stalin", "Winston Churchill"]
+
+
+def test_append_matched_events_only_replaces_the_matching_co_subject(tmp_path):
+    # Two existing co-subjects for the same text; only the substring-related one is touched.
+    path = tmp_path / "events_with_age.json"
+    text = "Muhammad Ali Jinnah met Liaquat Ali Khan."
+    path.write_text(
+        json.dumps(
+            [
+                {"name": "Muhammad Ali", "text": text, "age": 1},
+                {"name": "Liaquat Ali Khan", "text": text, "age": 2},
+            ]
+        ),
         encoding="utf-8",
     )
 
     added = append_matched_events(
-        [{"name": "Pierre Curie", "text": "she won a prize", "age": 2}],
-        path,
-        review_path=review_path,
+        [{"name": "Muhammad Ali Jinnah", "text": text, "age": 3}], path, review_path=tmp_path / "matching_review.json"
     )
 
-    assert added == 0
-    assert len(json.loads(path.read_text(encoding="utf-8"))) == 1
-    review = json.loads(review_path.read_text(encoding="utf-8"))
-    assert review[0]["issue_type"] == "conflicting_subject"
-    assert review[0]["name"] == "Pierre Curie"
+    assert added == 1
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    names = sorted(entry["name"] for entry in stored)
+    assert names == ["Liaquat Ali Khan", "Muhammad Ali Jinnah"]
