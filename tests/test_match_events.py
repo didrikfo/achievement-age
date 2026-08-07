@@ -394,6 +394,60 @@ def test_append_matched_events_replaces_a_shorter_existing_match_with_a_fuller_n
     assert stored[0]["age"] == 4000
 
 
+def test_append_matched_events_records_a_review_entry_for_a_replacement(tmp_path):
+    path = tmp_path / "events_with_age.json"
+    review_path = tmp_path / "matching_review.json"
+    text = "The founder of Pakistan, Quaid-i-Azam Muhammad Ali Jinnah, joins a school."
+    path.write_text(
+        json.dumps([{"name": "Muhammad Ali", "text": text, "age": 43000}]), encoding="utf-8"
+    )
+
+    append_matched_events(
+        [{"name": "Muhammad Ali Jinnah", "text": text, "age": 4000}], path, review_path=review_path
+    )
+
+    review = json.loads(review_path.read_text(encoding="utf-8"))
+    assert len(review) == 1
+    assert review[0]["stage"] == "append"
+    assert review[0]["issue_type"] == "corrected_subject"
+    assert review[0]["name"] == "Muhammad Ali Jinnah"
+    assert review[0]["text"] == text
+    assert "Muhammad Ali" in review[0]["detail"]
+
+
+def test_append_matched_events_keeps_regnal_namesakes_apart(tmp_path):
+    # Real event text. "otto i" is a raw-character substring of "otto ii", but Otto I
+    # and his son Otto II are different people - a truncation match has to line up on
+    # whole tokens, and "i" != "ii".
+    path = tmp_path / "events_with_age.json"
+    review_path = tmp_path / "matching_review.json"
+    text = "King Otto I elects his six-year-old son Otto II as heir apparent and co-ruler."
+    path.write_text(json.dumps([{"name": "Otto I", "text": text, "age": 10000}]), encoding="utf-8")
+
+    added = append_matched_events(
+        [{"name": "Otto II", "text": text, "age": 2000}], path, review_path=review_path
+    )
+
+    assert added == 1
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    assert sorted(entry["name"] for entry in stored) == ["Otto I", "Otto II"]
+    assert not review_path.exists()
+
+
+def test_append_matched_events_keeps_namesake_sultans_apart(tmp_path):
+    path = tmp_path / "events_with_age.json"
+    text = "Mehmed V died at the age of 73 and Ottoman sultan Mehmed VI ascends to the throne."
+    path.write_text(json.dumps([{"name": "Mehmed V", "text": text, "age": 26000}]), encoding="utf-8")
+
+    added = append_matched_events(
+        [{"name": "Mehmed VI", "text": text, "age": 20000}], path, review_path=tmp_path / "review.json"
+    )
+
+    assert added == 1
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    assert sorted(entry["name"] for entry in stored) == ["Mehmed V", "Mehmed VI"]
+
+
 def test_append_matched_events_rejects_a_shorter_candidate_when_the_fuller_name_is_already_recorded(tmp_path):
     path = tmp_path / "events_with_age.json"
     review_path = tmp_path / "matching_review.json"

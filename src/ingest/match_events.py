@@ -3,9 +3,11 @@ using one Aho-Corasick pass over a widened births pool.
 
 Supersedes ingest.pipeline.match_births_to_events, which gated on the top 1,000
 Pantheon-ranked people (1,232 matched events) and silently kept whichever name
-its dict iteration reached first when a text named several known people. Here
-the multi-name case becomes an explicit "ambiguous" status routed to Stage 2
-instead of a guess.
+its dict iteration reached first when a text named several known people. Here a
+text naming several known people yields one matched record per person - every
+co-subject is kept rather than one being guessed at and the rest discarded (see
+classify_event). Only commemorative phrasing ("named after", "anniversary of")
+still defers to Stage 2 rather than being auto-matched.
 """
 
 from __future__ import annotations
@@ -176,17 +178,43 @@ SUBJECT_PENDING_PATH = DATA_DIR / "tmp" / "subject_pending.json"
 
 
 def _event_key(event: Dict):
-    """Natural key for a matched event here: (name, text).
+    """Natural key for a matched event: (name, text).
 
-    Deliberately not the same key as elsewhere in the pipeline, and the
-    difference matters. llm_utils._event_key and llm_utils.get_pending_events
-    key on `text` alone, while migrate_to_supabase.filter_new_entries keys on
-    (name, text) like this function. So a text stored twice under two
-    different names is a duplicate to llm_utils but two distinct records
-    here - which is legitimate when they're genuinely different people (see
-    append_matched_events's substring rule for how that's decided).
+    A text can legitimately be stored more than once - once per co-subject
+    genuinely named in it - so `text` alone doesn't identify a record.
+    llm_utils._event_key and migrate_to_supabase.filter_new_entries use the
+    same (name, text) key, so all three stages agree about what counts as the
+    same record. Which same-text records are really the same person recorded
+    twice, rather than distinct co-subjects, is decided by
+    append_matched_events's token-boundary truncation rule below.
     """
     return (event.get("name"), event.get("text"))
+
+
+def _contains_token_run(shorter: List[str], longer: List[str]) -> bool:
+    """True if `shorter` appears as a contiguous run of whole tokens inside `longer`."""
+    if not shorter or len(shorter) > len(longer):
+        return False
+    return any(
+        longer[start : start + len(shorter)] == shorter
+        for start in range(len(longer) - len(shorter) + 1)
+    )
+
+
+def _is_truncation_of(norm_a: str, norm_b: str) -> bool:
+    """True if one normalized name is the other truncated at a token boundary.
+
+    Raw character containment is the wrong test here: "otto i" is a substring
+    of "otto ii", but Otto I and his son Otto II are two people, as are
+    "mehmed v" and "mehmed vi". Comparing whole tokens rejects those while
+    still catching the case this rule exists for - "muhammad ali" inside
+    "muhammad ali jinnah", a genuine mis-truncation of one person's name.
+    """
+    tokens_a = norm_a.split()
+    tokens_b = norm_b.split()
+    if len(tokens_a) <= len(tokens_b):
+        return _contains_token_run(tokens_a, tokens_b)
+    return _contains_token_run(tokens_b, tokens_a)
 
 
 def append_matched_events(
@@ -194,7 +222,7 @@ def append_matched_events(
     path: Path = EVENTS_WITH_AGE_PATH,
     review_path: Path = MATCHING_REVIEW_PATH,
 ) -> int:
-    """Append matched events to path, applying the substring correction rule.
+    """Append matched events to path, applying the truncation correction rule.
 
     A text can legitimately carry more than one matched record (several real
     people named in the same event - see classify_event's multi-candidate
@@ -205,15 +233,16 @@ def append_matched_events(
       from the raw-string `seen` check above) -> already present under a
       near-duplicate spelling. Skipped silently: not appended, not counted
       in `added`, no review entry.
-    - One a substring of the other -> the same person, mis-truncated in one
-      of the two records. The longer (more complete) name wins: if the new
-      candidate is longer it replaces that one shorter existing record;
-      otherwise the new candidate is rejected and logged to review
-      (issue_type "shorter_duplicate"), since a fuller name is already
-      recorded.
-    - No substring relationship with any existing name for that text -> a
+    - One a token-boundary truncation of the other (_is_truncation_of) -> the
+      same person, mis-truncated in one of the two records. The name with more
+      tokens wins: if the new candidate is fuller it replaces that one shorter
+      existing record and logs the correction to review (issue_type
+      "corrected_subject"), since a previously-matched - possibly
+      already-migrated - record is being removed; otherwise the new candidate
+      is rejected and logged to review (issue_type "shorter_duplicate").
+    - No truncation relationship with any existing name for that text -> a
       genuinely different person, and a legitimate additional co-subject.
-      Both are kept.
+      Both are kept ("Otto I" alongside "Otto II").
 
     Returns how many records were actually added (a correction counts as 1,
     same as a fresh addition). Safe to call repeatedly - Stage 1, 2 and 3 all
@@ -247,8 +276,8 @@ def append_matched_events(
             if norm_new == norm_existing:
                 already_present = True
                 break
-            if norm_new in norm_existing or norm_existing in norm_new:
-                if len(norm_new) > len(norm_existing):
+            if _is_truncation_of(norm_new, norm_existing):
+                if len(norm_new.split()) > len(norm_existing.split()):
                     replaced_name = existing_name
                 else:
                     rejected_reason = f"a fuller name is already recorded: {existing_name!r}"
@@ -275,6 +304,15 @@ def append_matched_events(
             ]
             seen.discard((replaced_name, text))
             names_by_text[text].discard(replaced_name)
+            review_entries.append(
+                {
+                    "stage": "append",
+                    "issue_type": "corrected_subject",
+                    "name": new_name,
+                    "text": text,
+                    "detail": f"replaced shorter match {replaced_name!r}",
+                }
+            )
 
         existing.append(event)
         seen.add(_event_key(event))
