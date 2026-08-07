@@ -17,7 +17,7 @@ EVENTS = [
     {"year": 1905, "month": 11, "day": 21, "text": "Albert Einstein published a paper."},
     # Stage 1: "John Smith" is contained in "John Smith Senior" - one person, not two.
     {"year": 1863, "month": 11, "day": 19, "text": "John Smith Senior addressed the assembly."},
-    # Stage 1: two known people -> ambiguous -> Stage 2 picks one.
+    # Stage 1: two known, unrelated people -> both auto-matched as separate co-subjects.
     {"year": 1905, "month": 1, "day": 1, "text": "Marie Curie wrote to Albert Einstein."},
     # Stage 1: nobody known -> Stage 2 names someone we don't have -> Stage 3.
     {"year": 1905, "month": 1, "day": 1, "text": "Mileva Maric reviewed the draft."},
@@ -33,7 +33,6 @@ BIRTHS = [
 ]
 
 SUBAGENT_RESULTS = [
-    {"text": "Marie Curie wrote to Albert Einstein.", "subject": "Marie Curie"},
     {"text": "Mileva Maric reviewed the draft.", "subject": "Mileva Maric"},
     {"text": "A treaty was signed at Versailles.", "subject": None},
 ]
@@ -57,14 +56,22 @@ def test_events_flow_from_stage_one_through_stage_three(tmp_path, monkeypatch):
         pending_path=pending_path,
         review_path=review_path,
     )
-    assert stage_one["matched"] == 2  # Einstein, and John Smith Senior (not ambiguous)
-    assert stage_one["ambiguous"] == 1
+    # Einstein-alone, John Smith Senior, and the Curie+Einstein multi-subject event.
+    assert stage_one["matched"] == 3
     assert stage_one["unmatched"] == 2
+    assert stage_one["appended"] == 4  # Einstein x2 (different texts), John Smith Senior, Curie
 
+    no_subject_cache_path = tmp_path / "no_subject_cache.json"
     chunks = prepare_subject_chunks(
-        pending_path=pending_path, chunk_size=100, chunk_dir=tmp_path / "subject_chunks"
+        pending_path=pending_path,
+        chunk_size=100,
+        chunk_dir=tmp_path / "subject_chunks",
+        cache_path=no_subject_cache_path,
     )
     assert len(chunks) == 1
+    chunked_texts = {event["text"] for event in json.loads(chunks[0].read_text(encoding="utf-8"))}
+    assert chunked_texts == {"Mileva Maric reviewed the draft.", "A treaty was signed at Versailles."}
+
     result_path = chunks[0].with_name("chunk_0000_result.json")
     result_path.write_text(json.dumps(SUBAGENT_RESULTS), encoding="utf-8")
 
@@ -75,8 +82,9 @@ def test_events_flow_from_stage_one_through_stage_three(tmp_path, monkeypatch):
         matched_path=matched_path,
         wikidata_pending_path=wikidata_pending_path,
         review_path=review_path,
+        no_subject_cache_path=no_subject_cache_path,
     )
-    assert stage_two["matched"] == 1
+    assert stage_two["matched"] == 0
     assert stage_two["wikidata_candidate"] == 1
     assert stage_two["no_subject"] == 1
 
@@ -96,14 +104,17 @@ def test_events_flow_from_stage_one_through_stage_three(tmp_path, monkeypatch):
     assert stage_three["resolved"] == 1
 
     stored = json.loads(matched_path.read_text(encoding="utf-8"))
-    assert {event["name"] for event in stored} == {
-        "Albert Einstein", "John Smith Senior", "Marie Curie", "Mileva Maric"
-    }
-    # One record per event text, each with a computable age.
-    assert len({event["text"] for event in stored}) == len(stored) == 4
+    assert len(stored) == 5
+    names = sorted(event["name"] for event in stored)
+    assert names == ["Albert Einstein", "Albert Einstein", "John Smith Senior", "Marie Curie", "Mileva Maric"]
     for event in stored:
         assert set(event) >= {"year", "month", "day", "text", "name", "age"}
         assert isinstance(event["age"], int) and event["age"] > 0
+
+    # The multi-subject event: both co-subjects share the same text, each with their own age.
+    co_subject_text = "Marie Curie wrote to Albert Einstein."
+    co_subject_records = [event for event in stored if event["text"] == co_subject_text]
+    assert sorted(event["name"] for event in co_subject_records) == ["Albert Einstein", "Marie Curie"]
 
     # The one event nobody could be found for is in review, not in the output.
     review = json.loads(review_path.read_text(encoding="utf-8"))
