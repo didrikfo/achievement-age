@@ -41,13 +41,19 @@ def _event_key(event: Dict) -> Tuple[object, object]:
 
 
 def _fallback_event_phrase(event: Dict) -> str:
-    """Deterministic event_phrase suffix used when a subagent can't produce usable output.
+    """Deterministic full sentence used when a subagent can't produce usable output.
 
-    Returns only the fragment that goes after "The same age that {name} was when " —
-    that static prefix is built at display time by core.matching.full_sentence, not stored.
+    Mirrors exactly what core.matching.full_sentence used to reconstruct: the
+    plain name (never a title - we have no source for one without the LLM) plus
+    the original text, lowercased at the join. Degraded but well-formed.
+
+    Records built this way are deliberately NOT stamped with
+    REWORD_PROMPT_VERSION by the caller, so the phrasing backfill re-queues
+    them later.
     """
     text = event.get("text", "") or ""
-    return text[:1].lower() + text[1:] if text else text
+    lowered = text[:1].lower() + text[1:] if text else text
+    return f"The same age that {event.get('name', '')} was when {lowered}"
 
 
 def get_pending_events(

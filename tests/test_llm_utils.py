@@ -41,7 +41,7 @@ def test_merge_reworded_chunk_uses_result_and_falls_back(tmp_path):
 
     assert by_name["George Washington"]["event_phrase"] == "he hoisted the flag over Prospect Hill"
     assert by_name["George Washington"]["tags"] == ["military"]
-    assert by_name["Anton Chekhov"]["event_phrase"] == "wrote a play"
+    assert by_name["Anton Chekhov"]["event_phrase"] == "The same age that Anton Chekhov was when wrote a play"
     assert by_name["Anton Chekhov"]["tags"] == []
 
 
@@ -63,7 +63,7 @@ def test_merge_reworded_chunk_falls_back_on_missing_result_file(tmp_path):
 
     assert merged_count == 1
     merged = json.loads(displayable_path.read_text(encoding="utf-8"))
-    assert merged[0]["event_phrase"] == "published notes"
+    assert merged[0]["event_phrase"] == "The same age that Ada Lovelace was when published notes"
     assert merged[0]["tags"] == []
 
 
