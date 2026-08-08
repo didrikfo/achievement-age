@@ -1,4 +1,4 @@
-"""Matching helpers between people and events."""
+﻿"""Matching helpers between people and events."""
 
 from __future__ import annotations
 
@@ -20,9 +20,27 @@ def events_by_age_days(events: Iterable[Dict]) -> Dict[int, List[Dict]]:
     return index
 
 
+LEGACY_PHRASE_PREFIX = "The same age that "
+
+
 def full_sentence(event: Dict) -> str:
-    """Build the full display sentence from an event's name and event_phrase suffix."""
-    return f"The same age that {event['name']} was when {event['event_phrase']}"
+    """Return the event's display sentence, rebuilding the opening for legacy rows.
+
+    event_phrase now stores the complete sentence - the reword subagent writes
+    it end to end so it can put a title next to the name ("Sir Richard Owen").
+    Rows written before that change store only the fragment after "...was when ",
+    so anything that doesn't already open the sentence gets the old static
+    prefix rebuilt around it.
+
+    Kept as a normalizer rather than a plain field read because the reprocessing
+    backfill is run manually: both formats coexist in the database for as long
+    as that takes, and a subagent that ignores the template would otherwise
+    render with no opening at all.
+    """
+    phrase = event["event_phrase"]
+    if phrase.lstrip().lower().startswith(LEGACY_PHRASE_PREFIX.lower()):
+        return phrase
+    return f"{LEGACY_PHRASE_PREFIX}{event['name']} was when {phrase}"
 
 
 def normalize_name(text: str) -> str:
