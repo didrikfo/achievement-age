@@ -9,6 +9,7 @@ correction looks like.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -52,6 +53,81 @@ def validate_tags(raw_tags: List[str]) -> Tuple[List[str], Optional[str]]:
     if not valid:
         return [], f"no valid tags in {raw_tags!r}"
     return valid, None
+
+
+PHRASE_OPENING = "The same age that "
+PHRASE_HINGE = " was when "
+
+_PARENTHESISED = re.compile(r"\([^)]*\)")
+_PROPER_NOUN = re.compile(r"\b[A-Z][^\W\d_]*\b")
+_NUMERAL = re.compile(r"\b\d[\d,]*\b")
+
+
+def check_phrase_format(event_phrase: str, name: str) -> Optional[str]:
+    """Structural check on a full-sentence event_phrase. Advisory - never blocks a write.
+
+    Returns a rejection reason, or None when the phrase is well formed:
+    opens with PHRASE_OPENING, contains PHRASE_HINGE, names `name` between the
+    two (so a title prefix passes but a substituted person doesn't), and ends
+    with terminal punctuation.
+    """
+    phrase = (event_phrase or "").strip()
+    if not phrase:
+        return "phrase is empty"
+
+    lowered = phrase.lower()
+    if not lowered.startswith(PHRASE_OPENING.lower()):
+        return f"phrase does not start with {PHRASE_OPENING.strip()!r}"
+
+    hinge_at = lowered.find(PHRASE_HINGE.lower())
+    if hinge_at == -1:
+        return f"phrase does not contain {PHRASE_HINGE.strip()!r}"
+
+    subject_span = phrase[len(PHRASE_OPENING) : hinge_at]
+    if normalize_name(name) not in normalize_name(subject_span):
+        return f"opening names {subject_span!r}, expected it to contain {name!r}"
+
+    if phrase[-1] not in ".!?":
+        return "phrase does not end with terminal punctuation"
+
+    return None
+
+
+def check_facts_preserved(text: str, event_phrase: str) -> List[str]:
+    """Tokens present in `text` but missing from `event_phrase`. Advisory heuristic.
+
+    Deliberately over-sensitive - it flags roughly one record in six, and its
+    output is a triage queue rather than a defect count. It exists because the
+    two commonest ways a reword loses content are dropping a Wikipedia topic
+    prefix ("Cuban Revolution:") and dropping a title ("Sir", "General"), both
+    of which show up cleanly as a proper noun that vanished.
+
+    Unlike an earlier sketch, the subject's own name is NOT exempt: under the
+    full-sentence format the name and any title belong inside the phrase, so
+    including them is what catches the dropped-title case.
+    """
+    source = _PARENTHESISED.sub(" ", text or "")
+    phrase = event_phrase or ""
+    phrase_lower = phrase.lower()
+
+    words = source.split()
+    first_word = words[0].strip(",.:;") if words else ""
+
+    missing: List[str] = []
+    seen = set()
+    for token in _PROPER_NOUN.findall(source):
+        if token == first_word or token in seen:
+            continue
+        if token.lower() not in phrase_lower:
+            missing.append(token)
+            seen.add(token)
+    for token in _NUMERAL.findall(source):
+        if token in seen:
+            continue
+        if token not in phrase:
+            missing.append(token)
+            seen.add(token)
+    return missing
 
 
 def load_births_lookup(path: Path = DATA_DIR / "top_1000_births.json") -> Dict[str, Dict]:

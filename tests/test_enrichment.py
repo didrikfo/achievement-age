@@ -1,6 +1,6 @@
 import json
 
-from ingest.enrichment import TAG_TAXONOMY, validate_tags, resolve_subject, build_prompt, build_tag_rows, write_review_entries
+from ingest.enrichment import TAG_TAXONOMY, validate_tags, resolve_subject, build_prompt, build_tag_rows, write_review_entries, check_facts_preserved, check_phrase_format
 
 
 def _births_lookup():
@@ -117,3 +117,88 @@ def test_build_tag_rows_maps_names_to_ids():
 def test_build_tag_rows_skips_unknown_tag_names():
     rows = build_tag_rows(42, ["science", "not-seeded-yet"], {"science": 5})
     assert rows == [{"event_id": 42, "tag_id": 5}]
+
+
+def test_check_phrase_format_accepts_a_well_formed_sentence():
+    phrase = "The same age that Jerry Rawlings was when a coup d'état removed the PNP government."
+    assert check_phrase_format(phrase, "Jerry Rawlings") is None
+
+
+def test_check_phrase_format_accepts_a_title_in_front_of_the_name():
+    # The whole point of the rewrite: titles move next to the name, and the bare
+    # name in the DB still has to be recognisable inside the opening.
+    phrase = "The same age that Flight lieutenant Jerry Rawlings was when a coup d'état removed the PNP government."
+    assert check_phrase_format(phrase, "Jerry Rawlings") is None
+
+
+def test_check_phrase_format_rejects_a_legacy_suffix_only_phrase():
+    reason = check_phrase_format("he hoisted the flag.", "George Washington")
+    assert reason is not None
+    assert "start" in reason
+
+
+def test_check_phrase_format_rejects_a_missing_hinge():
+    reason = check_phrase_format("The same age that George Washington hoisted the flag.", "George Washington")
+    assert reason is not None
+    assert "was when" in reason
+
+
+def test_check_phrase_format_rejects_a_substituted_person():
+    phrase = "The same age that Benjamin Franklin was when he hoisted the flag."
+    reason = check_phrase_format(phrase, "George Washington")
+    assert reason is not None
+    assert "George Washington" in reason
+
+
+def test_check_phrase_format_rejects_a_missing_terminal_period():
+    phrase = "The same age that George Washington was when he hoisted the flag"
+    reason = check_phrase_format(phrase, "George Washington")
+    assert reason is not None
+    assert "punctuation" in reason
+
+
+def test_check_facts_preserved_returns_empty_when_everything_survives():
+    text = "Fulgencio Batista, dictator of Cuba, is overthrown by Fidel Castro's forces."
+    phrase = "The same age that Fidel Castro was when his forces overthrew Fulgencio Batista, dictator of Cuba."
+    assert check_facts_preserved(text, phrase) == []
+
+
+def test_check_facts_preserved_flags_a_dropped_topic_prefix():
+    # The single largest source of lost content in the current corpus.
+    text = "Cuban Revolution: Fulgencio Batista, dictator of Cuba, is overthrown by Fidel Castro's forces."
+    phrase = "The same age that Fidel Castro was when his forces overthrew Fulgencio Batista, dictator of Cuba."
+    assert check_facts_preserved(text, phrase) == ["Revolution"]
+
+
+def test_check_facts_preserved_flags_a_dropped_title():
+    text = "A dinner party is held inside a model created by Benjamin Waterhouse Hawkins and Sir Richard Owen."
+    phrase = "The same age that Richard Owen was when a dinner party was held inside a model he created with Benjamin Waterhouse Hawkins."
+    assert check_facts_preserved(text, phrase) == ["Sir"]
+
+
+def test_check_facts_preserved_flags_a_dropped_numeral():
+    text = "He sold Paradise Lost to a printer for 10 pounds."
+    phrase = "The same age that John Milton was when he sold Paradise Lost to a printer."
+    assert check_facts_preserved(text, phrase) == ["10"]
+
+
+def test_check_facts_preserved_ignores_parenthesised_asides():
+    # The prompt tells the subagent to strip these, so their disappearance is correct.
+    text = "Mary Shelley (b. 1797) publishes Frankenstein."
+    phrase = "The same age that Mary Shelley was when she published Frankenstein."
+    assert check_facts_preserved(text, phrase) == []
+
+
+def test_check_facts_preserved_ignores_the_sentence_initial_word():
+    # "Soldiers" is capitalised only because it starts the sentence.
+    text = "Soldiers of the 6th Pennsylvania Regiment rebelled."
+    phrase = "The same age that Anthony Wayne was when soldiers of the 6th Pennsylvania Regiment rebelled."
+    assert check_facts_preserved(text, phrase) == []
+
+
+def test_check_facts_preserved_deduplicates_repeated_tokens():
+    # "The" leads the sentence and is exempt; Prussia appears twice but is
+    # reported once.
+    text = "The army of Prussia fought Austria, and Prussia won."
+    phrase = "The same age that Frederick the Great was when he won."
+    assert check_facts_preserved(text, phrase) == ["Prussia", "Austria"]
