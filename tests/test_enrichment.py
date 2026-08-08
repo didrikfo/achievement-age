@@ -202,3 +202,29 @@ def test_check_facts_preserved_deduplicates_repeated_tokens():
     text = "The army of Prussia fought Austria, and Prussia won."
     phrase = "The same age that Frederick the Great was when he won."
     assert check_facts_preserved(text, phrase) == ["Prussia", "Austria"]
+
+
+def test_reword_prompt_version_is_one():
+    from ingest.enrichment import REWORD_PROMPT_VERSION
+
+    assert REWORD_PROMPT_VERSION == 1
+
+
+def test_build_prompt_asks_for_a_full_sentence_with_titles():
+    prompt = build_prompt()
+    # The template, the freedom to restructure, title placement, and the
+    # topic-prefix rule are the four things this rewrite exists to convey.
+    assert "The same age that" in prompt
+    assert "was when" in prompt
+    assert "title, rank, honorific" in prompt
+    assert "Topic:" in prompt
+    assert "Preserving the source's sentence structure is not a goal" in prompt
+    # And the old suffix-only instruction must be gone.
+    assert "Don't capitalize the first word" not in prompt
+
+
+def test_build_prompt_still_substitutes_the_tag_taxonomy():
+    prompt = build_prompt()
+    assert "{tags}" not in prompt
+    for tag in TAG_TAXONOMY:
+        assert tag in prompt

@@ -26,6 +26,12 @@ TAG_TAXONOMY = [
     "education", "philosophy", "engineering",
 ]
 
+#: Bumped by hand whenever reword_prompt.md changes in a way that could change
+#: results. Rows in Supabase carry the version they were written under
+#: (events.reword_prompt_version, default 0 for everything predating this), so a
+#: prompt revision makes the affected rows re-queueable instead of one-shot.
+REWORD_PROMPT_VERSION = 1
+
 
 def build_prompt() -> str:
     """Read reword_prompt.md and substitute the {tags} placeholder with TAG_TAXONOMY."""
