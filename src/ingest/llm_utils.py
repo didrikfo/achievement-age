@@ -189,9 +189,15 @@ def merge_reworded_chunk(
                 {"name": event.get("name"), "text": event.get("text"), "issue_type": "subject", "detail": subject_reason}
             )
 
-        # Format-checked against the post-correction name: when a subject
-        # correction is applied, the phrase names the corrected person, so
-        # checking the pre-correction name would report a false mismatch.
+        # Format-checked against the post-correction name (merged_event["name"]),
+        # not the pre-correction one. The reword subagent always writes
+        # event_phrase about the original `name` it was given, never a
+        # substituted subject, so when a correction is applied the stored
+        # phrase still names the original person while merged_event["name"]
+        # now holds the corrected one. Checking against the post-correction
+        # name is expected to flag a mismatch in that case - a real signal,
+        # since the notification title/body built from event["name"] would
+        # disagree with the phrase's subject too.
         format_reason = check_phrase_format(merged_event["event_phrase"], merged_event.get("name") or "")
         if format_reason:
             review_entries.append(

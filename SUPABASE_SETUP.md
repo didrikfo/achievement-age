@@ -91,6 +91,12 @@ Then run the one-off backfill (same environment/credentials as the original migr
 python -m ingest.backfill_persons_and_phrases
 ```
 
+> **Do not re-run this after section 9 (full-sentence event phrases) has been applied.** Its
+> `strip_prefix` step assumes `event_phrase` holds only the suffix, so it would strip the "The
+> same age that {name} was when " opening from the full-sentence format too — silently discarding
+> any title placed next to the name (e.g. "Sir Richard Owen"), since the rebuilt opening is plain
+> name only.
+
 This creates one `persons` row per distinct event name, links every event to its person, and
 splits each `event_phrase` value down to just the suffix after "The same age that {name} was
 when " (the prefix is now built at display time). Any row whose text didn't match that exact

@@ -1,4 +1,4 @@
-﻿"""Matching helpers between people and events."""
+"""Matching helpers between people and events."""
 
 from __future__ import annotations
 

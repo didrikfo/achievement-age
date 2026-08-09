@@ -125,8 +125,8 @@ def prepare_chunks(chunk_size: int = CHUNK_SIZE, mode: str = "tags") -> List[Pat
 def _phrase_review_entries(event: Dict, event_phrase: str, name: str) -> List[Dict]:
     """Advisory format/fact review entries for one phrase. Never blocks the write.
 
-    `name` is the post-correction name where a correction was applied, so the
-    format check doesn't report a false mismatch against the old subject.
+    `name` is the event's name as given - its only caller is the mode="phrasing"
+    branch of resolve_event_update, which never applies a subject correction.
     """
     entries: List[Dict] = []
 
