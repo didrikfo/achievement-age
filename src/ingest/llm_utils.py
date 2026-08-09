@@ -16,7 +16,15 @@ from typing import Dict, List, Tuple
 
 from core.config import DATA_DIR
 from core.io import load_json, save_to_json
-from ingest.enrichment import load_births_lookup, resolve_subject, validate_tags, write_review_entries
+from ingest.enrichment import (
+    REWORD_PROMPT_VERSION,
+    check_facts_preserved,
+    check_phrase_format,
+    load_births_lookup,
+    resolve_subject,
+    validate_tags,
+    write_review_entries,
+)
 
 CHUNK_SIZE = 100
 CHUNK_DIR = DATA_DIR / "tmp" / "reword_chunks"
@@ -152,10 +160,16 @@ def merge_reworded_chunk(
     for event in chunk:
         result = reworded_by_key.get(_event_key(event))
         if not result or not result.get("event_phrase"):
+            # Deliberately unstamped: a fallback record isn't subagent output, so
+            # the phrasing backfill should re-queue it later.
             merged.append({**event, "event_phrase": _fallback_event_phrase(event), "tags": []})
             continue
 
-        merged_event = {**event, "event_phrase": result["event_phrase"]}
+        merged_event = {
+            **event,
+            "event_phrase": result["event_phrase"],
+            "reword_prompt_version": REWORD_PROMPT_VERSION,
+        }
 
         tags, tag_reason = validate_tags(result.get("tags") or [])
         merged_event["tags"] = tags
@@ -173,6 +187,26 @@ def merge_reworded_chunk(
         if subject_reason:
             review_entries.append(
                 {"name": event.get("name"), "text": event.get("text"), "issue_type": "subject", "detail": subject_reason}
+            )
+
+        # Format-checked against the post-correction name: when a subject
+        # correction is applied, the phrase names the corrected person, so
+        # checking the pre-correction name would report a false mismatch.
+        format_reason = check_phrase_format(merged_event["event_phrase"], merged_event.get("name") or "")
+        if format_reason:
+            review_entries.append(
+                {"name": merged_event.get("name"), "text": event.get("text"), "issue_type": "format", "detail": format_reason}
+            )
+
+        missing = check_facts_preserved(event.get("text", ""), merged_event["event_phrase"])
+        if missing:
+            review_entries.append(
+                {
+                    "name": merged_event.get("name"),
+                    "text": event.get("text"),
+                    "issue_type": "facts",
+                    "detail": f"missing from phrase: {', '.join(missing)}",
+                }
             )
 
         merged.append(merged_event)

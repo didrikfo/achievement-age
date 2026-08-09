@@ -139,7 +139,13 @@ def test_merge_reworded_chunk_writes_review_entry_for_invalid_tags(tmp_path):
     chunk_path = tmp_path / "chunk_0000.json"
     chunk_path.write_text(json.dumps(chunk), encoding="utf-8")
 
-    result = [{**chunk[0], "event_phrase": "she published her notes", "tags": ["not-a-real-tag"]}]
+    result = [
+        {
+            **chunk[0],
+            "event_phrase": "The same age that Ada Lovelace was when she published her notes.",
+            "tags": ["not-a-real-tag"],
+        }
+    ]
     result_path = tmp_path / "chunk_0000_result.json"
     result_path.write_text(json.dumps(result), encoding="utf-8")
 
@@ -156,6 +162,69 @@ def test_merge_reworded_chunk_writes_review_entry_for_invalid_tags(tmp_path):
     assert review == [
         {"name": "Ada Lovelace", "text": "published notes", "issue_type": "tags", "detail": "no valid tags in ['not-a-real-tag']"}
     ]
+
+
+def test_merge_reworded_chunk_flags_a_malformed_phrase(tmp_path):
+    chunk = [{"name": "Ada Lovelace", "text": "published notes", "year": "1843", "month": 1, "day": 1, "age": 50}]
+    chunk_path = tmp_path / "chunk_0000.json"
+    chunk_path.write_text(json.dumps(chunk), encoding="utf-8")
+
+    # A subagent that produced the old suffix-only shape instead of a full sentence.
+    result = [{**chunk[0], "event_phrase": "she published her notes", "tags": ["science"]}]
+    result_path = tmp_path / "chunk_0000_result.json"
+    result_path.write_text(json.dumps(result), encoding="utf-8")
+
+    review_path = tmp_path / "review.json"
+    displayable_path = tmp_path / "displayable_events.json"
+    merge_reworded_chunk(
+        chunk_path,
+        result_path,
+        displayable_path=displayable_path,
+        births_path=_empty_births_path(tmp_path),
+        review_path=review_path,
+    )
+
+    review = json.loads(review_path.read_text(encoding="utf-8"))
+    assert [entry["issue_type"] for entry in review] == ["format"]
+    # Advisory only - the phrase is still written through unchanged.
+    merged = json.loads(displayable_path.read_text(encoding="utf-8"))
+    assert merged[0]["event_phrase"] == "she published her notes"
+
+
+def test_merge_reworded_chunk_stamps_the_prompt_version_only_on_subagent_output(tmp_path):
+    from ingest.enrichment import REWORD_PROMPT_VERSION
+
+    chunk = [
+        {"name": "Ada Lovelace", "text": "Ada Lovelace published notes.", "year": "1843", "month": 1, "day": 1, "age": 50},
+        {"name": "Anton Chekhov", "text": "wrote a play", "year": "1904", "month": 1, "day": 17, "age": 200},
+    ]
+    chunk_path = tmp_path / "chunk_0000.json"
+    chunk_path.write_text(json.dumps(chunk), encoding="utf-8")
+
+    # Only the first comes back; the second falls back and must stay re-queueable.
+    result = [
+        {
+            **chunk[0],
+            "event_phrase": "The same age that Ada Lovelace was when she published her notes.",
+            "tags": ["science"],
+        }
+    ]
+    result_path = tmp_path / "chunk_0000_result.json"
+    result_path.write_text(json.dumps(result), encoding="utf-8")
+
+    displayable_path = tmp_path / "displayable_events.json"
+    merge_reworded_chunk(
+        chunk_path,
+        result_path,
+        displayable_path=displayable_path,
+        births_path=_empty_births_path(tmp_path),
+        review_path=tmp_path / "review.json",
+    )
+
+    merged = json.loads(displayable_path.read_text(encoding="utf-8"))
+    by_name = {event["name"]: event for event in merged}
+    assert by_name["Ada Lovelace"]["reword_prompt_version"] == REWORD_PROMPT_VERSION
+    assert "reword_prompt_version" not in by_name["Anton Chekhov"]
 
 
 def test_merge_reworded_chunk_gives_each_co_subject_its_own_event_phrase(tmp_path):
