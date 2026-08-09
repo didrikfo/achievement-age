@@ -295,3 +295,27 @@ Then migrate any events still sitting in `data/displayable_events.json`:
 This prints a preflight check before inserting anything. It must report no unmatched records — if it
 aborts, a previously-migrated event's name has changed in Supabase and needs reconciling by hand,
 because migrating would insert duplicates rather than skip them.
+
+Finally, re-phrase every event that predates the current prompt:
+
+```bash
+./venv/Scripts/python.exe -c "from ingest.backfill_event_enrichment import prepare_chunks; print(len(prepare_chunks(mode='phrasing')))"
+```
+
+Dispatch a Claude Haiku subagent per chunk file under `data/tmp/enrichment_chunks/`, using
+`ingest.enrichment.build_prompt()` for instructions, and save each response next to its chunk as
+`<chunk>_result.json`. Then merge each one:
+
+```bash
+./venv/Scripts/python.exe -c "from ingest.backfill_event_enrichment import merge_chunk; merge_chunk('data/tmp/enrichment_chunks/chunk_0000.json', 'data/tmp/enrichment_chunks/chunk_0000_result.json', mode='phrasing')"
+```
+
+This pass writes **only** `event_phrase` and `reword_prompt_version`. It does not touch tags, and it
+records suggested subject corrections in `data/tmp/enrichment_review.json` without applying them —
+subject errors are a separate piece of work. It's resumable: `prepare_chunks(mode='phrasing')` only
+picks up rows still below the current `REWORD_PROMPT_VERSION`.
+
+Afterwards, read `data/tmp/enrichment_review.json`. Expect a large number of `facts` entries — the
+fact check is deliberately over-sensitive and flagged roughly one record in six when prototyped, so
+it's a triage queue rather than a defect count. `format` entries are rarer and mean the subagent
+ignored the sentence template.

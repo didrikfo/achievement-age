@@ -19,7 +19,16 @@ from typing import Dict, List, Optional, Set, Tuple
 from core.config import DATA_DIR
 from core.db import get_client
 from core.io import load_json, save_to_json
-from ingest.enrichment import build_tag_rows, load_births_lookup, resolve_subject, validate_tags, write_review_entries
+from ingest.enrichment import (
+    REWORD_PROMPT_VERSION,
+    build_tag_rows,
+    check_facts_preserved,
+    check_phrase_format,
+    load_births_lookup,
+    resolve_subject,
+    validate_tags,
+    write_review_entries,
+)
 
 CHUNK_SIZE = 100
 CHUNK_DIR = DATA_DIR / "tmp" / "enrichment_chunks"
@@ -35,7 +44,7 @@ def _fetch_all_events(client) -> List[Dict]:
     while True:
         page = (
             client.table("events")
-            .select("id, name, text, year, month, day")
+            .select("id, name, text, year, month, day, reword_prompt_version")
             .range(start, start + EVENTS_PAGE_SIZE - 1)
             .execute()
             .data
@@ -76,10 +85,32 @@ def pending_events(all_events: List[Dict], tagged_event_ids: Set[int]) -> List[D
     return [event for event in all_events if event["id"] not in tagged_event_ids]
 
 
-def prepare_chunks(chunk_size: int = CHUNK_SIZE) -> List[Path]:
-    """Fetch pending events from Supabase and split them into numbered chunk files."""
+def pending_phrasing_events(all_events: List[Dict], version: int) -> List[Dict]:
+    """Events not yet written under the current reword prompt.
+
+    A missing key counts as 0 (the column default), so rows predating the
+    column are always pending.
+    """
+    return [event for event in all_events if (event.get("reword_prompt_version") or 0) < version]
+
+
+def prepare_chunks(chunk_size: int = CHUNK_SIZE, mode: str = "tags") -> List[Path]:
+    """Fetch pending events from Supabase and split them into numbered chunk files.
+
+    mode="tags" (default) selects events with no event_tags rows yet - the
+    original enrichment backfill. mode="phrasing" selects events not yet written
+    under the current reword prompt, for a re-phrasing pass over rows that
+    already have tags.
+    """
+    if mode not in ("tags", "phrasing"):
+        raise ValueError(f"unknown mode {mode!r}, expected 'tags' or 'phrasing'")
+
     client = get_client()
-    pending = pending_events(_fetch_all_events(client), _fetch_tagged_event_ids(client))
+    all_events = _fetch_all_events(client)
+    if mode == "phrasing":
+        pending = pending_phrasing_events(all_events, REWORD_PROMPT_VERSION)
+    else:
+        pending = pending_events(all_events, _fetch_tagged_event_ids(client))
 
     CHUNK_DIR.mkdir(parents=True, exist_ok=True)
     paths: List[Path] = []
@@ -91,15 +122,46 @@ def prepare_chunks(chunk_size: int = CHUNK_SIZE) -> List[Path]:
     return paths
 
 
+def _phrase_review_entries(event: Dict, event_phrase: str, name: str) -> List[Dict]:
+    """Advisory format/fact review entries for one phrase. Never blocks the write.
+
+    `name` is the post-correction name where a correction was applied, so the
+    format check doesn't report a false mismatch against the old subject.
+    """
+    entries: List[Dict] = []
+
+    format_reason = check_phrase_format(event_phrase, name)
+    if format_reason:
+        entries.append({"event_id": event["id"], "issue_type": "format", "detail": format_reason})
+
+    missing = check_facts_preserved(event.get("text", ""), event_phrase)
+    if missing:
+        entries.append(
+            {
+                "event_id": event["id"],
+                "issue_type": "facts",
+                "detail": f"missing from phrase: {', '.join(missing)}",
+            }
+        )
+    return entries
+
+
 def resolve_event_update(
     event: Dict,
     result: Optional[Dict],
     births_lookup: Dict[str, Dict],
+    mode: str = "tags",
 ) -> Tuple[Optional[Dict], List[str], List[Dict]]:
     """Pure decision logic for one event: what to write, and what to flag for review.
 
     Returns (events_update_or_none, valid_tags, review_entries). events_update_or_none
     is None when no usable event_phrase came back (nothing to write for this event).
+
+    mode="phrasing" writes only event_phrase and reword_prompt_version. It assigns
+    no tags (these rows already have them) and does not apply subject corrections -
+    doing so would pull age recomputation and persons upserts into what should be a
+    single-purpose, easily-reversible pass. Suggested subjects are still recorded
+    for review so the errors surface for a separate decision.
     """
     review_entries: List[Dict] = []
 
@@ -109,6 +171,22 @@ def resolve_event_update(
         )
         return None, [], review_entries
 
+    event_phrase = result["event_phrase"]
+
+    if mode == "phrasing":
+        update: Dict = {"event_phrase": event_phrase, "reword_prompt_version": REWORD_PROMPT_VERSION}
+        suggested = result.get("suggested_subject")
+        if suggested:
+            review_entries.append(
+                {
+                    "event_id": event["id"],
+                    "issue_type": "subject",
+                    "detail": f"suggested subject {suggested!r} recorded but not applied (phrasing pass)",
+                }
+            )
+        review_entries.extend(_phrase_review_entries(event, event_phrase, event.get("name") or ""))
+        return update, [], review_entries
+
     tags, tag_reason = validate_tags(result.get("tags") or [])
     if tag_reason:
         review_entries.append({"event_id": event["id"], "issue_type": "tags", "detail": tag_reason})
@@ -117,7 +195,7 @@ def resolve_event_update(
     if subject_reason:
         review_entries.append({"event_id": event["id"], "issue_type": "subject", "detail": subject_reason})
 
-    update: Dict = {"event_phrase": result["event_phrase"]}
+    update = {"event_phrase": event_phrase}
     if correction:
         update["name"] = correction["name"]
         update["age_days"] = correction["age_days"]
@@ -141,7 +219,7 @@ def _find_result(
     return reworded_by_name_text.get((event.get("name"), event.get("text")))
 
 
-def merge_chunk(chunk_path, result_path, review_path: Path = REVIEW_PATH) -> int:
+def merge_chunk(chunk_path, result_path, review_path: Path = REVIEW_PATH, mode: str = "tags") -> int:
     """Validate one chunk's subagent output and write event/event_tags updates to Supabase.
 
     Returns how many events in the chunk were processed (written or flagged for review).
@@ -162,7 +240,7 @@ def merge_chunk(chunk_path, result_path, review_path: Path = REVIEW_PATH) -> int
     try:
         for event in chunk:
             result = _find_result(event, reworded_by_id, reworded_by_name_text)
-            update, tags, review_entries = resolve_event_update(event, result, births_lookup)
+            update, tags, review_entries = resolve_event_update(event, result, births_lookup, mode=mode)
             all_review_entries.extend(review_entries)
 
             if update is None:

@@ -197,3 +197,120 @@ def test_merge_chunk_upserts_person_and_sets_person_id_on_accepted_correction(tm
     assert update_payload["person_id"] == 99
     assert update_payload["age_days"] > 0
     assert update_payload["event_phrase"] == "he hoisted the flag"
+
+
+from ingest.backfill_event_enrichment import pending_phrasing_events
+from ingest.enrichment import REWORD_PROMPT_VERSION
+
+
+def test_pending_phrasing_events_selects_rows_below_the_current_version():
+    events = [
+        {"id": 1, "reword_prompt_version": 0},
+        {"id": 2, "reword_prompt_version": REWORD_PROMPT_VERSION},
+        {"id": 3},  # column default never read back - treat a missing value as 0
+    ]
+    result = pending_phrasing_events(events, REWORD_PROMPT_VERSION)
+    assert [event["id"] for event in result] == [1, 3]
+
+
+def test_resolve_event_update_phrasing_mode_writes_only_phrase_and_version():
+    event = {"id": 4, "name": "Ada Lovelace", "text": "Ada Lovelace published notes.", "year": 1843, "month": 1, "day": 1}
+    result = {
+        "event_phrase": "The same age that Ada Lovelace was when she published her notes.",
+        "tags": ["science"],
+        "suggested_subject": None,
+    }
+
+    update, tags, review_entries = resolve_event_update(event, result, births_lookup={}, mode="phrasing")
+
+    assert update == {
+        "event_phrase": "The same age that Ada Lovelace was when she published her notes.",
+        "reword_prompt_version": REWORD_PROMPT_VERSION,
+    }
+    # Tags are already assigned for these rows; the phrasing pass must not touch them.
+    assert tags == []
+    assert review_entries == []
+
+
+def test_resolve_event_update_phrasing_mode_records_but_does_not_apply_a_subject_correction():
+    event = {
+        "id": 5,
+        "name": "George Washington",
+        "text": "George Washington and John Adams hoisted the flag",
+        "year": 1776,
+        "month": 1,
+        "day": 1,
+    }
+    result = {
+        # Names both people, so the fact check stays quiet and this test isolates
+        # the subject behaviour.
+        "event_phrase": "The same age that George Washington was when he and John Adams hoisted the flag.",
+        "suggested_subject": "John Adams",
+    }
+    births_lookup = {"john adams": {"name": "John Adams", "year": 1735, "month": 10, "day": 30}}
+
+    update, _tags, review_entries = resolve_event_update(event, result, births_lookup, mode="phrasing")
+
+    assert "name" not in update
+    assert "age_days" not in update
+    assert [entry["issue_type"] for entry in review_entries] == ["subject"]
+    assert "John Adams" in review_entries[0]["detail"]
+
+
+def test_resolve_event_update_phrasing_mode_flags_a_malformed_phrase():
+    event = {"id": 6, "name": "Ada Lovelace", "text": "published notes", "year": 1843, "month": 1, "day": 1}
+    result = {"event_phrase": "she published her notes"}
+
+    update, _tags, review_entries = resolve_event_update(event, result, births_lookup={}, mode="phrasing")
+
+    assert update["event_phrase"] == "she published her notes"
+    assert [entry["issue_type"] for entry in review_entries] == ["format"]
+
+
+def test_merge_chunk_phrasing_mode_skips_tags_and_persons(tmp_path):
+    chunk = [
+        {
+            "id": 20,
+            "name": "George Washington",
+            "text": "George Washington and John Adams hoisted the flag",
+            "year": 1776,
+            "month": 1,
+            "day": 1,
+        }
+    ]
+    chunk_path = tmp_path / "chunk_0000.json"
+    chunk_path.write_text(json.dumps(chunk), encoding="utf-8")
+
+    result = [
+        {
+            "id": 20,
+            # Names both people, so the fact check stays quiet and the review
+            # assertion below isolates the subject entry.
+            "event_phrase": "The same age that George Washington was when he and John Adams hoisted the flag.",
+            "tags": ["military"],
+            "suggested_subject": "John Adams",
+        }
+    ]
+    result_path = tmp_path / "chunk_0000_result.json"
+    result_path.write_text(json.dumps(result), encoding="utf-8")
+
+    review_path = tmp_path / "review.json"
+    births_lookup = {"john adams": {"name": "John Adams", "year": 1735, "month": 10, "day": 30}}
+    mock_client = _make_mock_client(tags=[{"id": 2, "name": "military"}])
+
+    with patch("ingest.backfill_event_enrichment.get_client", return_value=mock_client), patch(
+        "ingest.backfill_event_enrichment.load_births_lookup", return_value=births_lookup
+    ):
+        merge_chunk(chunk_path, result_path, review_path=review_path, mode="phrasing")
+
+    mock_client._table_mocks["events"].update.assert_called_once_with(
+        {
+            "event_phrase": "The same age that George Washington was when he and John Adams hoisted the flag.",
+            "reword_prompt_version": REWORD_PROMPT_VERSION,
+        }
+    )
+    mock_client._table_mocks["event_tags"].insert.assert_not_called()
+    mock_client._table_mocks["persons"].upsert.assert_not_called()
+
+    review = json.loads(review_path.read_text(encoding="utf-8"))
+    assert [entry["issue_type"] for entry in review] == ["subject"]
