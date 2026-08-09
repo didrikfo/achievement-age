@@ -42,7 +42,7 @@ For each record, return a JSON object with these fields:
   **Fidelity**
   - Preserve every concrete fact: other people's names, places, organizations, numbers, and outcomes.
     Reword the structure, not the substance — don't add or invent detail that isn't in `text`.
-  - **Topic:** If `text` opens with a framing prefix before a colon (`World War II:`, `Cuban Revolution:`), weave
+  - If `text` opens with a framing prefix before a colon (`World War II:`, `Cuban Revolution:`), weave
     that context into the sentence rather than dropping it.
   - Strip Wikipedia-style artifacts from `text` (trailing citation brackets, "(b. ...)"/"(d. ...)"
     asides) that would read strangely in a finished sentence.

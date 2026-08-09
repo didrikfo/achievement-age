@@ -217,7 +217,6 @@ def test_build_prompt_asks_for_a_full_sentence_with_titles():
     assert "The same age that" in prompt
     assert "was when" in prompt
     assert "title, rank, honorific" in prompt
-    assert "Topic:" in prompt
     assert "Preserving the source's sentence structure is not a goal" in prompt
     # And the old suffix-only instruction must be gone.
     assert "Don't capitalize the first word" not in prompt
