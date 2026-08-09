@@ -50,6 +50,19 @@ def test_events_by_age_days_same_age_shares_bucket():
     assert index[person_a["age_days"]] == [person_a, person_b]
 
 
-def test_full_sentence_combines_name_and_phrase():
+def test_full_sentence_prefixes_a_legacy_suffix_only_phrase():
     event = {"name": "George Washington", "event_phrase": "he hoisted the flag"}
     assert full_sentence(event) == "The same age that George Washington was when he hoisted the flag"
+
+
+def test_full_sentence_passes_through_a_stored_full_sentence():
+    phrase = "The same age that Sir Richard Owen was when a dinner party was held inside an iguanodon."
+    event = {"name": "Richard Owen", "event_phrase": phrase}
+    assert full_sentence(event) == phrase
+
+
+def test_full_sentence_passes_through_regardless_of_case_or_leading_space():
+    # A subagent that lowercased the opening, or left the phrase indented, still
+    # produced a full sentence - prefixing it again would duplicate the opening.
+    event = {"name": "Ada Lovelace", "event_phrase": "  the same age that Ada Lovelace was when she published her notes."}
+    assert full_sentence(event) == "  the same age that Ada Lovelace was when she published her notes."

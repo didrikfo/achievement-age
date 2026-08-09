@@ -7,8 +7,15 @@ from typing import Dict, List
 
 
 def load_json(filename: str, sort_by_field: str | None = None) -> List[Dict]:
-    """Load a JSON document and optionally sort it by sort_by_field."""
-    with open(filename, "r", encoding="utf-8") as handle:
+    """Load a JSON document and optionally sort it by sort_by_field.
+
+    Uses utf-8-sig rather than plain utf-8 so a leading byte-order-mark
+    (some tools/editors write one on Windows - observed from a subagent's
+    Write tool when merging Stage 2 chunk results) doesn't make json.load
+    raise. utf-8-sig strips a BOM if present and behaves identically to
+    utf-8 otherwise, so this is a strict widening, not a behavior change.
+    """
+    with open(filename, "r", encoding="utf-8-sig") as handle:
         json_data = json.load(handle)
         if sort_by_field:
             json_data.sort(key=lambda item: len(item.get(sort_by_field, "")), reverse=True)

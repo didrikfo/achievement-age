@@ -7,20 +7,80 @@ Run by hand once the Supabase tables exist (see SUPABASE_SETUP.md):
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Set, Tuple
 
 from core.config import DATA_DIR
 from core.db import get_client
 from core.io import load_json
+from ingest.backfill_persons_and_phrases import build_person_rows
+from ingest.enrichment import build_tag_rows
 
 BATCH_SIZE = 200
+EVENTS_PAGE_SIZE = 1000
 
 
-def _to_event_row(entry: Dict) -> Dict:
+def fetch_existing_event_keys(client) -> Set[Tuple[str, str]]:
+    """Every (name, text) pair already in Supabase, so a rerun can't duplicate them.
+
+    Paginated - PostgREST caps a single response at ~1000 rows.
+    """
+    keys: Set[Tuple[str, str]] = set()
+    start = 0
+    while True:
+        page = (
+            client.table("events")
+            .select("name, text")
+            .range(start, start + EVENTS_PAGE_SIZE - 1)
+            .execute()
+            .data
+        )
+        keys.update((row["name"], row["text"]) for row in page)
+        if len(page) < EVENTS_PAGE_SIZE:
+            break
+        start += EVENTS_PAGE_SIZE
+    return keys
+
+
+def filter_new_entries(entries: List[Dict], existing_keys: Set[Tuple[str, str]]) -> List[Dict]:
+    """Drop entries already in Supabase, and any duplicated within entries itself."""
+    seen = set(existing_keys)
+    new_entries: List[Dict] = []
+    for entry in entries:
+        key = (entry["name"], entry["text"])
+        if key in seen:
+            continue
+        seen.add(key)
+        new_entries.append(entry)
+    return new_entries
+
+
+def report_unmatched_legacy_entries(
+    entries: List[Dict], existing_keys: Set[Tuple[str, str]]
+) -> List[Dict]:
+    """Legacy display_text records that aren't already in Supabase.
+
+    Every record still carrying display_text (rather than event_phrase) was
+    migrated long ago, so all of them should key-match an existing row. Any that
+    don't mean the Supabase-side name has since changed - an applied subject
+    correction is the likely cause - and migrating would insert a duplicate
+    rather than skip it. Expected result: empty.
+    """
+    return [
+        entry
+        for entry in entries
+        if entry.get("display_text")
+        and not entry.get("event_phrase")
+        and (entry["name"], entry["text"]) not in existing_keys
+    ]
+
+
+def _to_event_row(entry: Dict, name_to_person_id: Dict[str, int]) -> Dict:
     return {
         "name": entry["name"],
+        "person_id": name_to_person_id.get(entry["name"]),
         "text": entry["text"],
         "event_phrase": entry.get("event_phrase") or entry["display_text"],
+        "reword_prompt_version": entry.get("reword_prompt_version", 0),
         "year": int(entry["year"]),
         "month": int(entry["month"]),
         "day": int(entry["day"]),
@@ -32,13 +92,45 @@ def _to_event_row(entry: Dict) -> Dict:
 
 def main() -> None:
     entries: List[Dict] = load_json(DATA_DIR / "displayable_events.json")
-    rows = [_to_event_row(entry) for entry in entries]
 
     client = get_client()
+
+    already_migrated = fetch_existing_event_keys(client)
+
+    unmatched = report_unmatched_legacy_entries(entries, already_migrated)
+    if unmatched:
+        print(f"ABORTED: {len(unmatched)} already-migrated record(s) no longer match a Supabase row.")
+        print("Migrating now would insert duplicates. Reconcile these by hand first:")
+        for entry in unmatched[:10]:
+            print(f"  - {entry['name']!r}: {entry['text'][:80]}")
+        return
+
+    entries = filter_new_entries(entries, already_migrated)
+    if not entries:
+        print("Nothing new to migrate.")
+        return
+    print(f"{len(entries)} new event(s) to migrate.")
+
+    person_rows = build_person_rows([entry["name"] for entry in entries])
+    persons = client.table("persons").upsert(person_rows, on_conflict="name").execute().data
+    name_to_person_id = {person["name"]: person["id"] for person in persons}
+
+    tag_name_to_id = {tag["name"]: tag["id"] for tag in client.table("tags").select("id, name").execute().data}
+
+    rows = [_to_event_row(entry, name_to_person_id) for entry in entries]
+
     inserted = 0
     for start in range(0, len(rows), BATCH_SIZE):
         batch = rows[start : start + BATCH_SIZE]
-        client.table("events").insert(batch).execute()
+        batch_entries = entries[start : start + BATCH_SIZE]
+        inserted_events = client.table("events").insert(batch).execute().data
+
+        tag_rows: List[Dict] = []
+        for inserted_event, entry in zip(inserted_events, batch_entries):
+            tag_rows.extend(build_tag_rows(inserted_event["id"], entry.get("tags") or [], tag_name_to_id))
+        if tag_rows:
+            client.table("event_tags").insert(tag_rows).execute()
+
         inserted += len(batch)
         print(f"Inserted {inserted}/{len(rows)}")
 
