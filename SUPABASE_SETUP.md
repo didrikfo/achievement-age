@@ -268,3 +268,30 @@ venv\Scripts\python.exe -m ingest.migrate_to_supabase
 **Review before trusting the output.** `data/tmp/matching_review.json` collects every
 event that could not be auto-accepted — ambiguous subjects, birth dates that are only
 year-precision, implausible ages. Nothing in it was guessed at or silently dropped.
+
+## 9. Full-sentence event phrases
+
+`event_phrase` now stores the **complete** display sentence ("The same age that Sir Richard Owen was
+when …"), not just the fragment after "…was when ". The reword subagent writes the whole sentence so
+it can place a title next to the name; `events.name` still holds the bare name.
+
+`core.matching.full_sentence` prefixes anything that doesn't already open with "The same age that",
+so rows in the older suffix-only format keep displaying correctly until the backfill below has run.
+
+Run this in the SQL editor first — it tracks which rows have been written under which version of
+`src/ingest/reword_prompt.md`, so the backfill is resumable and future prompt revisions are
+re-runnable:
+
+```sql
+alter table events add column if not exists reword_prompt_version integer not null default 0;
+```
+
+Then migrate any events still sitting in `data/displayable_events.json`:
+
+```bash
+./venv/Scripts/python.exe -m ingest.migrate_to_supabase
+```
+
+This prints a preflight check before inserting anything. It must report no unmatched records — if it
+aborts, a previously-migrated event's name has changed in Supabase and needs reconciling by hand,
+because migrating would insert duplicates rather than skip them.

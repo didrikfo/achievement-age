@@ -54,12 +54,33 @@ def filter_new_entries(entries: List[Dict], existing_keys: Set[Tuple[str, str]])
     return new_entries
 
 
+def report_unmatched_legacy_entries(
+    entries: List[Dict], existing_keys: Set[Tuple[str, str]]
+) -> List[Dict]:
+    """Legacy display_text records that aren't already in Supabase.
+
+    Every record still carrying display_text (rather than event_phrase) was
+    migrated long ago, so all of them should key-match an existing row. Any that
+    don't mean the Supabase-side name has since changed - an applied subject
+    correction is the likely cause - and migrating would insert a duplicate
+    rather than skip it. Expected result: empty.
+    """
+    return [
+        entry
+        for entry in entries
+        if entry.get("display_text")
+        and not entry.get("event_phrase")
+        and (entry["name"], entry["text"]) not in existing_keys
+    ]
+
+
 def _to_event_row(entry: Dict, name_to_person_id: Dict[str, int]) -> Dict:
     return {
         "name": entry["name"],
         "person_id": name_to_person_id.get(entry["name"]),
         "text": entry["text"],
         "event_phrase": entry.get("event_phrase") or entry["display_text"],
+        "reword_prompt_version": entry.get("reword_prompt_version", 0),
         "year": int(entry["year"]),
         "month": int(entry["month"]),
         "day": int(entry["day"]),
@@ -75,6 +96,15 @@ def main() -> None:
     client = get_client()
 
     already_migrated = fetch_existing_event_keys(client)
+
+    unmatched = report_unmatched_legacy_entries(entries, already_migrated)
+    if unmatched:
+        print(f"ABORTED: {len(unmatched)} already-migrated record(s) no longer match a Supabase row.")
+        print("Migrating now would insert duplicates. Reconcile these by hand first:")
+        for entry in unmatched[:10]:
+            print(f"  - {entry['name']!r}: {entry['text'][:80]}")
+        return
+
     entries = filter_new_entries(entries, already_migrated)
     if not entries:
         print("Nothing new to migrate.")
