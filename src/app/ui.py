@@ -17,8 +17,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import streamlit as st
 
 from core.age import age_breakdown
-from core.db import create_subscription, fetch_events, get_config_value, get_subscription
-from core.matching import events_by_age_days, full_sentence
+from core.config import TAG_TAXONOMY
+from core.db import (
+    create_subscription,
+    fetch_events,
+    get_config_value,
+    get_subscription,
+    update_subscription_tags,
+)
+from core.matching import (
+    events_by_age_days,
+    excluded_from_included,
+    filter_events_by_tags,
+    full_sentence,
+    included_from_excluded,
+)
 
 from app.styles import MASTHEAD_HTML, PAGE_CSS
 
@@ -44,6 +57,17 @@ st.write(
 token = st.query_params.get("u")
 subscription = get_subscription(token) if token else None
 
+# The filter is a session value for anonymous visitors and a saved preference
+# for subscribers. Seed it once per session so a rerun doesn't clobber an
+# in-progress selection.
+if "included_tags" not in st.session_state:
+    if subscription:
+        st.session_state.included_tags = included_from_excluded(
+            subscription.get("excluded_tags") or []
+        )
+    else:
+        st.session_state.included_tags = list(TAG_TAXONOMY)
+
 if subscription:
     birthdate = date.fromisoformat(subscription["birthday"])
     st.caption("Welcome back — this link remembers your birthday.")
@@ -56,12 +80,16 @@ else:
             "when your age matches a historical event, without having to check the calendar yourself."
         )
         if st.button("Get notified"):
-            new_subscription = create_subscription(birthdate)
+            new_subscription = create_subscription(
+                birthdate, excluded_from_included(st.session_state.included_tags)
+            )
             link = f"{APP_BASE_URL}?u={new_subscription['token']}"
             st.success("Subscription created! Save this link and subscribe to your notification topic:")
             st.code(link, language=None)
             st.markdown(
-                f"1. **Bookmark or add this page to your home screen** — it remembers your birthday.\n"
+                f"1. **Bookmark or add this page to your home screen** — it remembers your "
+                f"birthday and your tag filter, and it's the only way back to these "
+                f"preferences, so don't lose it.\n"
                 f"2. Install the [ntfy app](https://ntfy.sh) and subscribe to the topic "
                 f"`{new_subscription['ntfy_topic']}`.\n"
                 f"3. You'll get a notification whenever your age matches an event."
@@ -74,7 +102,23 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.caption("A red circle marks a day that matches a historical event — click it for details. A filled black date marks today.")
+with st.expander("Filter which events show up"):
+    st.session_state.included_tags = st.multiselect(
+        "Show events tagged:",
+        options=TAG_TAXONOMY,
+        default=st.session_state.included_tags,
+    )
+    st.caption(
+        "Events that haven't been tagged yet always show up, whatever you pick here."
+    )
+    if subscription:
+        if st.button("Update preferences"):
+            update_subscription_tags(
+                subscription["token"], excluded_from_included(st.session_state.included_tags)
+            )
+            st.success("Saved — your notifications will follow these tags from now on.")
+
+st.caption("A red circle marks a day that matches a historical event — click it for details. A filled black date marks today. Use the filter above to narrow which events count.")
 
 
 @st.dialog("Matching event")
@@ -161,7 +205,9 @@ with st.container(key="calendar-grid"):
 
             day_date = date(view_year, view_month, day)
             age_days = (day_date - birthdate).days
-            day_matches = EVENTS_BY_AGE.get(age_days, [])
+            day_matches = filter_events_by_tags(
+                EVENTS_BY_AGE.get(age_days, []), st.session_state.included_tags
+            )
             is_today = day_date == today
 
             if day_matches and is_today:
