@@ -1,7 +1,7 @@
 from datetime import date
 
 from core.config import TAG_TAXONOMY
-from core.matching import events_by_age_days, excluded_from_included, full_sentence, included_from_excluded, name_matches_text, normalize_name
+from core.matching import events_by_age_days, events_for_subscription, excluded_from_included, filter_events_by_tags, full_sentence, included_from_excluded, name_matches_text, normalize_name
 
 
 def test_true_positive_with_punctuation():
@@ -101,3 +101,55 @@ def test_helpers_order_output_by_taxonomy_not_input_order():
 
 def test_unknown_names_are_ignored():
     assert included_from_excluded(["not-a-real-tag"]) == TAG_TAXONOMY
+
+
+def _tagged(tags):
+    return {"name": "Someone", "age_days": 1, "event_phrase": "", "tags": tags}
+
+
+def test_untagged_event_survives_every_filter():
+    untagged = _tagged([])
+    assert filter_events_by_tags([untagged], ["science"]) == [untagged]
+    assert filter_events_by_tags([untagged], []) == [untagged]
+
+
+def test_event_with_all_tags_excluded_is_dropped():
+    assert filter_events_by_tags([_tagged(["military"])], ["science"]) == []
+
+
+def test_event_survives_on_any_single_surviving_tag():
+    # Only "politics" is included; the event keeps it despite "military" being out.
+    event = _tagged(["military", "politics"])
+    assert filter_events_by_tags([event], ["politics"]) == [event]
+
+
+def test_empty_inclusion_drops_tagged_but_keeps_untagged():
+    untagged = _tagged([])
+    tagged = _tagged(["science"])
+    assert filter_events_by_tags([tagged, untagged], []) == [untagged]
+
+
+def test_missing_tags_key_is_treated_as_untagged():
+    # An event dict from a code path that never set "tags" must not raise.
+    event = {"name": "Someone", "age_days": 1, "event_phrase": ""}
+    assert filter_events_by_tags([event], ["science"]) == [event]
+
+
+def test_events_for_subscription_applies_stored_exclusions():
+    science = _tagged(["science"])
+    military = _tagged(["military"])
+    subscription = {"excluded_tags": ["military"]}
+    assert events_for_subscription([science, military], subscription) == [science]
+
+
+def test_events_for_subscription_survives_a_missing_column():
+    # Before the alter-table lands, subscription rows have no excluded_tags key
+    # at all. That must mean "no filtering", not a KeyError that kills the cron.
+    science = _tagged(["science"])
+    military = _tagged(["military"])
+    assert events_for_subscription([science, military], {}) == [science, military]
+
+
+def test_events_for_subscription_treats_null_column_as_no_filtering():
+    events = [_tagged(["science"])]
+    assert events_for_subscription(events, {"excluded_tags": None}) == events

@@ -29,6 +29,38 @@ def excluded_from_included(included_tags: Collection[str]) -> List[str]:
     return [tag for tag in TAG_TAXONOMY if tag not in included]
 
 
+def filter_events_by_tags(events: Iterable[Dict], included_tags: Collection[str]) -> List[Dict]:
+    """Keep events that are untagged, or carry at least one tag in included_tags.
+
+    Two deliberately permissive rules:
+
+    - An untagged event always survives. The corpus is tagged by a manually-run
+      backfill, so untagged rows are a normal transient state - hiding them would
+      drop real matches because of backfill lag rather than user intent.
+    - A tagged event survives on any single surviving tag, not all of them, so
+      unchecking one box can't remove events the user never asked to hide.
+    """
+    included = set(included_tags or ())
+    kept: List[Dict] = []
+    for event in events:
+        tags = event.get("tags") or []
+        if not tags or any(tag in included for tag in tags):
+            kept.append(event)
+    return kept
+
+
+def events_for_subscription(events: Iterable[Dict], subscription: Dict) -> List[Dict]:
+    """Filter events by a subscription's stored tag preference.
+
+    Reads excluded_tags defensively: if the column hasn't been added to the
+    database yet, every subscriber's row is missing the key, and raising here
+    would kill the whole daily notification run rather than just one subscriber.
+    Absent or null means no filtering, which is the pre-feature behavior.
+    """
+    excluded = subscription.get("excluded_tags") or []
+    return filter_events_by_tags(events, included_from_excluded(excluded))
+
+
 def find_matching_events(events: Iterable[Dict], age_in_days: int) -> List[Dict]:
     """Return events where the person's age at the event matches age_in_days exactly."""
     return [event for event in events if event["age_days"] == age_in_days]
