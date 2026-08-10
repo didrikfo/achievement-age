@@ -1,6 +1,7 @@
+from datetime import date
 from unittest.mock import MagicMock, patch
 
-from core.db import fetch_events
+from core.db import create_subscription, fetch_events, update_subscription_tags
 
 
 def test_fetch_events_selects_with_person_join():
@@ -72,3 +73,37 @@ def test_fetch_events_gives_untagged_events_an_empty_list():
 
     assert result[0]["tags"] == []
     assert result[1]["tags"] == []
+
+
+def test_create_subscription_defaults_to_no_exclusions():
+    mock_client = MagicMock()
+    mock_client.table.return_value.insert.return_value.execute.return_value.data = [{"token": "abc"}]
+
+    with patch("core.db.get_client", return_value=mock_client):
+        create_subscription(date(2000, 1, 1))
+
+    inserted = mock_client.table.return_value.insert.call_args.args[0]
+    assert inserted["excluded_tags"] == []
+    assert inserted["birthday"] == "2000-01-01"
+
+
+def test_create_subscription_stores_the_given_exclusions():
+    mock_client = MagicMock()
+    mock_client.table.return_value.insert.return_value.execute.return_value.data = [{"token": "abc"}]
+
+    with patch("core.db.get_client", return_value=mock_client):
+        create_subscription(date(2000, 1, 1), ["military", "sports"])
+
+    inserted = mock_client.table.return_value.insert.call_args.args[0]
+    assert inserted["excluded_tags"] == ["military", "sports"]
+
+
+def test_update_subscription_tags_targets_the_right_token():
+    mock_client = MagicMock()
+
+    with patch("core.db.get_client", return_value=mock_client):
+        update_subscription_tags("tok123", ["disaster"])
+
+    mock_client.table.assert_called_with("subscriptions")
+    mock_client.table.return_value.update.assert_called_with({"excluded_tags": ["disaster"]})
+    mock_client.table.return_value.update.return_value.eq.assert_called_with("token", "tok123")

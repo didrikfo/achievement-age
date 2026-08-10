@@ -98,13 +98,18 @@ def fetch_tags() -> List[Dict]:
     return response.data
 
 
-def create_subscription(birthday: date) -> Dict:
-    """Create a new subscription (magic-link token + ntfy topic) for a birthday."""
+def create_subscription(birthday: date, excluded_tags: Optional[List[str]] = None) -> Dict:
+    """Create a new subscription (magic-link token + ntfy topic) for a birthday.
+
+    excluded_tags carries the visitor's current calendar filter forward into
+    their notification preference, so filter-then-subscribe is one action.
+    """
     client = get_client()
     row = {
         "token": secrets.token_urlsafe(12),
         "ntfy_topic": f"achage-{secrets.token_urlsafe(9)}",
         "birthday": birthday.isoformat(),
+        "excluded_tags": list(excluded_tags or []),
     }
     response = client.table("subscriptions").insert(row).execute()
     return response.data[0]
@@ -115,6 +120,14 @@ def get_subscription(token: str) -> Optional[Dict]:
     client = get_client()
     response = client.table("subscriptions").select("*").eq("token", token).execute()
     return response.data[0] if response.data else None
+
+
+def update_subscription_tags(token: str, excluded_tags: List[str]) -> None:
+    """Overwrite a subscription's stored tag exclusions."""
+    client = get_client()
+    client.table("subscriptions").update({"excluded_tags": list(excluded_tags)}).eq(
+        "token", token
+    ).execute()
 
 
 def fetch_all_subscriptions() -> List[Dict]:
