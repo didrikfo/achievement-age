@@ -21,7 +21,7 @@ import requests
 from core.db import fetch_all_subscriptions, fetch_events
 from core.matching import events_by_age_days, full_sentence
 
-APP_BASE_URL = os.environ.get("APP_BASE_URL", "")
+APP_BASE_URL = os.environ.get("APP_BASE_URL", "").strip()
 
 Matcher = Callable[[int], List[Dict]]
 
