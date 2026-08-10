@@ -4,7 +4,29 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import Dict, Iterable, List
+from typing import Collection, Dict, Iterable, List
+
+from core.config import TAG_TAXONOMY
+
+
+def included_from_excluded(excluded_tags: Collection[str]) -> List[str]:
+    """Return the taxonomy tags a subscriber should see, given what they excluded.
+
+    Ordered by TAG_TAXONOMY so the result is stable regardless of input order.
+    """
+    excluded = set(excluded_tags or ())
+    return [tag for tag in TAG_TAXONOMY if tag not in excluded]
+
+
+def excluded_from_included(included_tags: Collection[str]) -> List[str]:
+    """Return what to store for a UI selection: the taxonomy minus that selection.
+
+    Exclusions are stored rather than inclusions so a tag added to TAG_TAXONOMY
+    later is visible to existing subscribers by default instead of silently
+    hidden.
+    """
+    included = set(included_tags or ())
+    return [tag for tag in TAG_TAXONOMY if tag not in included]
 
 
 def find_matching_events(events: Iterable[Dict], age_in_days: int) -> List[Dict]:

@@ -1,6 +1,7 @@
 from datetime import date
 
-from core.matching import events_by_age_days, full_sentence, name_matches_text, normalize_name
+from core.config import TAG_TAXONOMY
+from core.matching import events_by_age_days, excluded_from_included, full_sentence, included_from_excluded, name_matches_text, normalize_name
 
 
 def test_true_positive_with_punctuation():
@@ -66,3 +67,37 @@ def test_full_sentence_passes_through_regardless_of_case_or_leading_space():
     # produced a full sentence - prefixing it again would duplicate the opening.
     event = {"name": "Ada Lovelace", "event_phrase": "  the same age that Ada Lovelace was when she published her notes."}
     assert full_sentence(event) == "  the same age that Ada Lovelace was when she published her notes."
+
+
+def test_no_exclusions_includes_the_whole_taxonomy():
+    assert included_from_excluded([]) == TAG_TAXONOMY
+
+
+def test_included_from_excluded_removes_the_excluded_names():
+    result = included_from_excluded(["military", "sports"])
+    assert "military" not in result
+    assert "sports" not in result
+    assert "science" in result
+    assert len(result) == len(TAG_TAXONOMY) - 2
+
+
+def test_excluded_from_included_is_the_complement():
+    assert excluded_from_included(TAG_TAXONOMY) == []
+    assert excluded_from_included([]) == TAG_TAXONOMY
+
+
+def test_inversion_round_trips_a_ui_selection():
+    selection = ["science", "space", "technology"]
+    stored = excluded_from_included(selection)
+    assert sorted(included_from_excluded(stored)) == sorted(selection)
+
+
+def test_helpers_order_output_by_taxonomy_not_input_order():
+    # "space" comes after "science" in TAG_TAXONOMY; input order must not leak through.
+    assert included_from_excluded(
+        [tag for tag in TAG_TAXONOMY if tag not in {"space", "science"}]
+    ) == ["science", "space"]
+
+
+def test_unknown_names_are_ignored():
+    assert included_from_excluded(["not-a-real-tag"]) == TAG_TAXONOMY
