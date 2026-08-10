@@ -56,8 +56,20 @@ def get_client() -> Client:
 EVENTS_PAGE_SIZE = 1000
 
 
+def _flatten_tags(event: Dict) -> Dict:
+    """Collapse the nested event_tags(tags(name)) join into a flat list of names.
+
+    PostgREST returns [{"tags": {"name": "science"}}, ...]; callers just want
+    ["science", ...]. Always produces a list - never None - so no downstream
+    code needs a None check.
+    """
+    tag_rows = event.pop("event_tags", None) or []
+    event["tags"] = [row["tags"]["name"] for row in tag_rows if row.get("tags")]
+    return event
+
+
 def fetch_events() -> List[Dict]:
-    """Return every row from the events table, joined with each event's person data.
+    """Return every row from the events table, joined with person data and tag names.
 
     Paginates because Supabase/PostgREST caps a single response at ~1000 rows.
     """
@@ -67,12 +79,12 @@ def fetch_events() -> List[Dict]:
     while True:
         page = (
             client.table("events")
-            .select("*, persons(wikipedia_url)")
+            .select("*, persons(wikipedia_url), event_tags(tags(name))")
             .range(start, start + EVENTS_PAGE_SIZE - 1)
             .execute()
             .data
         )
-        events.extend(page)
+        events.extend(_flatten_tags(event) for event in page)
         if len(page) < EVENTS_PAGE_SIZE:
             break
         start += EVENTS_PAGE_SIZE
