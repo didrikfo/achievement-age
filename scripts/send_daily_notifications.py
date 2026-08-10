@@ -4,6 +4,10 @@ For every subscriber, checks whether today's age-in-days matches any event
 and pushes a notification via ntfy.sh if so. Reads SUPABASE_URL/SUPABASE_KEY/
 APP_BASE_URL from the environment (no Streamlit context here).
 
+Each subscriber's matches are filtered against their stored tag preference
+(subscriptions.excluded_tags) before sending, so a subscriber only hears about
+the categories they kept.
+
 Matches are gathered from a small list of matcher callables rather than one
 hardcoded lookup, so a future non-database matcher (e.g. "age-in-days is a
 round number in base 10/binary" or "is prime") can be added later without
@@ -19,7 +23,7 @@ from typing import Callable, Dict, List
 import requests
 
 from core.db import fetch_all_subscriptions, fetch_events
-from core.matching import events_by_age_days, full_sentence
+from core.matching import events_by_age_days, events_for_subscription, full_sentence
 
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "").strip()
 
@@ -62,6 +66,7 @@ def main() -> None:
         matches: List[Dict] = []
         for matcher in MATCHERS:
             matches.extend(matcher(age_days))
+        matches = events_for_subscription(matches, subscription)
 
         for event in matches:
             _send_ntfy_notification(subscription["ntfy_topic"], event, subscription["token"])
