@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 from core.db import create_subscription, fetch_events, update_subscription_tags
 
 
-def test_fetch_events_selects_with_person_join():
+def test_fetch_events_selects_with_person_and_tag_joins():
     mock_client = MagicMock()
     mock_client.table.return_value.select.return_value.range.return_value.execute.return_value.data = [
         {"id": 1, "name": "Ada Lovelace", "persons": {"wikipedia_url": "https://en.wikipedia.org/wiki/Ada_Lovelace"}},
@@ -107,3 +107,4 @@ def test_update_subscription_tags_targets_the_right_token():
     mock_client.table.assert_called_with("subscriptions")
     mock_client.table.return_value.update.assert_called_with({"excluded_tags": ["disaster"]})
     mock_client.table.return_value.update.return_value.eq.assert_called_with("token", "tok123")
+    mock_client.table.return_value.update.return_value.eq.return_value.execute.assert_called_once()

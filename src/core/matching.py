@@ -49,6 +49,11 @@ def filter_events_by_tags(events: Iterable[Dict], included_tags: Collection[str]
     return kept
 
 
+def included_tags_for_subscription(subscription: Dict) -> List[str]:
+    """The taxonomy tags a subscription should see. Missing/null column means everything."""
+    return included_from_excluded(subscription.get("excluded_tags") or [])
+
+
 def events_for_subscription(events: Iterable[Dict], subscription: Dict) -> List[Dict]:
     """Filter events by a subscription's stored tag preference.
 
@@ -57,8 +62,7 @@ def events_for_subscription(events: Iterable[Dict], subscription: Dict) -> List[
     would kill the whole daily notification run rather than just one subscriber.
     Absent or null means no filtering, which is the pre-feature behavior.
     """
-    excluded = subscription.get("excluded_tags") or []
-    return filter_events_by_tags(events, included_from_excluded(excluded))
+    return filter_events_by_tags(events, included_tags_for_subscription(subscription))
 
 
 def find_matching_events(events: Iterable[Dict], age_in_days: int) -> List[Dict]:

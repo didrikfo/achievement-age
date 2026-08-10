@@ -1,7 +1,17 @@
 from datetime import date
 
 from core.config import TAG_TAXONOMY
-from core.matching import events_by_age_days, events_for_subscription, excluded_from_included, filter_events_by_tags, full_sentence, included_from_excluded, name_matches_text, normalize_name
+from core.matching import (
+    events_by_age_days,
+    events_for_subscription,
+    excluded_from_included,
+    filter_events_by_tags,
+    full_sentence,
+    included_from_excluded,
+    included_tags_for_subscription,
+    name_matches_text,
+    normalize_name,
+)
 
 
 def test_true_positive_with_punctuation():
@@ -153,3 +163,21 @@ def test_events_for_subscription_survives_a_missing_column():
 def test_events_for_subscription_treats_null_column_as_no_filtering():
     events = [_tagged(["science"])]
     assert events_for_subscription(events, {"excluded_tags": None}) == events
+
+
+def test_included_tags_for_subscription_applies_stored_exclusions():
+    subscription = {"excluded_tags": ["military", "sports"]}
+    result = included_tags_for_subscription(subscription)
+    assert "military" not in result
+    assert "sports" not in result
+    assert "science" in result
+
+
+def test_included_tags_for_subscription_survives_a_missing_column():
+    # Before the alter-table lands, subscription rows have no excluded_tags key
+    # at all. That must mean "no filtering", not a KeyError that kills the cron.
+    assert included_tags_for_subscription({}) == TAG_TAXONOMY
+
+
+def test_included_tags_for_subscription_treats_null_column_as_no_filtering():
+    assert included_tags_for_subscription({"excluded_tags": None}) == TAG_TAXONOMY

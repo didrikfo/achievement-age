@@ -332,7 +332,7 @@ Run this in the SQL editor **before** deploying the tag-filtering application co
 "Update preferences" button writes to this column, and the write fails if it doesn't exist.
 
 ```sql
-alter table subscriptions add column excluded_tags text[] not null default '{}';
+alter table subscriptions add column if not exists excluded_tags text[] not null default '{}';
 ```
 
 No backfill is needed. The `default '{}'` fills every existing row with an empty exclusion list,

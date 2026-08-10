@@ -1,4 +1,4 @@
-"""Configuration helpers for locating project resources."""
+"""Project paths and shared constants."""
 
 from __future__ import annotations
 

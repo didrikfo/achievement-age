@@ -30,7 +30,7 @@ from core.matching import (
     excluded_from_included,
     filter_events_by_tags,
     full_sentence,
-    included_from_excluded,
+    included_tags_for_subscription,
 )
 
 from app.styles import MASTHEAD_HTML, PAGE_CSS
@@ -62,9 +62,7 @@ subscription = get_subscription(token) if token else None
 # in-progress selection.
 if "included_tags" not in st.session_state:
     if subscription:
-        st.session_state.included_tags = included_from_excluded(
-            subscription.get("excluded_tags") or []
-        )
+        st.session_state.included_tags = included_tags_for_subscription(subscription)
     else:
         st.session_state.included_tags = list(TAG_TAXONOMY)
 
@@ -80,20 +78,24 @@ else:
             "when your age matches a historical event, without having to check the calendar yourself."
         )
         if st.button("Get notified"):
-            new_subscription = create_subscription(
-                birthdate, excluded_from_included(st.session_state.included_tags)
-            )
-            link = f"{APP_BASE_URL}?u={new_subscription['token']}"
-            st.success("Subscription created! Save this link and subscribe to your notification topic:")
-            st.code(link, language=None)
-            st.markdown(
-                f"1. **Bookmark or add this page to your home screen** — it remembers your "
-                f"birthday and your tag filter, and it's the only way back to these "
-                f"preferences, so don't lose it.\n"
-                f"2. Install the [ntfy app](https://ntfy.sh) and subscribe to the topic "
-                f"`{new_subscription['ntfy_topic']}`.\n"
-                f"3. You'll get a notification whenever your age matches an event."
-            )
+            try:
+                new_subscription = create_subscription(
+                    birthdate, excluded_from_included(st.session_state.included_tags)
+                )
+            except Exception:
+                st.error("Couldn't save your preferences — try again in a moment.")
+            else:
+                link = f"{APP_BASE_URL}?u={new_subscription['token']}"
+                st.success("Subscription created! Save this link and subscribe to your notification topic:")
+                st.code(link, language=None)
+                st.markdown(
+                    f"1. **Bookmark or add this page to your home screen** — it remembers your "
+                    f"birthday and your tag filter, and it's the only way back to these "
+                    f"preferences, so don't lose it.\n"
+                    f"2. Install the [ntfy app](https://ntfy.sh) and subscribe to the topic "
+                    f"`{new_subscription['ntfy_topic']}`.\n"
+                    f"3. You'll get a notification whenever your age matches an event."
+                )
 
 # Show age
 years, months, days = age_breakdown(birthdate, date.today())
@@ -103,20 +105,20 @@ st.markdown(
 )
 
 with st.expander("Filter which events show up"):
-    st.session_state.included_tags = st.multiselect(
-        "Show events tagged:",
-        options=TAG_TAXONOMY,
-        default=st.session_state.included_tags,
-    )
+    st.multiselect("Show events tagged:", options=TAG_TAXONOMY, key="included_tags")
     st.caption(
         "Events that haven't been tagged yet always show up, whatever you pick here."
     )
     if subscription:
         if st.button("Update preferences"):
-            update_subscription_tags(
-                subscription["token"], excluded_from_included(st.session_state.included_tags)
-            )
-            st.success("Saved — your notifications will follow these tags from now on.")
+            try:
+                update_subscription_tags(
+                    subscription["token"], excluded_from_included(st.session_state.included_tags)
+                )
+            except Exception:
+                st.error("Couldn't save your preferences — try again in a moment.")
+            else:
+                st.success("Saved — your notifications will follow these tags from now on.")
 
 st.caption("A red circle marks a day that matches a historical event — click it for details. A filled black date marks today. Use the filter above to narrow which events count.")
 
