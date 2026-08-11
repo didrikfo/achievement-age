@@ -21,7 +21,6 @@ from core.config import CATEGORY_NAMES, TAG_TAXONOMY
 from core.db import (
     create_subscription,
     fetch_events,
-    get_config_value,
     get_subscription,
     update_subscription_filters,
 )
@@ -34,9 +33,8 @@ from core.matching import (
     included_tags_for_subscription,
 )
 
+from app.links import subscription_link
 from app.styles import MASTHEAD_HTML, PAGE_CSS
-
-APP_BASE_URL = get_config_value("APP_BASE_URL", default="")
 
 
 @st.cache_data(ttl=3600)
@@ -94,13 +92,13 @@ else:
             except Exception:
                 st.error("Couldn't save your preferences — try again in a moment.")
             else:
-                link = f"{APP_BASE_URL}?u={new_subscription['token']}"
-                st.success("Subscription created! Save this link and subscribe to your notification topic:")
+                link = subscription_link(new_subscription["token"])
+                st.success("Subscription created! Save this link, then subscribe to your notification topic:")
                 st.code(link, language=None)
                 st.markdown(
-                    f"1. **Bookmark or add this page to your home screen** — it remembers your "
-                    f"birthday and your tag filter, and it's the only way back to these "
-                    f"preferences, so don't lose it.\n"
+                    f"1. **Save this link.** Bookmark it or add it to your home screen — it "
+                    f"remembers your birthday and your filters, and it's the only way back to "
+                    f"them, so don't lose it.\n"
                     f"2. Install the [ntfy app](https://ntfy.sh) and subscribe to the topic "
                     f"`{new_subscription['ntfy_topic']}`.\n"
                     f"3. You'll get a notification whenever your age matches an event."

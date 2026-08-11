@@ -1,5 +1,5 @@
 pytest
-streamlit
+streamlit>=1.45
 supabase
 requests
 python-dotenv
