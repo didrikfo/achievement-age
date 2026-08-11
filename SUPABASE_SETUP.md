@@ -368,3 +368,27 @@ Like `excluded_tags`, this column stores **exclusions**, so a category added lat
 existing subscribers by default. `core.matching.events_for_subscription` reads it defensively, so
 if the cron job runs before this SQL is applied it falls back to tag-only filtering rather than
 failing the run.
+
+## 12. Person Wikipedia links
+
+Fills `persons.wikipedia_url`, which the event dialog renders as a "further reading" link. No SQL
+is needed — the column has existed since section 3.
+
+```bash
+./venv/Scripts/python.exe -m ingest.backfill_person_wikipedia
+```
+
+Roughly 10–15 minutes for the full corpus: article titles resolve 50 per request, but each
+candidate's birth year is one small Wikidata REST call.
+
+Every candidate article is verified against the person's real birth year, derived from their own
+event rows (event date minus age in days), with a ±1 year tolerance for calendar edge cases. Only
+verified links are written; disambiguation pages, missing articles, birth-year mismatches and
+people whose events imply conflicting birth dates are listed in
+`data/tmp/person_wikipedia_review.json` instead. Read that file after a run — the rejections should
+look like obscure names and genuine ambiguity, not a systematic failure.
+
+Safe to rerun: rows that already have a URL are skipped entirely, so hand-corrected values are
+never overwritten, and every lookup outcome is cached in `data/wikipedia_person_cache.json`. To
+force a re-lookup for one person, clear their `wikipedia_url` in the Supabase table editor and
+delete their entry from that cache file.
