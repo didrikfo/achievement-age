@@ -98,11 +98,15 @@ def fetch_tags() -> List[Dict]:
     return response.data
 
 
-def create_subscription(birthday: date, excluded_tags: Optional[List[str]] = None) -> Dict:
+def create_subscription(
+    birthday: date,
+    excluded_tags: Optional[List[str]] = None,
+    excluded_categories: Optional[List[str]] = None,
+) -> Dict:
     """Create a new subscription (magic-link token + ntfy topic) for a birthday.
 
-    excluded_tags carries the visitor's current calendar filter forward into
-    their notification preference, so filter-then-subscribe is one action.
+    The two exclusion lists carry the visitor's current calendar filter forward
+    into their notification preference, so filter-then-subscribe is one action.
     """
     client = get_client()
     row = {
@@ -110,6 +114,7 @@ def create_subscription(birthday: date, excluded_tags: Optional[List[str]] = Non
         "ntfy_topic": f"achage-{secrets.token_urlsafe(9)}",
         "birthday": birthday.isoformat(),
         "excluded_tags": list(excluded_tags or []),
+        "excluded_categories": list(excluded_categories or []),
     }
     response = client.table("subscriptions").insert(row).execute()
     return response.data[0]
@@ -122,12 +127,17 @@ def get_subscription(token: str) -> Optional[Dict]:
     return response.data[0] if response.data else None
 
 
-def update_subscription_tags(token: str, excluded_tags: List[str]) -> None:
-    """Overwrite a subscription's stored tag exclusions."""
+def update_subscription_filters(
+    token: str, excluded_tags: List[str], excluded_categories: List[str]
+) -> None:
+    """Overwrite a subscription's stored category and tag exclusions in one write."""
     client = get_client()
-    client.table("subscriptions").update({"excluded_tags": list(excluded_tags)}).eq(
-        "token", token
-    ).execute()
+    client.table("subscriptions").update(
+        {
+            "excluded_tags": list(excluded_tags),
+            "excluded_categories": list(excluded_categories),
+        }
+    ).eq("token", token).execute()
 
 
 def fetch_all_subscriptions() -> List[Dict]:

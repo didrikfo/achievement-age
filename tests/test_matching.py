@@ -1,16 +1,18 @@
 from datetime import date
 
-from core.config import TAG_TAXONOMY
+from core.config import CATEGORY_NAMES, TAG_CATEGORIES, TAG_TAXONOMY
 from core.matching import (
     events_by_age_days,
     events_for_subscription,
     excluded_from_included,
-    filter_events_by_tags,
+    filter_events,
     full_sentence,
+    included_categories_for_subscription,
     included_from_excluded,
     included_tags_for_subscription,
     name_matches_text,
     normalize_name,
+    primary_category,
 )
 
 
@@ -113,56 +115,96 @@ def test_unknown_names_are_ignored():
     assert included_from_excluded(["not-a-real-tag"]) == TAG_TAXONOMY
 
 
+def test_inversion_helpers_work_over_the_category_taxonomy():
+    stored = excluded_from_included(["Sport", "Disasters"], CATEGORY_NAMES)
+    assert "Sport" not in stored
+    assert "Politics & Power" in stored
+    assert included_from_excluded(stored, CATEGORY_NAMES) == ["Sport", "Disasters"]
+
+
+def test_inversion_helpers_order_by_the_given_taxonomy():
+    # Input order must not leak through: Sport precedes Disasters in CATEGORY_NAMES.
+    assert included_from_excluded(
+        [name for name in CATEGORY_NAMES if name not in {"Sport", "Disasters"}],
+        CATEGORY_NAMES,
+    ) == ["Sport", "Disasters"]
+
+
 def _tagged(tags):
     return {"name": "Someone", "age_days": 1, "event_phrase": "", "tags": tags}
 
 
+ALL_CATEGORIES = CATEGORY_NAMES
+ALL_TAGS = TAG_TAXONOMY
+
+
 def test_untagged_event_survives_every_filter():
     untagged = _tagged([])
-    assert filter_events_by_tags([untagged], ["science"]) == [untagged]
-    assert filter_events_by_tags([untagged], []) == [untagged]
+    assert filter_events([untagged], ALL_CATEGORIES, ALL_TAGS) == [untagged]
+    assert filter_events([untagged], [], []) == [untagged]
 
 
-def test_event_with_all_tags_excluded_is_dropped():
-    assert filter_events_by_tags([_tagged(["military"])], ["science"]) == []
+def test_event_in_an_excluded_category_is_dropped():
+    military = _tagged(["military"])
+    assert filter_events([military], ["Science & Technology"], ALL_TAGS) == []
 
 
-def test_event_survives_on_any_single_surviving_tag():
-    # Only "politics" is included; the event keeps it despite "military" being out.
+def test_event_in_an_included_category_survives():
+    military = _tagged(["military"])
+    assert filter_events([military], ["War & Conflict"], ALL_TAGS) == [military]
+
+
+def test_category_gate_beats_a_kept_secondary_tag():
+    # politics is kept, but the event's category is War & Conflict, which is not:
+    # each event lives in exactly one bucket and cannot leak back in via a tag.
     event = _tagged(["military", "politics"])
-    assert filter_events_by_tags([event], ["politics"]) == [event]
+    assert filter_events([event], ["Politics & Power"], ALL_TAGS) == []
 
 
-def test_empty_inclusion_drops_tagged_but_keeps_untagged():
-    untagged = _tagged([])
-    tagged = _tagged(["science"])
-    assert filter_events_by_tags([tagged, untagged], []) == [untagged]
+def test_advanced_tags_narrow_within_a_kept_category():
+    # Category kept, but every one of the event's tags is unchecked.
+    event = _tagged(["music"])
+    assert filter_events([event], ["Arts & Culture"], ["arts", "film"]) == []
+    assert filter_events([event], ["Arts & Culture"], ["arts", "music"]) == [event]
+
+
+def test_all_selected_is_a_no_op():
+    events = [_tagged(["military"]), _tagged(["science", "space"]), _tagged([])]
+    assert filter_events(events, ALL_CATEGORIES, ALL_TAGS) == events
 
 
 def test_missing_tags_key_is_treated_as_untagged():
     # An event dict from a code path that never set "tags" must not raise.
     event = {"name": "Someone", "age_days": 1, "event_phrase": ""}
-    assert filter_events_by_tags([event], ["science"]) == [event]
+    assert filter_events([event], [], []) == [event]
 
 
-def test_events_for_subscription_applies_stored_exclusions():
+def test_events_for_subscription_applies_stored_tag_exclusions():
     science = _tagged(["science"])
     military = _tagged(["military"])
-    subscription = {"excluded_tags": ["military"]}
+    subscription = {"excluded_tags": ["military"], "excluded_categories": ["War & Conflict"]}
     assert events_for_subscription([science, military], subscription) == [science]
 
 
+def test_events_for_subscription_applies_stored_category_exclusions():
+    science = _tagged(["science"])
+    sport = _tagged(["sports"])
+    subscription = {"excluded_categories": ["Sport"]}
+    assert events_for_subscription([science, sport], subscription) == [science]
+
+
 def test_events_for_subscription_survives_a_missing_column():
-    # Before the alter-table lands, subscription rows have no excluded_tags key
-    # at all. That must mean "no filtering", not a KeyError that kills the cron.
+    # Before the alter-table lands, subscription rows have no excluded_categories
+    # key at all. That must mean "no filtering", not a KeyError that kills the cron.
     science = _tagged(["science"])
     military = _tagged(["military"])
     assert events_for_subscription([science, military], {}) == [science, military]
 
 
-def test_events_for_subscription_treats_null_column_as_no_filtering():
+def test_events_for_subscription_treats_null_columns_as_no_filtering():
     events = [_tagged(["science"])]
-    assert events_for_subscription(events, {"excluded_tags": None}) == events
+    subscription = {"excluded_tags": None, "excluded_categories": None}
+    assert events_for_subscription(events, subscription) == events
 
 
 def test_included_tags_for_subscription_applies_stored_exclusions():
@@ -174,10 +216,51 @@ def test_included_tags_for_subscription_applies_stored_exclusions():
 
 
 def test_included_tags_for_subscription_survives_a_missing_column():
-    # Before the alter-table lands, subscription rows have no excluded_tags key
-    # at all. That must mean "no filtering", not a KeyError that kills the cron.
     assert included_tags_for_subscription({}) == TAG_TAXONOMY
 
 
-def test_included_tags_for_subscription_treats_null_column_as_no_filtering():
-    assert included_tags_for_subscription({"excluded_tags": None}) == TAG_TAXONOMY
+def test_included_categories_for_subscription_applies_stored_exclusions():
+    subscription = {"excluded_categories": ["Sport", "Disasters"]}
+    result = included_categories_for_subscription(subscription)
+    assert "Sport" not in result
+    assert "Disasters" not in result
+    assert "Politics & Power" in result
+
+
+def test_included_categories_for_subscription_survives_a_missing_column():
+    assert included_categories_for_subscription({}) == CATEGORY_NAMES
+    assert included_categories_for_subscription({"excluded_categories": None}) == CATEGORY_NAMES
+
+
+def test_categories_partition_the_tag_taxonomy():
+    homed = [tag for tags in TAG_CATEGORIES.values() for tag in tags]
+    assert sorted(homed) == sorted(TAG_TAXONOMY)
+    assert len(homed) == len(set(homed))
+
+
+def test_primary_category_of_a_single_tag_event():
+    assert primary_category(_tagged(["science"])) == "Science & Technology"
+
+
+def test_primary_category_prefers_the_more_specific_category():
+    # 398 events in the corpus carry both. War is the specific subject; politics
+    # is the background theme, so these must be excludable as war.
+    assert primary_category(_tagged(["military", "politics"])) == "War & Conflict"
+    # Tag order within the event must not change the answer.
+    assert primary_category(_tagged(["politics", "military"])) == "War & Conflict"
+
+
+def test_primary_category_keeps_general_pairs_in_the_general_category():
+    assert primary_category(_tagged(["law", "politics"])) == "Politics & Power"
+    assert primary_category(_tagged(["politics", "royalty"])) == "Politics & Power"
+
+
+def test_primary_category_of_an_untagged_event_is_none():
+    assert primary_category(_tagged([])) is None
+    assert primary_category({"name": "Someone"}) is None
+
+
+def test_primary_category_ignores_tags_outside_the_taxonomy():
+    # Only reachable by a hand edit in the Supabase table editor - must not raise.
+    assert primary_category(_tagged(["not-a-real-tag"])) is None
+    assert primary_category(_tagged(["not-a-real-tag", "sports"])) == "Sport"

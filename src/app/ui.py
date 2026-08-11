@@ -17,25 +17,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import streamlit as st
 
 from core.age import age_breakdown
-from core.config import TAG_TAXONOMY
+from core.config import CATEGORY_NAMES, TAG_TAXONOMY
 from core.db import (
     create_subscription,
     fetch_events,
-    get_config_value,
     get_subscription,
-    update_subscription_tags,
+    update_subscription_filters,
 )
 from core.matching import (
     events_by_age_days,
     excluded_from_included,
-    filter_events_by_tags,
+    filter_events,
     full_sentence,
+    included_categories_for_subscription,
     included_tags_for_subscription,
 )
 
+from app.links import further_reading_links, subscription_link
 from app.styles import MASTHEAD_HTML, PAGE_CSS
-
-APP_BASE_URL = get_config_value("APP_BASE_URL", default="")
 
 
 @st.cache_data(ttl=3600)
@@ -66,6 +65,12 @@ if "included_tags" not in st.session_state:
     else:
         st.session_state.included_tags = list(TAG_TAXONOMY)
 
+if "included_categories" not in st.session_state:
+    if subscription:
+        st.session_state.included_categories = included_categories_for_subscription(subscription)
+    else:
+        st.session_state.included_categories = list(CATEGORY_NAMES)
+
 if subscription:
     birthdate = date.fromisoformat(subscription["birthday"])
     st.caption("Welcome back — this link remembers your birthday.")
@@ -80,18 +85,20 @@ else:
         if st.button("Get notified"):
             try:
                 new_subscription = create_subscription(
-                    birthdate, excluded_from_included(st.session_state.included_tags)
+                    birthdate,
+                    excluded_from_included(st.session_state.included_tags),
+                    excluded_from_included(st.session_state.included_categories, CATEGORY_NAMES),
                 )
             except Exception:
                 st.error("Couldn't save your preferences — try again in a moment.")
             else:
-                link = f"{APP_BASE_URL}?u={new_subscription['token']}"
-                st.success("Subscription created! Save this link and subscribe to your notification topic:")
+                link = subscription_link(new_subscription["token"])
+                st.success("Subscription created! Save this link, then subscribe to your notification topic:")
                 st.code(link, language=None)
                 st.markdown(
-                    f"1. **Bookmark or add this page to your home screen** — it remembers your "
-                    f"birthday and your tag filter, and it's the only way back to these "
-                    f"preferences, so don't lose it.\n"
+                    f"1. **Save this link.** Bookmark it or add it to your home screen — it "
+                    f"remembers your birthday and your filters, and it's the only way back to "
+                    f"them, so don't lose it.\n"
                     f"2. Install the [ntfy app](https://ntfy.sh) and subscribe to the topic "
                     f"`{new_subscription['ntfy_topic']}`.\n"
                     f"3. You'll get a notification whenever your age matches an event."
@@ -105,20 +112,30 @@ st.markdown(
 )
 
 with st.expander("Filter which events show up"):
-    st.multiselect("Show events tagged:", options=TAG_TAXONOMY, key="included_tags")
+    st.multiselect("Show events about:", options=CATEGORY_NAMES, key="included_categories")
     st.caption(
-        "Events that haven't been tagged yet always show up, whatever you pick here."
+        "Every event belongs to exactly one of these. Events that haven't been "
+        "tagged yet always show up, whatever you pick."
     )
+    # A popover, not a nested expander - Streamlit rejects expander-in-expander.
+    with st.popover("Advanced: filter by detailed tag"):
+        st.multiselect("Show events tagged:", options=TAG_TAXONOMY, key="included_tags")
+        st.caption(
+            "These narrow things down within the categories you kept above. "
+            "Unchecking a tag can never bring back an event from a category you hid."
+        )
     if subscription:
         if st.button("Update preferences"):
             try:
-                update_subscription_tags(
-                    subscription["token"], excluded_from_included(st.session_state.included_tags)
+                update_subscription_filters(
+                    subscription["token"],
+                    excluded_from_included(st.session_state.included_tags),
+                    excluded_from_included(st.session_state.included_categories, CATEGORY_NAMES),
                 )
             except Exception:
                 st.error("Couldn't save your preferences — try again in a moment.")
             else:
-                st.success("Saved — your notifications will follow these tags from now on.")
+                st.success("Saved — your notifications will follow these filters from now on.")
 
 st.caption("A red circle marks a day that matches a historical event — click it for details. A filled black date marks today. Use the filter above to narrow which events count.")
 
@@ -135,10 +152,10 @@ def show_event_dialog(day_date: date, matches: List[Dict]) -> None:
         description = event.get("detailed_description") or event.get("text")
         if description:
             st.caption(description)
-        person = event.get("persons") or {}
-        wikipedia_url = person.get("wikipedia_url")
-        if wikipedia_url:
-            st.markdown(f"[Read more on Wikipedia]({wikipedia_url})")
+        links = further_reading_links(event)
+        if links:
+            joined = " · ".join(f"[{label}]({url})" for label, url in links)
+            st.caption(f"Further reading on Wikipedia: {joined}")
 
 
 today = date.today()
@@ -207,8 +224,10 @@ with st.container(key="calendar-grid"):
 
             day_date = date(view_year, view_month, day)
             age_days = (day_date - birthdate).days
-            day_matches = filter_events_by_tags(
-                EVENTS_BY_AGE.get(age_days, []), st.session_state.included_tags
+            day_matches = filter_events(
+                EVENTS_BY_AGE.get(age_days, []),
+                st.session_state.included_categories,
+                st.session_state.included_tags,
             )
             is_today = day_date == today
 

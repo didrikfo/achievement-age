@@ -346,3 +346,59 @@ an inclusion list written before the tag existed.
 `scripts/send_daily_notifications.py` reads this column defensively (`.get("excluded_tags") or []`),
 so if the cron job runs before this SQL is applied it falls back to no filtering rather than
 failing the entire run.
+
+## 11. Coarse category filtering preferences
+
+Run this in the SQL editor **before** deploying the category-filtering application code — the
+app's "Update preferences" button writes this column, and the write fails if it doesn't exist.
+
+```sql
+alter table subscriptions add column if not exists excluded_categories text[] not null default '{}';
+```
+
+No backfill is needed. The `default '{}'` fills every existing row with an empty exclusion list, so
+current subscribers keep receiving every match exactly as before.
+
+The eight categories are derived from the existing tags at read time
+(`core.config.TAG_CATEGORIES` → `core.matching.primary_category`), so there is nothing to migrate
+on the `events`, `tags` or `event_tags` side and no re-tagging run. Changing which category a tag
+belongs to is a code change that takes effect immediately, with no backfill.
+
+**That "no backfill" ease does not extend to renaming a category itself.** `excluded_categories`
+persists the literal `TAG_CATEGORIES` keys (e.g. `"War & Conflict"`) into every subscriber's row,
+and `core.matching.included_from_excluded` matches them by exact string. Renaming a key in
+`core.config.py` (even a copy-editing tweak like "Sport" -> "Sports") silently orphans every
+existing subscriber's exclusion for that category — no error, no failing test, the row just stops
+matching and those subscribers start getting notifications they'd opted out of. If a category is
+ever renamed, either keep the old string as an alias wherever `TAG_CATEGORIES` is matched, or write
+a one-off migration that rewrites the old name to the new one in every `subscriptions.excluded_categories`
+array.
+
+Like `excluded_tags`, this column stores **exclusions**, so a category added later is visible to
+existing subscribers by default. `core.matching.events_for_subscription` reads it defensively, so
+if the cron job runs before this SQL is applied it falls back to tag-only filtering rather than
+failing the run.
+
+## 12. Person Wikipedia links
+
+Fills `persons.wikipedia_url`, which the event dialog renders as a "further reading" link. No SQL
+is needed — the column has existed since section 3.
+
+```bash
+./venv/Scripts/python.exe -m ingest.backfill_person_wikipedia
+```
+
+Roughly 10–15 minutes for the full corpus: article titles resolve 50 per request, but each
+candidate's birth year is one small Wikidata REST call.
+
+Every candidate article is verified against the person's real birth year, derived from their own
+event rows (event date minus age in days), with a ±1 year tolerance for calendar edge cases. Only
+verified links are written; disambiguation pages, missing articles, birth-year mismatches and
+people whose events imply conflicting birth dates are listed in
+`data/tmp/person_wikipedia_review.json` instead. Read that file after a run — the rejections should
+look like obscure names and genuine ambiguity, not a systematic failure.
+
+Safe to rerun: rows that already have a URL are skipped entirely, so hand-corrected values are
+never overwritten, and every lookup outcome is cached in `data/wikipedia_person_cache.json`. To
+force a re-lookup for one person, clear their `wikipedia_url` in the Supabase table editor and
+delete their entry from that cache file.
