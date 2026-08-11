@@ -56,8 +56,20 @@ def get_client() -> Client:
 EVENTS_PAGE_SIZE = 1000
 
 
+def _flatten_tags(event: Dict) -> Dict:
+    """Collapse the nested event_tags(tags(name)) join into a flat list of names.
+
+    PostgREST returns [{"tags": {"name": "science"}}, ...]; callers just want
+    ["science", ...]. Always produces a list - never None - so no downstream
+    code needs a None check.
+    """
+    tag_rows = event.pop("event_tags", None) or []
+    event["tags"] = [row["tags"]["name"] for row in tag_rows if row.get("tags")]
+    return event
+
+
 def fetch_events() -> List[Dict]:
-    """Return every row from the events table, joined with each event's person data.
+    """Return every row from the events table, joined with person data and tag names.
 
     Paginates because Supabase/PostgREST caps a single response at ~1000 rows.
     """
@@ -67,12 +79,12 @@ def fetch_events() -> List[Dict]:
     while True:
         page = (
             client.table("events")
-            .select("*, persons(wikipedia_url)")
+            .select("*, persons(wikipedia_url), event_tags(tags(name))")
             .range(start, start + EVENTS_PAGE_SIZE - 1)
             .execute()
             .data
         )
-        events.extend(page)
+        events.extend(_flatten_tags(event) for event in page)
         if len(page) < EVENTS_PAGE_SIZE:
             break
         start += EVENTS_PAGE_SIZE
@@ -86,13 +98,18 @@ def fetch_tags() -> List[Dict]:
     return response.data
 
 
-def create_subscription(birthday: date) -> Dict:
-    """Create a new subscription (magic-link token + ntfy topic) for a birthday."""
+def create_subscription(birthday: date, excluded_tags: Optional[List[str]] = None) -> Dict:
+    """Create a new subscription (magic-link token + ntfy topic) for a birthday.
+
+    excluded_tags carries the visitor's current calendar filter forward into
+    their notification preference, so filter-then-subscribe is one action.
+    """
     client = get_client()
     row = {
         "token": secrets.token_urlsafe(12),
         "ntfy_topic": f"achage-{secrets.token_urlsafe(9)}",
         "birthday": birthday.isoformat(),
+        "excluded_tags": list(excluded_tags or []),
     }
     response = client.table("subscriptions").insert(row).execute()
     return response.data[0]
@@ -103,6 +120,14 @@ def get_subscription(token: str) -> Optional[Dict]:
     client = get_client()
     response = client.table("subscriptions").select("*").eq("token", token).execute()
     return response.data[0] if response.data else None
+
+
+def update_subscription_tags(token: str, excluded_tags: List[str]) -> None:
+    """Overwrite a subscription's stored tag exclusions."""
+    client = get_client()
+    client.table("subscriptions").update({"excluded_tags": list(excluded_tags)}).eq(
+        "token", token
+    ).execute()
 
 
 def fetch_all_subscriptions() -> List[Dict]:

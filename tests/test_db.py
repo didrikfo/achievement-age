@@ -1,9 +1,10 @@
+from datetime import date
 from unittest.mock import MagicMock, patch
 
-from core.db import fetch_events
+from core.db import create_subscription, fetch_events, update_subscription_tags
 
 
-def test_fetch_events_selects_with_person_join():
+def test_fetch_events_selects_with_person_and_tag_joins():
     mock_client = MagicMock()
     mock_client.table.return_value.select.return_value.range.return_value.execute.return_value.data = [
         {"id": 1, "name": "Ada Lovelace", "persons": {"wikipedia_url": "https://en.wikipedia.org/wiki/Ada_Lovelace"}},
@@ -14,7 +15,9 @@ def test_fetch_events_selects_with_person_join():
         result = fetch_events()
 
     mock_client.table.assert_called_with("events")
-    mock_client.table.return_value.select.assert_called_with("*, persons(wikipedia_url)")
+    mock_client.table.return_value.select.assert_called_with(
+        "*, persons(wikipedia_url), event_tags(tags(name))"
+    )
     assert result[0]["persons"]["wikipedia_url"] == "https://en.wikipedia.org/wiki/Ada_Lovelace"
     assert result[1]["persons"] is None
 
@@ -37,3 +40,71 @@ def test_fetch_events_paginates_past_the_page_size():
     range_calls = mock_client.table.return_value.select.return_value.range.call_args_list
     assert range_calls[0].args == (0, 999)
     assert range_calls[1].args == (1000, 1999)
+
+
+def test_fetch_events_flattens_nested_tag_rows():
+    mock_client = MagicMock()
+    mock_client.table.return_value.select.return_value.range.return_value.execute.return_value.data = [
+        {
+            "id": 1,
+            "name": "Ada Lovelace",
+            "persons": None,
+            "event_tags": [{"tags": {"name": "science"}}, {"tags": {"name": "technology"}}],
+        },
+    ]
+
+    with patch("core.db.get_client", return_value=mock_client):
+        result = fetch_events()
+
+    assert result[0]["tags"] == ["science", "technology"]
+    # The nested join shape is not left behind for callers to trip over.
+    assert "event_tags" not in result[0]
+
+
+def test_fetch_events_gives_untagged_events_an_empty_list():
+    mock_client = MagicMock()
+    mock_client.table.return_value.select.return_value.range.return_value.execute.return_value.data = [
+        {"id": 1, "name": "No Tags", "persons": None, "event_tags": []},
+        {"id": 2, "name": "Null Tags", "persons": None, "event_tags": None},
+    ]
+
+    with patch("core.db.get_client", return_value=mock_client):
+        result = fetch_events()
+
+    assert result[0]["tags"] == []
+    assert result[1]["tags"] == []
+
+
+def test_create_subscription_defaults_to_no_exclusions():
+    mock_client = MagicMock()
+    mock_client.table.return_value.insert.return_value.execute.return_value.data = [{"token": "abc"}]
+
+    with patch("core.db.get_client", return_value=mock_client):
+        create_subscription(date(2000, 1, 1))
+
+    inserted = mock_client.table.return_value.insert.call_args.args[0]
+    assert inserted["excluded_tags"] == []
+    assert inserted["birthday"] == "2000-01-01"
+
+
+def test_create_subscription_stores_the_given_exclusions():
+    mock_client = MagicMock()
+    mock_client.table.return_value.insert.return_value.execute.return_value.data = [{"token": "abc"}]
+
+    with patch("core.db.get_client", return_value=mock_client):
+        create_subscription(date(2000, 1, 1), ["military", "sports"])
+
+    inserted = mock_client.table.return_value.insert.call_args.args[0]
+    assert inserted["excluded_tags"] == ["military", "sports"]
+
+
+def test_update_subscription_tags_targets_the_right_token():
+    mock_client = MagicMock()
+
+    with patch("core.db.get_client", return_value=mock_client):
+        update_subscription_tags("tok123", ["disaster"])
+
+    mock_client.table.assert_called_with("subscriptions")
+    mock_client.table.return_value.update.assert_called_with({"excluded_tags": ["disaster"]})
+    mock_client.table.return_value.update.return_value.eq.assert_called_with("token", "tok123")
+    mock_client.table.return_value.update.return_value.eq.return_value.execute.assert_called_once()

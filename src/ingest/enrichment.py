@@ -13,18 +13,12 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from core.config import DATA_DIR
+from core.config import DATA_DIR, TAG_TAXONOMY
 from core.io import load_json, save_to_json
 from core.matching import name_matches_text, normalize_name
 from ingest.pipeline import calculate_age
 
 PROMPT_TEMPLATE_PATH = Path(__file__).parent / "reword_prompt.md"
-
-TAG_TAXONOMY = [
-    "military", "politics", "science", "technology", "exploration", "space", "arts", "music",
-    "film", "sports", "religion", "royalty", "economics", "law", "disaster", "health", "social",
-    "education", "philosophy", "engineering",
-]
 
 #: Bumped by hand whenever reword_prompt.md changes in a way that could change
 #: results. Rows in Supabase carry the version they were written under

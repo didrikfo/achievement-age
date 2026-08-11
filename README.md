@@ -14,6 +14,9 @@ to share an age with someone from history.
   event at your exact age in days.
 - **Event detail** — click a matching day to see who it was, what happened, a longer description,
   and a link to Wikipedia when one's available.
+- **Tag filtering** — every event is tagged (science, military, arts, …); filter the calendar down
+  to the categories you care about. If you're subscribed, your filter is saved to your private link
+  and also decides which matches are worth a notification.
 - **Passive notifications** — sign up once with your birthday and get a free push notification (via
   [ntfy](https://ntfy.sh)) on the actual day a match happens, without needing to check the app
   yourself. This is the main point of the project: something that runs quietly in the background

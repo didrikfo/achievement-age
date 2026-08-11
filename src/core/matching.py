@@ -4,7 +4,65 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import Dict, Iterable, List
+from typing import Collection, Dict, Iterable, List
+
+from core.config import TAG_TAXONOMY
+
+
+def included_from_excluded(excluded_tags: Collection[str]) -> List[str]:
+    """Return the taxonomy tags a subscriber should see, given what they excluded.
+
+    Ordered by TAG_TAXONOMY so the result is stable regardless of input order.
+    """
+    excluded = set(excluded_tags or ())
+    return [tag for tag in TAG_TAXONOMY if tag not in excluded]
+
+
+def excluded_from_included(included_tags: Collection[str]) -> List[str]:
+    """Return what to store for a UI selection: the taxonomy minus that selection.
+
+    Exclusions are stored rather than inclusions so a tag added to TAG_TAXONOMY
+    later is visible to existing subscribers by default instead of silently
+    hidden.
+    """
+    included = set(included_tags or ())
+    return [tag for tag in TAG_TAXONOMY if tag not in included]
+
+
+def filter_events_by_tags(events: Iterable[Dict], included_tags: Collection[str]) -> List[Dict]:
+    """Keep events that are untagged, or carry at least one tag in included_tags.
+
+    Two deliberately permissive rules:
+
+    - An untagged event always survives. The corpus is tagged by a manually-run
+      backfill, so untagged rows are a normal transient state - hiding them would
+      drop real matches because of backfill lag rather than user intent.
+    - A tagged event survives on any single surviving tag, not all of them, so
+      unchecking one box can't remove events the user never asked to hide.
+    """
+    included = set(included_tags or ())
+    kept: List[Dict] = []
+    for event in events:
+        tags = event.get("tags") or []
+        if not tags or any(tag in included for tag in tags):
+            kept.append(event)
+    return kept
+
+
+def included_tags_for_subscription(subscription: Dict) -> List[str]:
+    """The taxonomy tags a subscription should see. Missing/null column means everything."""
+    return included_from_excluded(subscription.get("excluded_tags") or [])
+
+
+def events_for_subscription(events: Iterable[Dict], subscription: Dict) -> List[Dict]:
+    """Filter events by a subscription's stored tag preference.
+
+    Reads excluded_tags defensively: if the column hasn't been added to the
+    database yet, every subscriber's row is missing the key, and raising here
+    would kill the whole daily notification run rather than just one subscriber.
+    Absent or null means no filtering, which is the pre-feature behavior.
+    """
+    return filter_events_by_tags(events, included_tags_for_subscription(subscription))
 
 
 def find_matching_events(events: Iterable[Dict], age_in_days: int) -> List[Dict]:

@@ -325,3 +325,24 @@ Afterwards, read `data/tmp/enrichment_review.json`. Expect a large number of `fa
 fact check is deliberately over-sensitive and flagged roughly one record in six when prototyped, so
 it's a triage queue rather than a defect count. `format` entries are rarer and mean the subagent
 ignored the sentence template.
+
+## 10. Tag filtering preferences
+
+Run this in the SQL editor **before** deploying the tag-filtering application code — the app's
+"Update preferences" button writes to this column, and the write fails if it doesn't exist.
+
+```sql
+alter table subscriptions add column if not exists excluded_tags text[] not null default '{}';
+```
+
+No backfill is needed. The `default '{}'` fills every existing row with an empty exclusion list,
+so current subscribers keep receiving every match exactly as before.
+
+The column stores **exclusions**, not inclusions: the app's filter UI shows all tags checked by
+default and stores the complement of the selection. That way a tag added to `TAG_TAXONOMY` later
+is visible to existing subscribers by default, rather than silently hidden because it wasn't in
+an inclusion list written before the tag existed.
+
+`scripts/send_daily_notifications.py` reads this column defensively (`.get("excluded_tags") or []`),
+so if the cron job runs before this SQL is applied it falls back to no filtering rather than
+failing the entire run.
