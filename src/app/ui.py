@@ -23,7 +23,7 @@ from core.db import (
     fetch_events,
     get_config_value,
     get_subscription,
-    update_subscription_tags,
+    update_subscription_filters,
 )
 from core.matching import (
     events_by_age_days,
@@ -80,7 +80,7 @@ else:
         if st.button("Get notified"):
             try:
                 new_subscription = create_subscription(
-                    birthdate, excluded_from_included(st.session_state.included_tags)
+                    birthdate, excluded_from_included(st.session_state.included_tags), []
                 )
             except Exception:
                 st.error("Couldn't save your preferences — try again in a moment.")
@@ -112,8 +112,10 @@ with st.expander("Filter which events show up"):
     if subscription:
         if st.button("Update preferences"):
             try:
-                update_subscription_tags(
-                    subscription["token"], excluded_from_included(st.session_state.included_tags)
+                update_subscription_filters(
+                    subscription["token"],
+                    excluded_from_included(st.session_state.included_tags),
+                    [],
                 )
             except Exception:
                 st.error("Couldn't save your preferences — try again in a moment.")

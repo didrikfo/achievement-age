@@ -346,3 +346,25 @@ an inclusion list written before the tag existed.
 `scripts/send_daily_notifications.py` reads this column defensively (`.get("excluded_tags") or []`),
 so if the cron job runs before this SQL is applied it falls back to no filtering rather than
 failing the entire run.
+
+## 11. Coarse category filtering preferences
+
+Run this in the SQL editor **before** deploying the category-filtering application code — the
+app's "Update preferences" button writes this column, and the write fails if it doesn't exist.
+
+```sql
+alter table subscriptions add column if not exists excluded_categories text[] not null default '{}';
+```
+
+No backfill is needed. The `default '{}'` fills every existing row with an empty exclusion list, so
+current subscribers keep receiving every match exactly as before.
+
+The eight categories are derived from the existing tags at read time
+(`core.config.TAG_CATEGORIES` → `core.matching.primary_category`), so there is nothing to migrate
+on the `events`, `tags` or `event_tags` side and no re-tagging run. Changing which category a tag
+belongs to is a code change that takes effect immediately, with no backfill.
+
+Like `excluded_tags`, this column stores **exclusions**, so a category added later is visible to
+existing subscribers by default. `core.matching.events_for_subscription` reads it defensively, so
+if the cron job runs before this SQL is applied it falls back to tag-only filtering rather than
+failing the run.
