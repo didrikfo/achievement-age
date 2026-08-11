@@ -1,4 +1,4 @@
-from app.links import base_url_from
+from app.links import base_url_from, further_reading_links
 
 
 def test_strips_query_string():
@@ -23,3 +23,23 @@ def test_keeps_a_localhost_port():
 
 def test_empty_input_gives_empty_output():
     assert base_url_from("") == ""
+
+
+def test_further_reading_links_uses_the_persons_join():
+    event = {
+        "name": "Ada Lovelace",
+        "persons": {"wikipedia_url": "https://en.wikipedia.org/wiki/Ada_Lovelace"},
+    }
+    assert further_reading_links(event) == [
+        ("Ada Lovelace", "https://en.wikipedia.org/wiki/Ada_Lovelace")
+    ]
+
+
+def test_further_reading_links_is_empty_without_a_link():
+    assert further_reading_links({"name": "Someone", "persons": {"wikipedia_url": None}}) == []
+
+
+def test_further_reading_links_handles_an_unjoined_person():
+    # fetch_events returns persons: None for an event with no person row.
+    assert further_reading_links({"name": "Someone", "persons": None}) == []
+    assert further_reading_links({"name": "Someone"}) == []

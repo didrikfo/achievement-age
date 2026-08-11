@@ -6,6 +6,7 @@ tested without a Streamlit runtime.
 
 from __future__ import annotations
 
+from typing import Dict, List, Tuple
 from urllib.parse import urlsplit, urlunsplit
 
 import streamlit as st
@@ -42,3 +43,15 @@ def app_base_url() -> str:
 def subscription_link(token: str) -> str:
     """The full bookmarkable URL that logs a subscriber back in."""
     return f"{app_base_url()}?u={token}"
+
+
+def further_reading_links(event: Dict) -> List[Tuple[str, str]]:
+    """(label, url) pairs for an event's further-reading line.
+
+    A list rather than a single value because event-level Wikipedia links are
+    planned next: when they arrive this grows one entry and the display does not
+    change shape. Labels name their target so a reader knows what they'd open.
+    """
+    person = event.get("persons") or {}
+    url = person.get("wikipedia_url")
+    return [(event["name"], url)] if url else []

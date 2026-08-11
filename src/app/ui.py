@@ -33,7 +33,7 @@ from core.matching import (
     included_tags_for_subscription,
 )
 
-from app.links import subscription_link
+from app.links import further_reading_links, subscription_link
 from app.styles import MASTHEAD_HTML, PAGE_CSS
 
 
@@ -152,10 +152,10 @@ def show_event_dialog(day_date: date, matches: List[Dict]) -> None:
         description = event.get("detailed_description") or event.get("text")
         if description:
             st.caption(description)
-        person = event.get("persons") or {}
-        wikipedia_url = person.get("wikipedia_url")
-        if wikipedia_url:
-            st.markdown(f"[Read more on Wikipedia]({wikipedia_url})")
+        links = further_reading_links(event)
+        if links:
+            joined = " · ".join(f"[{label}]({url})" for label, url in links)
+            st.caption(f"Further reading on Wikipedia: {joined}")
 
 
 today = date.today()
