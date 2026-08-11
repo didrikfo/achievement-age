@@ -24,60 +24,86 @@ def primary_category(event: Dict) -> Optional[str]:
     return None
 
 
-def included_from_excluded(excluded_tags: Collection[str]) -> List[str]:
-    """Return the taxonomy tags a subscriber should see, given what they excluded.
+def included_from_excluded(
+    excluded: Collection[str], taxonomy: Sequence[str] = TAG_TAXONOMY
+) -> List[str]:
+    """Return the taxonomy entries a subscriber should see, given what they excluded.
 
-    Ordered by TAG_TAXONOMY so the result is stable regardless of input order.
+    Ordered by `taxonomy` so the result is stable regardless of input order.
+    Defaults to the tag taxonomy; pass CATEGORY_NAMES for the coarse one.
     """
-    excluded = set(excluded_tags or ())
-    return [tag for tag in TAG_TAXONOMY if tag not in excluded]
+    excluded_set = set(excluded or ())
+    return [entry for entry in taxonomy if entry not in excluded_set]
 
 
-def excluded_from_included(included_tags: Collection[str]) -> List[str]:
+def excluded_from_included(
+    included: Collection[str], taxonomy: Sequence[str] = TAG_TAXONOMY
+) -> List[str]:
     """Return what to store for a UI selection: the taxonomy minus that selection.
 
-    Exclusions are stored rather than inclusions so a tag added to TAG_TAXONOMY
-    later is visible to existing subscribers by default instead of silently
-    hidden.
+    Exclusions are stored rather than inclusions so an entry added to the
+    taxonomy later is visible to existing subscribers by default instead of
+    silently hidden.
     """
-    included = set(included_tags or ())
-    return [tag for tag in TAG_TAXONOMY if tag not in included]
+    included_set = set(included or ())
+    return [entry for entry in taxonomy if entry not in included_set]
 
 
-def filter_events_by_tags(events: Iterable[Dict], included_tags: Collection[str]) -> List[Dict]:
-    """Keep events that are untagged, or carry at least one tag in included_tags.
+def filter_events(
+    events: Iterable[Dict],
+    included_categories: Collection[str],
+    included_tags: Collection[str],
+) -> List[Dict]:
+    """Keep events whose coarse category is included and that keep at least one tag.
 
-    Two deliberately permissive rules:
+    Two levels, deliberately asymmetric:
 
-    - An untagged event always survives. The corpus is tagged by a manually-run
-      backfill, so untagged rows are a normal transient state - hiding them would
-      drop real matches because of backfill lag rather than user intent.
-    - A tagged event survives on any single surviving tag, not all of them, so
-      unchecking one box can't remove events the user never asked to hide.
+    - An event with no recognized category always survives. The corpus is tagged
+      by a manually-run backfill, so untagged rows are a normal transient state -
+      hiding them would drop real matches because of backfill lag rather than
+      user intent.
+    - Otherwise the event's single primary_category must be included, AND at
+      least one of its tags must be included. The category gate comes first, so
+      an event can never leak back in from a hidden category on a secondary tag;
+      the tag check can only narrow within kept categories. With every tag
+      selected (the default) this reduces to pure category filtering.
     """
-    included = set(included_tags or ())
+    categories = set(included_categories or ())
+    tags = set(included_tags or ())
     kept: List[Dict] = []
     for event in events:
-        tags = event.get("tags") or []
-        if not tags or any(tag in included for tag in tags):
+        category = primary_category(event)
+        if category is None:
+            kept.append(event)
+            continue
+        if category in categories and any(tag in tags for tag in event.get("tags") or ()):
             kept.append(event)
     return kept
 
 
 def included_tags_for_subscription(subscription: Dict) -> List[str]:
-    """The taxonomy tags a subscription should see. Missing/null column means everything."""
-    return included_from_excluded(subscription.get("excluded_tags") or [])
+    """The fine tags a subscription should see. Missing/null column means everything."""
+    return included_from_excluded(subscription.get("excluded_tags") or [], TAG_TAXONOMY)
+
+
+def included_categories_for_subscription(subscription: Dict) -> List[str]:
+    """The categories a subscription should see. Missing/null column means everything."""
+    return included_from_excluded(subscription.get("excluded_categories") or [], CATEGORY_NAMES)
 
 
 def events_for_subscription(events: Iterable[Dict], subscription: Dict) -> List[Dict]:
-    """Filter events by a subscription's stored tag preference.
+    """Filter events by a subscription's stored category and tag preferences.
 
-    Reads excluded_tags defensively: if the column hasn't been added to the
-    database yet, every subscriber's row is missing the key, and raising here
-    would kill the whole daily notification run rather than just one subscriber.
-    Absent or null means no filtering, which is the pre-feature behavior.
+    Reads both columns defensively: if either hasn't been added to the database
+    yet, every subscriber's row is missing that key, and raising here would kill
+    the whole daily notification run rather than just one subscriber. Absent or
+    null means no filtering on that axis, which is the pre-feature behavior.
     """
-    return filter_events_by_tags(events, included_tags_for_subscription(subscription))
+    return filter_events(
+        events,
+        included_categories_for_subscription(subscription),
+        included_tags_for_subscription(subscription),
+    )
 
 
 def find_matching_events(events: Iterable[Dict], age_in_days: int) -> List[Dict]:

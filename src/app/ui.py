@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import streamlit as st
 
 from core.age import age_breakdown
-from core.config import TAG_TAXONOMY
+from core.config import CATEGORY_NAMES, TAG_TAXONOMY
 from core.db import (
     create_subscription,
     fetch_events,
@@ -28,7 +28,7 @@ from core.db import (
 from core.matching import (
     events_by_age_days,
     excluded_from_included,
-    filter_events_by_tags,
+    filter_events,
     full_sentence,
     included_tags_for_subscription,
 )
@@ -207,8 +207,8 @@ with st.container(key="calendar-grid"):
 
             day_date = date(view_year, view_month, day)
             age_days = (day_date - birthdate).days
-            day_matches = filter_events_by_tags(
-                EVENTS_BY_AGE.get(age_days, []), st.session_state.included_tags
+            day_matches = filter_events(
+                EVENTS_BY_AGE.get(age_days, []), CATEGORY_NAMES, st.session_state.included_tags
             )
             is_today = day_date == today
 
