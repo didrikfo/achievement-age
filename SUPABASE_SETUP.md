@@ -364,6 +364,16 @@ The eight categories are derived from the existing tags at read time
 on the `events`, `tags` or `event_tags` side and no re-tagging run. Changing which category a tag
 belongs to is a code change that takes effect immediately, with no backfill.
 
+**That "no backfill" ease does not extend to renaming a category itself.** `excluded_categories`
+persists the literal `TAG_CATEGORIES` keys (e.g. `"War & Conflict"`) into every subscriber's row,
+and `core.matching.included_from_excluded` matches them by exact string. Renaming a key in
+`core.config.py` (even a copy-editing tweak like "Sport" -> "Sports") silently orphans every
+existing subscriber's exclusion for that category — no error, no failing test, the row just stops
+matching and those subscribers start getting notifications they'd opted out of. If a category is
+ever renamed, either keep the old string as an alias wherever `TAG_CATEGORIES` is matched, or write
+a one-off migration that rewrites the old name to the new one in every `subscriptions.excluded_categories`
+array.
+
 Like `excluded_tags`, this column stores **exclusions**, so a category added later is visible to
 existing subscribers by default. `core.matching.events_for_subscription` reads it defensively, so
 if the cron job runs before this SQL is applied it falls back to tag-only filtering rather than

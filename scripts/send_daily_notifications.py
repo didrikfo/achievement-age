@@ -4,9 +4,11 @@ For every subscriber, checks whether today's age-in-days matches any event
 and pushes a notification via ntfy.sh if so. Reads SUPABASE_URL/SUPABASE_KEY/
 APP_BASE_URL from the environment (no Streamlit context here).
 
-Each subscriber's matches are filtered against their stored tag preference
-(subscriptions.excluded_tags) before sending, so a subscriber only hears about
-the categories they kept.
+Each subscriber's matches are filtered via core.matching.events_for_subscription,
+which excludes matches against both the subscriber's stored tag preference
+(subscriptions.excluded_tags) and their stored coarse category preference
+(subscriptions.excluded_categories) before sending, so a subscriber only hears
+about the tags and categories they kept.
 
 Matches are gathered from a small list of matcher callables rather than one
 hardcoded lookup, so a future non-database matcher (e.g. "age-in-days is a

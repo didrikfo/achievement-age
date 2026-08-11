@@ -24,6 +24,11 @@ TAG_TAXONOMY: List[str] = [
 #: most-specific subject first, most-general background theme last. An event
 #: tagged military+politics is a war event someone excluding war expects to
 #: lose; an event tagged law+politics is ordinary politics.
+#: WARNING: these keys are persisted verbatim into subscribers'
+#: subscriptions.excluded_categories (matched by exact string in
+#: core.matching.included_from_excluded). Renaming a key here silently
+#: orphans existing subscribers' exclusions unless paired with an alias or a
+#: data migration - see SUPABASE_SETUP.md section 11.
 TAG_CATEGORIES: Dict[str, List[str]] = {
     "Sport": ["sports"],
     "Disasters": ["disaster"],
