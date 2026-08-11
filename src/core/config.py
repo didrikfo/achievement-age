@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 
 # config.py lives in src/core so we step three levels up to reach the repo root.
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -18,4 +18,25 @@ TAG_TAXONOMY: List[str] = [
     "education", "philosophy", "engineering",
 ]
 
-__all__ = ["DATA_DIR", "PROJECT_ROOT", "TAG_TAXONOMY"]
+#: Coarse categories over TAG_TAXONOMY, used as the default level of filtering.
+#: Every tag belongs to exactly one category (asserted by a test), and the key
+#: order IS the precedence order used to give an event a single category:
+#: most-specific subject first, most-general background theme last. An event
+#: tagged military+politics is a war event someone excluding war expects to
+#: lose; an event tagged law+politics is ordinary politics.
+TAG_CATEGORIES: Dict[str, List[str]] = {
+    "Sport": ["sports"],
+    "Disasters": ["disaster"],
+    "Exploration & Space": ["exploration", "space"],
+    "Arts & Culture": ["arts", "music", "film", "philosophy"],
+    "Science & Technology": ["science", "technology", "engineering", "health"],
+    "Society & Belief": ["religion", "social", "education"],
+    "War & Conflict": ["military"],
+    "Politics & Power": ["politics", "law", "royalty", "economics"],
+}
+
+#: The category taxonomy, in precedence order. The categories counterpart of
+#: TAG_TAXONOMY - what a filter selection is inverted against.
+CATEGORY_NAMES: List[str] = list(TAG_CATEGORIES)
+
+__all__ = ["CATEGORY_NAMES", "DATA_DIR", "PROJECT_ROOT", "TAG_CATEGORIES", "TAG_TAXONOMY"]

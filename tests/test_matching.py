@@ -1,6 +1,6 @@
 from datetime import date
 
-from core.config import TAG_TAXONOMY
+from core.config import CATEGORY_NAMES, TAG_CATEGORIES, TAG_TAXONOMY
 from core.matching import (
     events_by_age_days,
     events_for_subscription,
@@ -11,6 +11,7 @@ from core.matching import (
     included_tags_for_subscription,
     name_matches_text,
     normalize_name,
+    primary_category,
 )
 
 
@@ -181,3 +182,37 @@ def test_included_tags_for_subscription_survives_a_missing_column():
 
 def test_included_tags_for_subscription_treats_null_column_as_no_filtering():
     assert included_tags_for_subscription({"excluded_tags": None}) == TAG_TAXONOMY
+
+
+def test_categories_partition_the_tag_taxonomy():
+    homed = [tag for tags in TAG_CATEGORIES.values() for tag in tags]
+    assert sorted(homed) == sorted(TAG_TAXONOMY)
+    assert len(homed) == len(set(homed))
+
+
+def test_primary_category_of_a_single_tag_event():
+    assert primary_category(_tagged(["science"])) == "Science & Technology"
+
+
+def test_primary_category_prefers_the_more_specific_category():
+    # 398 events in the corpus carry both. War is the specific subject; politics
+    # is the background theme, so these must be excludable as war.
+    assert primary_category(_tagged(["military", "politics"])) == "War & Conflict"
+    # Tag order within the event must not change the answer.
+    assert primary_category(_tagged(["politics", "military"])) == "War & Conflict"
+
+
+def test_primary_category_keeps_general_pairs_in_the_general_category():
+    assert primary_category(_tagged(["law", "politics"])) == "Politics & Power"
+    assert primary_category(_tagged(["politics", "royalty"])) == "Politics & Power"
+
+
+def test_primary_category_of_an_untagged_event_is_none():
+    assert primary_category(_tagged([])) is None
+    assert primary_category({"name": "Someone"}) is None
+
+
+def test_primary_category_ignores_tags_outside_the_taxonomy():
+    # Only reachable by a hand edit in the Supabase table editor - must not raise.
+    assert primary_category(_tagged(["not-a-real-tag"])) is None
+    assert primary_category(_tagged(["not-a-real-tag", "sports"])) == "Sport"

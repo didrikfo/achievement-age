@@ -4,9 +4,24 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import Collection, Dict, Iterable, List
+from typing import Collection, Dict, Iterable, List, Optional, Sequence
 
-from core.config import TAG_TAXONOMY
+from core.config import CATEGORY_NAMES, TAG_CATEGORIES, TAG_TAXONOMY
+
+
+def primary_category(event: Dict) -> Optional[str]:
+    """The event's single coarse category, or None if it has no recognized tag.
+
+    Derived from the event's tags at read time rather than stored, so it costs
+    no schema change and self-corrects when an event's tags are edited. The
+    first category in TAG_CATEGORIES order that the event has any tag in wins -
+    see the precedence note there.
+    """
+    tags = set(event.get("tags") or ())
+    for category, category_tags in TAG_CATEGORIES.items():
+        if tags.intersection(category_tags):
+            return category
+    return None
 
 
 def included_from_excluded(excluded_tags: Collection[str]) -> List[str]:
