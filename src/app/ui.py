@@ -30,6 +30,7 @@ from core.matching import (
     excluded_from_included,
     filter_events,
     full_sentence,
+    included_categories_for_subscription,
     included_tags_for_subscription,
 )
 
@@ -66,6 +67,12 @@ if "included_tags" not in st.session_state:
     else:
         st.session_state.included_tags = list(TAG_TAXONOMY)
 
+if "included_categories" not in st.session_state:
+    if subscription:
+        st.session_state.included_categories = included_categories_for_subscription(subscription)
+    else:
+        st.session_state.included_categories = list(CATEGORY_NAMES)
+
 if subscription:
     birthdate = date.fromisoformat(subscription["birthday"])
     st.caption("Welcome back — this link remembers your birthday.")
@@ -80,7 +87,9 @@ else:
         if st.button("Get notified"):
             try:
                 new_subscription = create_subscription(
-                    birthdate, excluded_from_included(st.session_state.included_tags), []
+                    birthdate,
+                    excluded_from_included(st.session_state.included_tags),
+                    excluded_from_included(st.session_state.included_categories, CATEGORY_NAMES),
                 )
             except Exception:
                 st.error("Couldn't save your preferences — try again in a moment.")
@@ -105,22 +114,30 @@ st.markdown(
 )
 
 with st.expander("Filter which events show up"):
-    st.multiselect("Show events tagged:", options=TAG_TAXONOMY, key="included_tags")
+    st.multiselect("Show events about:", options=CATEGORY_NAMES, key="included_categories")
     st.caption(
-        "Events that haven't been tagged yet always show up, whatever you pick here."
+        "Every event belongs to exactly one of these. Events that haven't been "
+        "tagged yet always show up, whatever you pick."
     )
+    # A popover, not a nested expander - Streamlit rejects expander-in-expander.
+    with st.popover("Advanced: filter by detailed tag"):
+        st.multiselect("Show events tagged:", options=TAG_TAXONOMY, key="included_tags")
+        st.caption(
+            "These narrow things down within the categories you kept above. "
+            "Unchecking a tag can never bring back an event from a category you hid."
+        )
     if subscription:
         if st.button("Update preferences"):
             try:
                 update_subscription_filters(
                     subscription["token"],
                     excluded_from_included(st.session_state.included_tags),
-                    [],
+                    excluded_from_included(st.session_state.included_categories, CATEGORY_NAMES),
                 )
             except Exception:
                 st.error("Couldn't save your preferences — try again in a moment.")
             else:
-                st.success("Saved — your notifications will follow these tags from now on.")
+                st.success("Saved — your notifications will follow these filters from now on.")
 
 st.caption("A red circle marks a day that matches a historical event — click it for details. A filled black date marks today. Use the filter above to narrow which events count.")
 
@@ -210,7 +227,9 @@ with st.container(key="calendar-grid"):
             day_date = date(view_year, view_month, day)
             age_days = (day_date - birthdate).days
             day_matches = filter_events(
-                EVENTS_BY_AGE.get(age_days, []), CATEGORY_NAMES, st.session_state.included_tags
+                EVENTS_BY_AGE.get(age_days, []),
+                st.session_state.included_categories,
+                st.session_state.included_tags,
             )
             is_today = day_date == today
 
