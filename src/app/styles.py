@@ -65,7 +65,7 @@ PAGE_CSS = """
 }
 .aa-cal-cell.aa-today { background: var(--aa-ink); color: var(--aa-bg); font-weight: 700; }
 
-/* Match-day buttons (type="primary") get the hand-circled-in-red-pen mark */
+/* Day buttons: shared geometry for any marked day, whichever mark it carries. */
 .st-key-calendar-grid button[data-testid="stBaseButton-primary"] {
     position: relative; aspect-ratio: 1; width: 100%;
     background: transparent !important; border: none !important; box-shadow: none !important;
@@ -73,18 +73,36 @@ PAGE_CSS = """
 }
 .st-key-calendar-grid button[data-testid="stBaseButton-primary"],
 .st-key-calendar-grid button[data-testid="stBaseButton-primary"] * { color: var(--aa-accent) !important; }
-.st-key-calendar-grid button[data-testid="stBaseButton-primary"]::before {
+
+/* Historical match: the hand-circled-in-red-pen mark. Scoped to the marker
+   class rather than to every primary button, so an anniversary-only day
+   doesn't inherit a circle it hasn't earned. */
+[class*="st-key-mark-event-1-"] button[data-testid="stBaseButton-primary"]::before {
     content: ''; position: absolute; top: 50%; left: 50%;
     width: 30px; height: 30px; margin: -15px 0 0 -15px;
     border: 2.5px solid var(--aa-accent); border-radius: 50%; transform: rotate(-8deg);
 }
 
-/* A day that is both today AND a match: black fill, still red-circled */
-[class*="st-key-today-match-"] button[data-testid="stBaseButton-primary"] {
+/* Mathematical anniversary: a triangle drawn around the same centre, so a day
+   carrying both marks gets both superimposed with no extra element. An SVG data
+   URI rather than the CSS border trick, which can only produce a FILLED
+   triangle - the mark has to be an outline to read as the same pen as the
+   circle. The stroke colour is baked in because a data URI can't reference
+   --aa-accent; keep %23a01f1f in step with it. */
+[class*="st-key-mark-anniv-1-"] button[data-testid="stBaseButton-primary"]::after {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    width: 36px; height: 36px; margin: -19px 0 0 -18px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpolygon points='20,4 36,34 4,34' fill='none' stroke='%23a01f1f' stroke-width='2.5' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;
+    transform: rotate(3deg);
+    pointer-events: none;
+}
+
+/* A marked day that is also today: black fill, marks still in red. */
+[class*="st-key-mark-today-1-"] button[data-testid="stBaseButton-primary"] {
     background: var(--aa-ink) !important;
 }
-[class*="st-key-today-match-"] button[data-testid="stBaseButton-primary"],
-[class*="st-key-today-match-"] button[data-testid="stBaseButton-primary"] * { color: var(--aa-bg) !important; }
+[class*="st-key-mark-today-1-"] button[data-testid="stBaseButton-primary"],
+[class*="st-key-mark-today-1-"] button[data-testid="stBaseButton-primary"] * { color: var(--aa-bg) !important; }
 
 /* Mobile fix: keep the calendar grid 7-wide at any viewport width.
    Streamlit stacks stColumn to full-width below ~640px by default. */
@@ -103,8 +121,11 @@ PAGE_CSS = """
     .st-key-calendar-grid button[data-testid="stBaseButton-primary"] {
         font-size: 12px;
     }
-    .st-key-calendar-grid button[data-testid="stBaseButton-primary"]::before {
+    [class*="st-key-mark-event-1-"] button[data-testid="stBaseButton-primary"]::before {
         width: 24px; height: 24px; margin: -12px 0 0 -12px; border-width: 2px;
+    }
+    [class*="st-key-mark-anniv-1-"] button[data-testid="stBaseButton-primary"]::after {
+        width: 30px; height: 30px; margin: -16px 0 0 -15px;
     }
 }
 

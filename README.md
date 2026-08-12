@@ -17,6 +17,10 @@ to share an age with someone from history.
 - **Tag filtering** — every event is tagged (science, military, arts, …); filter the calendar down
   to the categories you care about. If you're subscribed, your filter is saved to your private link
   and also decides which matches are worth a notification.
+- **Mathematical anniversaries** — optionally also mark the days when your age in days is itself an
+  interesting number: a power of two, a Fibonacci number, the 100th triangular number. Off by
+  default, and each sequence can be switched on or off individually — primes are left off to begin
+  with, since roughly one day in nine is one.
 - **Passive notifications** — sign up once with your birthday and get a free push notification (via
   [ntfy](https://ntfy.sh)) on the actual day a match happens, without needing to check the app
   yourself. This is the main point of the project: something that runs quietly in the background
@@ -27,7 +31,8 @@ to share an age with someone from history.
 ## Using the app
 
 1. Open the app and enter your birthday. You'll immediately see your current age and a calendar
-   with ⭐ marking any day that matches a historical event (🔵 marks today).
+   with a red circle marking any day that matches a historical event, and a triangle marking a
+   mathematical anniversary if you've turned those on. Today's date is filled in black.
 2. Click a ⭐ day to see the details of the match.
 3. Use the ◀ ▶ arrows or the month/year dropdowns to browse other months — including ones in your
    future, so you can see what's coming up.
