@@ -104,7 +104,8 @@ else:
     with st.expander("Get notified when your age matches an event"):
         st.write(
             "Get a push notification (via the free [ntfy](https://ntfy.sh) app) on days "
-            "when your age matches a historical event, without having to check the calendar yourself."
+            "when your age matches a historical event, without having to check the calendar yourself. "
+            "If you've turned on mathematical anniversaries above, those are pushed too."
         )
         if st.button("Get notified"):
             try:
@@ -156,15 +157,22 @@ with st.expander("Filter what shows up on the calendar"):
         "Marked with a triangle instead of a circle."
     )
     if st.session_state.anniversaries_on:
-        # Deliberately NOT given a widget key: Streamlit discards the state of
-        # widgets it didn't render, so a keyed multiselect would lose its
-        # selection every time the checkbox above is unticked, and the read
-        # above would then raise.
-        st.session_state.included_sequences = st.multiselect(
-            "Track these sequences:",
-            options=SEQUENCE_TAXONOMY,
-            default=st.session_state.included_sequences,
+        # A stable widget key, not an unkeyed multiselect fed from session
+        # state via `default`: Streamlit hashes `default` into an unkeyed
+        # widget's element id, so feeding last run's selection back in as
+        # `default` changes the id on the very next run and silently drops
+        # whatever the user just picked (confirmed against Streamlit's own
+        # element-id hashing and reproduced with AppTest - every second edit
+        # was reverted). The key still gets garbage-collected whenever the
+        # checkbox above is unticked, which is why included_sequences below
+        # stays the durable value the rest of the script reads, reseeded from
+        # this widget's key rather than replaced by it.
+        if "sequence_picker" not in st.session_state:
+            st.session_state.sequence_picker = list(st.session_state.included_sequences)
+        st.multiselect(
+            "Track these sequences:", options=SEQUENCE_TAXONOMY, key="sequence_picker"
         )
+        st.session_state.included_sequences = list(st.session_state.sequence_picker)
         st.caption(
             "Primes and squares are off to begin with because they'd land far more "
             "often — a prime day comes round roughly once every nine days."
