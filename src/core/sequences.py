@@ -164,7 +164,9 @@ def sequences_for(age_days: int) -> List[Tuple[str, str]]:
     return found
 
 
-def anniversary_matches(age_days: int, included_sequences: Collection[str]) -> List[Dict]:
+def anniversary_matches(
+    age_days: int, included_sequences: Optional[Collection[str]]
+) -> List[Dict]:
     """One match dict per included sequence age_days belongs to.
 
     The shared entry point for both the calendar and the daily cron job, so the
