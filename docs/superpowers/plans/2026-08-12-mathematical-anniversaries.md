@@ -876,8 +876,13 @@ Delivers the working feature. The triangle is styled in Task 5; until then an an
 as a match button with the existing red circle, which is enough to verify the wiring.
 
 **Files:**
-- Modify: `src/app/ui.py` — imports (`:20`, `:27-34`), session seeding (`:59-72`), subscribe call (`:87-91`), filter expander (`:114-138`), caption (`:140`), dialog (`:143-159`), day loop (`:226-255`)
+- Modify: `src/app/ui.py` — imports, session seeding, subscribe call, filter expander, caption, dialog, day loop
 - Test: manual — no unit test, following the existing convention. All the branching logic was put in `core.sequences` in Task 1 precisely so it could be tested without a Streamlit context.
+
+**Line numbers in this task are stale — locate by content, not by number.** Every `src/app/ui.py`
+reference below was taken against the file as it stood before this plan began, and Task 2 already
+added a line to each of the two subscription call sites. The surrounding code quoted in each step is
+the reliable anchor.
 
 **Interfaces:**
 - Consumes: `core.config.SEQUENCE_TAXONOMY`, `core.config.DEFAULT_SEQUENCES`, `core.sequences.anniversary_matches`, `core.sequences.anniversary_sentence`, `core.sequences.included_sequences_for_subscription` (Task 1); `core.db.create_subscription`, `core.db.update_subscription_filters` (Task 2).
@@ -916,9 +921,11 @@ if "included_sequences" not in st.session_state:
     st.session_state.included_sequences = stored_sequences or list(DEFAULT_SEQUENCES)
     st.session_state.anniversaries_on = bool(stored_sequences)
 
-# Read once, here, because the "Get notified" button below runs earlier in the
-# script than the filter expander that renders these widgets. Widget state is
-# already up to date at the top of a rerun, so this is not stale.
+# Read here for the "Get notified" button below, which runs earlier in the
+# script than the expander that renders the sequence widgets. Correct for that
+# use: clicking the button is its own rerun, so widget state is current at the
+# top of it. The expander RE-READS this into the same name after the widgets
+# have run, because the multiselect assigns mid-script - see Task 4 Step 4.
 active_sequences = (
     st.session_state.included_sequences if st.session_state.anniversaries_on else []
 )
@@ -976,6 +983,15 @@ with st.expander("Filter what shows up on the calendar"):
             "often — a prime day comes round roughly once every nine days."
         )
 
+    # Refresh the value now that the widgets above have run. The copy made at
+    # the top of the script is already stale by this point: the multiselect
+    # assigns included_sequences here, mid-script, so everything BELOW the
+    # expander - the save button and the calendar - must re-read it or it will
+    # render one interaction behind.
+    active_sequences = (
+        st.session_state.included_sequences if st.session_state.anniversaries_on else []
+    )
+
     if subscription:
         if st.button("Update preferences"):
             try:
@@ -983,9 +999,7 @@ with st.expander("Filter what shows up on the calendar"):
                     subscription["token"],
                     excluded_from_included(st.session_state.included_tags),
                     excluded_from_included(st.session_state.included_categories, CATEGORY_NAMES),
-                    st.session_state.included_sequences
-                    if st.session_state.anniversaries_on
-                    else [],
+                    active_sequences,
                 )
             except Exception:
                 st.error("Couldn't save your preferences — try again in a moment.")
@@ -993,8 +1007,10 @@ with st.expander("Filter what shows up on the calendar"):
                 st.success("Saved — your notifications will follow these filters from now on.")
 ```
 
-The save re-reads session state rather than using `active_sequences`, because a change made in this
-same run (ticking the checkbox, then clicking save) must be what gets written.
+**Both reads of `active_sequences` are load-bearing; neither is redundant.** The one in Step 2 runs
+before these widgets exist and serves the "Get notified" button above them. This one runs after they
+have rendered and serves everything below. Collapsing them to a single read at the top makes the
+calendar lag one interaction behind the multiselect.
 
 - [ ] **Step 5: Update the calendar caption**
 
