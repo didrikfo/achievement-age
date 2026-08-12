@@ -11,9 +11,14 @@ which excludes matches against both the subscriber's stored tag preference
 about the tags and categories they kept.
 
 Matches are gathered from a small list of matcher callables rather than one
-hardcoded lookup, so a future non-database matcher (e.g. "age-in-days is a
-round number in base 10/binary" or "is prime") can be added later without
-restructuring this script - it would just be another entry in MATCHERS.
+hardcoded lookup, so a future matcher producing event-shaped records can be
+added without restructuring this script.
+
+Mathematical anniversaries - days when the subscriber's age in days is itself
+an interesting number - are computed separately by core.sequences and kept in
+their own list, because they share no fields with an event. They carry their
+own opt-in preference (subscriptions.included_sequences), which is empty for
+every subscriber until they choose otherwise.
 """
 
 from __future__ import annotations
@@ -26,6 +31,11 @@ import requests
 
 from core.db import fetch_all_subscriptions, fetch_events
 from core.matching import events_by_age_days, events_for_subscription, full_sentence
+from core.sequences import (
+    anniversary_matches,
+    anniversary_sentence,
+    included_sequences_for_subscription,
+)
 
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "").strip()
 
@@ -56,6 +66,24 @@ def _send_ntfy_notification(topic: str, event: Dict, token: str) -> None:
     )
 
 
+def _send_anniversary_notification(topic: str, anniversary: Dict, token: str) -> None:
+    """Push one mathematical anniversary.
+
+    A sibling of _send_ntfy_notification rather than a branch inside it: that
+    function builds its title from event['name'], and an anniversary has no
+    name, no person and no date - only a number and what's interesting about it.
+    """
+    headers = {"Title": "You've hit a mathematical anniversary".encode("utf-8")}
+    if token and APP_BASE_URL:
+        headers["Click"] = f"{APP_BASE_URL}?u={token}"
+    requests.post(
+        f"https://ntfy.sh/{topic}",
+        data=anniversary_sentence(anniversary).encode("utf-8"),
+        headers=headers,
+        timeout=10,
+    )
+
+
 def main() -> None:
     subscriptions = fetch_all_subscriptions()
     today = date.today()
@@ -72,6 +100,17 @@ def main() -> None:
 
         for event in matches:
             _send_ntfy_notification(subscription["ntfy_topic"], event, subscription["token"])
+            notified += 1
+
+        # Anniversaries are computed, not looked up, and carry their own opt-in
+        # preference - the event category/tag filter has no bearing on them.
+        anniversaries = anniversary_matches(
+            age_days, included_sequences_for_subscription(subscription)
+        )
+        for anniversary in anniversaries:
+            _send_anniversary_notification(
+                subscription["ntfy_topic"], anniversary, subscription["token"]
+            )
             notified += 1
 
     print(f"Checked {len(subscriptions)} subscriptions, sent {notified} notifications.")

@@ -44,4 +44,38 @@ TAG_CATEGORIES: Dict[str, List[str]] = {
 #: TAG_TAXONOMY - what a filter selection is inverted against.
 CATEGORY_NAMES: List[str] = list(TAG_CATEGORIES)
 
-__all__ = ["CATEGORY_NAMES", "DATA_DIR", "PROJECT_ROOT", "TAG_CATEGORIES", "TAG_TAXONOMY"]
+#: Integer sequences a subscriber can have their age in days checked against.
+#: Unrelated to TAG_TAXONOMY/TAG_CATEGORIES above: these describe a property of
+#: the number itself, not of any event, so they are deliberately a separate
+#: taxonomy rather than a ninth category.
+#: WARNING: these names are persisted verbatim into subscribers'
+#: subscriptions.included_sequences and matched by exact string - renaming one
+#: silently drops it from every subscriber who chose it. Same hazard as
+#: TAG_CATEGORIES above; see SUPABASE_SETUP.md section 13.
+SEQUENCE_TAXONOMY: List[str] = [
+    "Powers of 2",
+    "Powers of 10",
+    "Triangle numbers",
+    "Fibonacci numbers",
+    "Primes",
+    "Perfect squares",
+    "Cubes",
+    "Catalan numbers",
+]
+
+#: What the sequence multiselect is pre-loaded with the first time a visitor
+#: enables the feature - never a database default, and never applied to an
+#: existing subscriber. The four are the sparse, legible ones; primes alone
+#: land roughly 1 day in 9 near a 90-year lifespan, and squares and cubes
+#: cluster densely in the first months of life.
+DEFAULT_SEQUENCES: List[str] = SEQUENCE_TAXONOMY[:4]
+
+__all__ = [
+    "CATEGORY_NAMES",
+    "DATA_DIR",
+    "DEFAULT_SEQUENCES",
+    "PROJECT_ROOT",
+    "SEQUENCE_TAXONOMY",
+    "TAG_CATEGORIES",
+    "TAG_TAXONOMY",
+]

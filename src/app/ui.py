@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import streamlit as st
 
 from core.age import age_breakdown
-from core.config import CATEGORY_NAMES, TAG_TAXONOMY
+from core.config import CATEGORY_NAMES, DEFAULT_SEQUENCES, SEQUENCE_TAXONOMY, TAG_TAXONOMY
 from core.db import (
     create_subscription,
     fetch_events,
@@ -31,6 +31,11 @@ from core.matching import (
     full_sentence,
     included_categories_for_subscription,
     included_tags_for_subscription,
+)
+from core.sequences import (
+    anniversary_matches,
+    anniversary_sentence,
+    included_sequences_for_subscription,
 )
 
 from app.links import further_reading_links, subscription_link
@@ -71,6 +76,25 @@ if "included_categories" not in st.session_state:
     else:
         st.session_state.included_categories = list(CATEGORY_NAMES)
 
+# Mathematical anniversaries are opt-in, so the checkbox starts off for everyone
+# who hasn't already chosen sequences - including existing subscribers, whose
+# stored column is empty. The multiselect behind it is pre-loaded with the
+# recommended four regardless, so enabling the feature is one click rather than
+# five.
+if "included_sequences" not in st.session_state:
+    stored_sequences = included_sequences_for_subscription(subscription) if subscription else []
+    st.session_state.included_sequences = stored_sequences or list(DEFAULT_SEQUENCES)
+    st.session_state.anniversaries_on = bool(stored_sequences)
+
+# Read here for the "Get notified" button below, which runs earlier in the
+# script than the expander that renders the sequence widgets. Correct for that
+# use: clicking the button is its own rerun, so widget state is current at the
+# top of it. The expander RE-READS this into the same name after the widgets
+# have run, because the multiselect assigns mid-script - see Task 4 Step 4.
+active_sequences = (
+    st.session_state.included_sequences if st.session_state.anniversaries_on else []
+)
+
 if subscription:
     birthdate = date.fromisoformat(subscription["birthday"])
     st.caption("Welcome back — this link remembers your birthday.")
@@ -80,7 +104,8 @@ else:
     with st.expander("Get notified when your age matches an event"):
         st.write(
             "Get a push notification (via the free [ntfy](https://ntfy.sh) app) on days "
-            "when your age matches a historical event, without having to check the calendar yourself."
+            "when your age matches a historical event, without having to check the calendar yourself. "
+            "If you've turned on mathematical anniversaries above, those are pushed too."
         )
         if st.button("Get notified"):
             try:
@@ -88,6 +113,7 @@ else:
                     birthdate,
                     excluded_from_included(st.session_state.included_tags),
                     excluded_from_included(st.session_state.included_categories, CATEGORY_NAMES),
+                    active_sequences,
                 )
             except Exception:
                 st.error("Couldn't save your preferences — try again in a moment.")
@@ -111,7 +137,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-with st.expander("Filter which events show up"):
+with st.expander("Filter what shows up on the calendar"):
     st.multiselect("Show events about:", options=CATEGORY_NAMES, key="included_categories")
     st.caption(
         "Every event belongs to exactly one of these. Events that haven't been "
@@ -124,6 +150,43 @@ with st.expander("Filter which events show up"):
             "These narrow things down within the categories you kept above. "
             "Unchecking a tag can never bring back an event from a category you hid."
         )
+
+    st.checkbox("Also mark mathematical anniversaries", key="anniversaries_on")
+    st.caption(
+        "Days when your age in days is itself an interesting number. "
+        "Marked with a triangle instead of a circle."
+    )
+    if st.session_state.anniversaries_on:
+        # A stable widget key, not an unkeyed multiselect fed from session
+        # state via `default`: Streamlit hashes `default` into an unkeyed
+        # widget's element id, so feeding last run's selection back in as
+        # `default` changes the id on the very next run and silently drops
+        # whatever the user just picked (confirmed against Streamlit's own
+        # element-id hashing and reproduced with AppTest - every second edit
+        # was reverted). The key still gets garbage-collected whenever the
+        # checkbox above is unticked, which is why included_sequences below
+        # stays the durable value the rest of the script reads, reseeded from
+        # this widget's key rather than replaced by it.
+        if "sequence_picker" not in st.session_state:
+            st.session_state.sequence_picker = list(st.session_state.included_sequences)
+        st.multiselect(
+            "Track these sequences:", options=SEQUENCE_TAXONOMY, key="sequence_picker"
+        )
+        st.session_state.included_sequences = list(st.session_state.sequence_picker)
+        st.caption(
+            "Primes and squares are off to begin with because they'd land far more "
+            "often — a prime day comes round roughly once every nine days."
+        )
+
+    # Refresh the value now that the widgets above have run. The copy made at
+    # the top of the script is already stale by this point: the multiselect
+    # assigns included_sequences here, mid-script, so everything BELOW the
+    # expander - the save button and the calendar - must re-read it or it will
+    # render one interaction behind.
+    active_sequences = (
+        st.session_state.included_sequences if st.session_state.anniversaries_on else []
+    )
+
     if subscription:
         if st.button("Update preferences"):
             try:
@@ -131,32 +194,46 @@ with st.expander("Filter which events show up"):
                     subscription["token"],
                     excluded_from_included(st.session_state.included_tags),
                     excluded_from_included(st.session_state.included_categories, CATEGORY_NAMES),
+                    active_sequences,
                 )
             except Exception:
                 st.error("Couldn't save your preferences — try again in a moment.")
             else:
                 st.success("Saved — your notifications will follow these filters from now on.")
 
-st.caption("A red circle marks a day that matches a historical event — click it for details. A filled black date marks today. Use the filter above to narrow which events count.")
+st.caption("A red circle marks a day that matches a historical event, a triangle marks a mathematical anniversary — click either for details. A filled black date marks today. Use the filter above to narrow what counts.")
 
 
-@st.dialog("Matching event")
-def show_event_dialog(day_date: date, matches: List[Dict]) -> None:
+@st.dialog("This day")
+def show_day_dialog(day_date: date, events: List[Dict], anniversaries: List[Dict]) -> None:
     match_years, match_months, match_days = age_breakdown(birthdate, day_date)
     st.markdown(
         f"On **{day_date.strftime('%B %d, %Y')}** you are/were "
         f"**{match_years} years, {match_months} months, {match_days} days** old:"
     )
-    for event in matches:
-        event_date = date(int(event["year"]), int(event["month"]), int(event["day"]))
-        st.markdown(f"- {full_sentence(event)} *({event_date.strftime('%B %d, %Y')})*")
-        description = event.get("detailed_description") or event.get("text")
-        if description:
-            st.caption(description)
-        links = further_reading_links(event)
-        if links:
-            joined = " · ".join(f"[{label}]({url})" for label, url in links)
-            st.caption(f"Further reading on Wikipedia: {joined}")
+    # A scrolling box only past a few entries - day 1 alone carries seven
+    # anniversaries, but a one-match dialog shouldn't sit in a mostly-empty box.
+    body = st.container(height=340) if len(events) + len(anniversaries) > 3 else st.container()
+    with body:
+        # Kept in separate sections, never interleaved: a sentence about Ada
+        # Lovelace and a sentence about the number 2,048 have nothing to do with
+        # each other beyond landing on the same date.
+        if events:
+            st.markdown("**Historical matches**")
+            for event in events:
+                event_date = date(int(event["year"]), int(event["month"]), int(event["day"]))
+                st.markdown(f"- {full_sentence(event)} *({event_date.strftime('%B %d, %Y')})*")
+                description = event.get("detailed_description") or event.get("text")
+                if description:
+                    st.caption(description)
+                links = further_reading_links(event)
+                if links:
+                    joined = " · ".join(f"[{label}]({url})" for label, url in links)
+                    st.caption(f"Further reading on Wikipedia: {joined}")
+        if anniversaries:
+            st.markdown("**Mathematical anniversaries**")
+            for anniversary in anniversaries:
+                st.markdown(f"- {anniversary_sentence(anniversary)}")
 
 
 today = date.today()
@@ -230,26 +307,26 @@ with st.container(key="calendar-grid"):
                 st.session_state.included_categories,
                 st.session_state.included_tags,
             )
+            day_anniversaries = anniversary_matches(age_days, active_sequences)
             is_today = day_date == today
 
-            if day_matches and is_today:
-                with col.container(key=f"today-match-{view_year}-{view_month}-{day}"):
-                    if st.button(
-                        str(day),
-                        key=f"day_{view_year}_{view_month}_{day}",
-                        type="primary",
-                        use_container_width=True,
-                    ):
-                        show_event_dialog(day_date, day_matches)
-            elif day_matches:
-                if col.button(
-                    str(day),
-                    key=f"day_{view_year}_{view_month}_{day}",
-                    type="primary",
-                    use_container_width=True,
-                ):
-                    show_event_dialog(day_date, day_matches)
-            elif is_today:
-                col.markdown(f"<div class='aa-cal-cell aa-today'>{day}</div>", unsafe_allow_html=True)
-            else:
-                col.markdown(f"<div class='aa-cal-cell'>{day}</div>", unsafe_allow_html=True)
+            if not day_matches and not day_anniversaries:
+                cell_class = "aa-cal-cell aa-today" if is_today else "aa-cal-cell"
+                col.markdown(f"<div class='{cell_class}'>{day}</div>", unsafe_allow_html=True)
+                continue
+
+            # Three independent marks (circle, triangle, today's black fill) but
+            # a container carries exactly one key, so they nest one per flag
+            # rather than encoding all eight combinations in a single key. The
+            # CSS matches each class as a descendant, so the depth is irrelevant.
+            suffix = f"{view_year}-{view_month}-{day}"
+            with col.container(key=f"mark-event-{int(bool(day_matches))}-{suffix}"):
+                with st.container(key=f"mark-anniv-{int(bool(day_anniversaries))}-{suffix}"):
+                    with st.container(key=f"mark-today-{int(is_today)}-{suffix}"):
+                        if st.button(
+                            str(day),
+                            key=f"day_{suffix}",
+                            type="primary",
+                            use_container_width=True,
+                        ):
+                            show_day_dialog(day_date, day_matches, day_anniversaries)

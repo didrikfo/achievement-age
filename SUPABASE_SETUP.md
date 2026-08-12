@@ -402,3 +402,34 @@ Safe to rerun: rows that already have a URL are skipped entirely, so hand-correc
 never overwritten, and every lookup outcome is cached in `data/wikipedia_person_cache.json`. To
 force a re-lookup for one person, clear their `wikipedia_url` in the Supabase table editor and
 delete their entry from that cache file.
+
+## 13. Mathematical anniversary preferences
+
+Run this in the SQL editor **before** deploying the mathematical-anniversary application code —
+the app's "Update preferences" button writes this column, and the write fails if it doesn't exist.
+
+```sql
+alter table subscriptions add column if not exists included_sequences text[] not null default '{}';
+```
+
+No backfill is needed, and no backfill is *wanted*. Unlike `excluded_tags` and `excluded_categories`,
+this column stores **inclusions**: it lists the sequences a subscriber chose to track, and an empty
+array means the whole feature is off for them.
+
+That inversion is the entire rollout mechanism. Mathematical anniversaries must not start firing at
+existing subscribers who signed up for historical events — and with primes enabled a subscriber
+would hear from us roughly every ninth day. `default '{}'` makes every existing row opt-out by
+construction, with nothing to migrate and nobody to miss. An exclusion column would have needed a
+one-off `UPDATE` over every row plus app code to keep seeding it, either of which fails open if it
+misses someone.
+
+`core.sequences.included_sequences_for_subscription` reads the column defensively
+(`.get("included_sequences") or []`), so if the cron job runs before this SQL is applied it falls
+back to sending no anniversaries — which is also the intended default, so a slipped deployment
+order fails safe in both directions.
+
+**Renaming a sequence orphans subscribers, exactly like renaming a category (section 11).** The
+eight names in `core.config.SEQUENCE_TAXONOMY` (`"Powers of 2"`, `"Fibonacci numbers"`, …) are
+persisted verbatim into this column and matched by exact string. Renaming one — even a copy edit
+like "Primes" → "Prime numbers" — silently drops it from every subscriber who selected it. Keep the
+old string as an alias, or migrate the arrays.

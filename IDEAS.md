@@ -13,6 +13,12 @@ Unstructured collection of ideas for this project. Meant as a place to record po
   event dialog's "further reading" line. `app.links.further_reading_links` already returns a list
   for exactly this.
 - Change the name of the app to "Almanac of Me"
-- Add another type of calendar item for "mathematical anniversary days", e.g. prime number of days, round multiple of 1000 days, powers of 2, maybe things like triangle numbers or other famous sequences
-    * These should be filterable, both to include mathematical anniversaries or not, and by specific sequence (someone could keep prime days but filter out powers of 2 etc.)
-    * These should have a different symbol in the calendar, e.g. a triangle instead of circle.
+- ~~Mathematical anniversary days~~ **Done.** Days when your age in days is itself an interesting
+  number are marked with a triangle, computed live from `core.sequences` with no stored data. Eight
+  sequences (`core.config.SEQUENCE_TAXONOMY`), individually selectable, with the whole feature
+  opt-in via `subscriptions.included_sequences` — stored as inclusions, unlike the event filters, so
+  it stays off for existing subscribers without a migration. Specs:
+  `docs/superpowers/specs/2026-08-12-mathematical-anniversaries-design.md`.
+- Let a subscriber track an arbitrary OEIS sequence by number, alongside the eight built-in ones.
+  Needs its own design: an input and validation for the sequence id, a way to fetch and cache its
+  terms, and per-subscriber sequence definitions rather than a fixed taxonomy.
