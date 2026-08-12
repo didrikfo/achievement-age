@@ -33,7 +33,7 @@ to share an age with someone from history.
 1. Open the app and enter your birthday. You'll immediately see your current age and a calendar
    with a red circle marking any day that matches a historical event, and a triangle marking a
    mathematical anniversary if you've turned those on. Today's date is filled in black.
-2. Click a ⭐ day to see the details of the match.
+2. Click a marked day to see the details of the match.
 3. Use the ◀ ▶ arrows or the month/year dropdowns to browse other months — including ones in your
    future, so you can see what's coming up.
 4. To get notified automatically instead of checking back: open "Get notified when your age matches
