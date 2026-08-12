@@ -148,7 +148,8 @@ def show_event_dialog(day_date: date, matches: List[Dict]) -> None:
         f"**{match_years} years, {match_months} months, {match_days} days** old:"
     )
     for event in matches:
-        st.markdown(f"- {full_sentence(event)}")
+        event_date = date(int(event["year"]), int(event["month"]), int(event["day"]))
+        st.markdown(f"- {full_sentence(event)} *({event_date.strftime('%B %d, %Y')})*")
         description = event.get("detailed_description") or event.get("text")
         if description:
             st.caption(description)

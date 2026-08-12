@@ -138,8 +138,8 @@ PAGE_CSS = """
 
 MASTHEAD_HTML = """
 <div class="aa-masthead">
-    <p class="aa-masthead-title">Achievement Age</p>
-    <p class="aa-masthead-tagline">&mdash; a calendar of coincidences &mdash;</p>
+    <p class="aa-masthead-title">Almanac of You</p>
+    <p class="aa-masthead-tagline">&mdash; a calendar of matching moments &mdash;</p>
 </div>
 <hr class="aa-rule-thick">
 <hr class="aa-rule-thin">
