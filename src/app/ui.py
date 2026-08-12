@@ -88,6 +88,7 @@ else:
                     birthdate,
                     excluded_from_included(st.session_state.included_tags),
                     excluded_from_included(st.session_state.included_categories, CATEGORY_NAMES),
+                    [],
                 )
             except Exception:
                 st.error("Couldn't save your preferences — try again in a moment.")
@@ -131,6 +132,7 @@ with st.expander("Filter which events show up"):
                     subscription["token"],
                     excluded_from_included(st.session_state.included_tags),
                     excluded_from_included(st.session_state.included_categories, CATEGORY_NAMES),
+                    [],
                 )
             except Exception:
                 st.error("Couldn't save your preferences — try again in a moment.")

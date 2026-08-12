@@ -102,11 +102,15 @@ def create_subscription(
     birthday: date,
     excluded_tags: Optional[List[str]] = None,
     excluded_categories: Optional[List[str]] = None,
+    included_sequences: Optional[List[str]] = None,
 ) -> Dict:
     """Create a new subscription (magic-link token + ntfy topic) for a birthday.
 
-    The two exclusion lists carry the visitor's current calendar filter forward
-    into their notification preference, so filter-then-subscribe is one action.
+    The three preference lists carry the visitor's current calendar filters
+    forward into their notification preferences, so filter-then-subscribe is one
+    action. Note the asymmetry: the two event lists are exclusions (empty means
+    "everything"), while included_sequences is inclusions (empty means "no
+    mathematical anniversaries"), because that feature is opt-in.
     """
     client = get_client()
     row = {
@@ -115,6 +119,7 @@ def create_subscription(
         "birthday": birthday.isoformat(),
         "excluded_tags": list(excluded_tags or []),
         "excluded_categories": list(excluded_categories or []),
+        "included_sequences": list(included_sequences or []),
     }
     response = client.table("subscriptions").insert(row).execute()
     return response.data[0]
@@ -128,14 +133,18 @@ def get_subscription(token: str) -> Optional[Dict]:
 
 
 def update_subscription_filters(
-    token: str, excluded_tags: List[str], excluded_categories: List[str]
+    token: str,
+    excluded_tags: List[str],
+    excluded_categories: List[str],
+    included_sequences: List[str],
 ) -> None:
-    """Overwrite a subscription's stored category and tag exclusions in one write."""
+    """Overwrite a subscription's stored calendar preferences in one write."""
     client = get_client()
     client.table("subscriptions").update(
         {
             "excluded_tags": list(excluded_tags),
             "excluded_categories": list(excluded_categories),
+            "included_sequences": list(included_sequences),
         }
     ).eq("token", token).execute()
 

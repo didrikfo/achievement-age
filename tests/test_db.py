@@ -75,7 +75,7 @@ def test_fetch_events_gives_untagged_events_an_empty_list():
     assert result[1]["tags"] == []
 
 
-def test_create_subscription_defaults_to_no_exclusions_on_either_axis():
+def test_create_subscription_defaults_to_no_filters_and_no_sequences():
     mock_client = MagicMock()
     mock_client.table.return_value.insert.return_value.execute.return_value.data = [{"token": "abc"}]
 
@@ -85,29 +85,38 @@ def test_create_subscription_defaults_to_no_exclusions_on_either_axis():
     inserted = mock_client.table.return_value.insert.call_args.args[0]
     assert inserted["excluded_tags"] == []
     assert inserted["excluded_categories"] == []
+    # Inclusions, not exclusions: empty means mathematical anniversaries are off.
+    assert inserted["included_sequences"] == []
 
 
-def test_create_subscription_stores_both_exclusion_lists():
+def test_create_subscription_stores_all_three_preference_lists():
     mock_client = MagicMock()
     mock_client.table.return_value.insert.return_value.execute.return_value.data = [{"token": "abc"}]
 
     with patch("core.db.get_client", return_value=mock_client):
-        create_subscription(date(2000, 1, 1), ["military"], ["Sport", "Disasters"])
+        create_subscription(
+            date(2000, 1, 1), ["military"], ["Sport", "Disasters"], ["Powers of 2"]
+        )
 
     inserted = mock_client.table.return_value.insert.call_args.args[0]
     assert inserted["excluded_tags"] == ["military"]
     assert inserted["excluded_categories"] == ["Sport", "Disasters"]
+    assert inserted["included_sequences"] == ["Powers of 2"]
 
 
-def test_update_subscription_filters_writes_both_columns_for_the_right_token():
+def test_update_subscription_filters_writes_all_three_columns_for_the_right_token():
     mock_client = MagicMock()
 
     with patch("core.db.get_client", return_value=mock_client):
-        update_subscription_filters("tok123", ["disaster"], ["Sport"])
+        update_subscription_filters("tok123", ["disaster"], ["Sport"], ["Primes"])
 
     mock_client.table.assert_called_with("subscriptions")
     mock_client.table.return_value.update.assert_called_with(
-        {"excluded_tags": ["disaster"], "excluded_categories": ["Sport"]}
+        {
+            "excluded_tags": ["disaster"],
+            "excluded_categories": ["Sport"],
+            "included_sequences": ["Primes"],
+        }
     )
     mock_client.table.return_value.update.return_value.eq.assert_called_with("token", "tok123")
     mock_client.table.return_value.update.return_value.eq.return_value.execute.assert_called_once()
