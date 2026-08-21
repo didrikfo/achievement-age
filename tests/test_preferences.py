@@ -55,7 +55,7 @@ def test_mirroring_makes_notify_identical_to_calendar():
             "notify_mirrors_calendar": True,
             # Deliberately contradictory: while mirroring these are never read.
             "notify_excluded_categories": CATEGORY_NAMES,
-            "notify_included_sequences": [],
+            "notify_excluded_sequences": [],
         }
     )
 
@@ -69,14 +69,16 @@ def test_override_applies_when_not_mirroring():
             "included_sequences": ["Primes", "Powers of 2"],
             "notify_mirrors_calendar": False,
             "notify_excluded_categories": ["Sport", "War & Conflict"],
-            "notify_included_sequences": ["Powers of 2"],
+            "notify_excluded_sequences": ["Powers of 2"],
         }
     )
 
     assert "Sport" not in preferences.notify.categories
     assert "War & Conflict" not in preferences.notify.categories
     assert "Science & Technology" in preferences.notify.categories
-    assert preferences.notify.sequences == ("Powers of 2",)
+    # Both override columns are exclusions, so naming "Powers of 2" MUTES it and
+    # leaves the other marked sequence notifying.
+    assert preferences.notify.sequences == ("Primes",)
 
 
 def test_notify_is_intersected_with_calendar_on_read():
@@ -88,7 +90,7 @@ def test_notify_is_intersected_with_calendar_on_read():
             "included_sequences": [],
             "notify_mirrors_calendar": False,
             "notify_excluded_categories": [],
-            "notify_included_sequences": ["Primes"],
+            "notify_excluded_sequences": ["Primes"],
         }
     )
 
@@ -103,7 +105,7 @@ def test_notify_tags_always_equal_calendar_tags():
                 "excluded_tags": ["military", "sports"],
                 "notify_mirrors_calendar": mirroring,
                 "notify_excluded_categories": [],
-                "notify_included_sequences": [],
+                "notify_excluded_sequences": [],
             }
         )
         assert preferences.notify.tags == preferences.calendar.tags
@@ -128,7 +130,7 @@ def test_null_columns_are_treated_as_missing():
             "included_sequences": None,
             "notify_mirrors_calendar": None,
             "notify_excluded_categories": None,
-            "notify_included_sequences": None,
+            "notify_excluded_sequences": None,
         }
     )
 
@@ -144,16 +146,18 @@ def test_unknown_stored_names_are_ignored():
     assert preferences.calendar.sequences == ("Powers of 2",)
 
 
-def test_a_new_category_notifies_by_default_but_a_new_sequence_does_not():
-    # Exclusion semantics for categories mean anything unnamed is kept; inclusion
-    # semantics for sequences mean anything unnamed is off. This is the whole
-    # reason the two axes are stored differently.
+def test_an_unmarked_sequence_never_notifies_even_though_the_override_allows_it():
+    # Both override columns are exclusions, so an empty notify_excluded_sequences
+    # means "every sequence may notify". Opt-in is enforced one level up, by the
+    # CALENDAR axis: a sequence nobody marked is not in calendar.sequences, and
+    # the intersection makes the override's permission unreachable. This is why
+    # the override does not need inclusion semantics of its own.
     preferences = preferences_from_subscription(
         {
             "excluded_categories": ["Sport"],
             "notify_mirrors_calendar": False,
             "notify_excluded_categories": ["Sport"],
-            "notify_included_sequences": [],
+            "notify_excluded_sequences": [],
         }
     )
 
@@ -266,6 +270,29 @@ def test_a_row_turned_off_keeps_its_notify_state_for_when_it_comes_back():
     back = toggle_calendar(hidden, SPORT)
     assert is_on_calendar(back, SPORT)
     assert not is_notifying(back, SPORT)
+
+
+def test_unticking_the_mirror_never_silently_mutes_a_marked_sequence():
+    # Regression. With the override stored as inclusions, nothing maintained it
+    # while mirroring, so every marked sequence was absent from it and unticking
+    # the toggle silenced them all at once with no warning.
+    preferences = toggle_calendar(default_preferences(), PRIMES)
+    assert is_notifying(preferences, PRIMES)
+
+    unmirrored = set_mirror(preferences, False)
+
+    assert is_on_calendar(unmirrored, PRIMES)
+    assert is_notifying(unmirrored, PRIMES)
+
+
+def test_unticking_the_mirror_leaves_every_marked_row_notifying():
+    # The same property for categories, and for the panel as a whole: breaking
+    # the mirror changes nothing until a bell is actually clicked.
+    preferences = toggle_calendar(default_preferences(), PRIMES)
+
+    unmirrored = set_mirror(preferences, False)
+
+    assert unmirrored.notify == unmirrored.calendar
 
 
 def test_set_mirror_back_on_does_not_clear_the_override():

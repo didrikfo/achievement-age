@@ -109,7 +109,12 @@ def default_preferences() -> Preferences:
     return Preferences(
         calendar=calendar,
         notify_mirrors_calendar=True,
-        notify_override=NotifyOverride(categories=tuple(CATEGORY_NAMES), sequences=()),
+        # Both override axes are stored as exclusions, so "everything" is the
+        # empty-exclusion state: every name present, nothing muted. The calendar
+        # axis is what keeps sequences opt-in, not this one.
+        notify_override=NotifyOverride(
+            categories=tuple(CATEGORY_NAMES), sequences=tuple(SEQUENCE_TAXONOMY)
+        ),
     )
 
 
@@ -142,8 +147,10 @@ def preferences_from_subscription(subscription: Optional[Dict]) -> Preferences:
                 subscription.get("notify_excluded_categories") or [], CATEGORY_NAMES
             )
         ),
-        sequences=_ordered(
-            subscription.get("notify_included_sequences") or [], SEQUENCE_TAXONOMY, SEQUENCE_TAXONOMY
+        sequences=tuple(
+            included_from_excluded(
+                subscription.get("notify_excluded_sequences") or [], SEQUENCE_TAXONOMY
+            )
         ),
     )
 
@@ -193,6 +200,18 @@ def _selected_for(selection: ChannelSelection, row: Row) -> Tuple[str, ...]:
     return selection.categories if row.kind == CATEGORY else selection.sequences
 
 
+def _selected_for_override(override: NotifyOverride, row: Row) -> Tuple[str, ...]:
+    """The override's tuple for this row's axis.
+
+    A sibling of _selected_for rather than one function over both types: an
+    override is edited directly (it is what gets stored), whereas a
+    ChannelSelection read off `.notify` has already been intersected with the
+    calendar. Editing the intersected value would silently drop every muted row
+    the moment any other row was clicked.
+    """
+    return override.categories if row.kind == CATEGORY else override.sequences
+
+
 def is_on_calendar(preferences: Preferences, row: Row) -> bool:
     """Is this row marked on the calendar?"""
     return row.name in _selected_for(preferences.calendar, row)
@@ -238,57 +257,40 @@ def toggle_calendar(preferences: Preferences, row: Row) -> Preferences:
     return replace(preferences, calendar=_replace_channel(preferences.calendar, row, values))
 
 
-def _seeded_override(preferences: Preferences) -> NotifyOverride:
-    """The override that reproduces the current effective notify channel.
-
-    Called when the mirror is about to break, so that the instant it drops
-    nothing has changed except the row the user clicked - the panel never
-    silently rearranges itself around them.
-    """
-    current = preferences.notify
-    return NotifyOverride(categories=current.categories, sequences=current.sequences)
-
-
 def toggle_notify(preferences: Preferences, row: Row) -> Preferences:
     """Toggle notifications for one row, from any of its three visual states.
 
-    A dim bell (the row is off the calendar) turns both channels on and leaves
-    the mirror alone: "on for both" is what mirroring already means, so there is
-    nothing to override. Muting a live row is the only case that breaks the
-    mirror, and it seeds the override from the calendar first.
+    A dim bell (the row is off the calendar) turns both channels on: the row
+    joins the calendar, and it is un-muted in the override so that it notifies
+    whether or not the mirror is currently on.
+
+    Muting a live row is the only case that breaks the mirror. No seeding step
+    is needed when it does, because the override stores exclusions on both axes
+    - an untouched override already means "everything notifies", so breaking the
+    mirror changes nothing except the row that was clicked.
     """
     if not is_on_calendar(preferences, row):
         lit = toggle_calendar(preferences, row)
-        if lit.notify_mirrors_calendar:
-            return lit
-        values = _with_row(_selected_for(lit.notify, row), row, True)
+        values = _with_row(_selected_for_override(lit.notify_override, row), row, True)
         return replace(lit, notify_override=_replace_override(lit.notify_override, row, values))
 
-    broken = replace(
-        preferences,
-        notify_mirrors_calendar=False,
-        notify_override=(
-            _seeded_override(preferences)
-            if preferences.notify_mirrors_calendar
-            else preferences.notify_override
-        ),
-    )
+    broken = replace(preferences, notify_mirrors_calendar=False)
     values = _with_row(
-        _selected_for(broken.notify, row), row, not is_notifying(broken, row)
+        _selected_for_override(broken.notify_override, row),
+        row,
+        not is_notifying(broken, row),
     )
     return replace(broken, notify_override=_replace_override(broken.notify_override, row, values))
 
 
 def set_mirror(preferences: Preferences, mirroring: bool) -> Preferences:
-    """Turn mirroring on or off.
+    """Turn mirroring on or off. A flag flip in both directions.
 
-    Turning it on does not clear the override, so toggling twice within a
-    session is not destructive. Turning it off simply restores the override
-    that was previously in place (or created when the mirror was first broken).
+    Neither direction touches the override, so re-ticking the toggle and
+    unticking it again returns the subscriber to the selection they had rather
+    than quietly resetting it.
     """
-    if mirroring:
-        return replace(preferences, notify_mirrors_calendar=True)
-    return replace(preferences, notify_mirrors_calendar=False)
+    return replace(preferences, notify_mirrors_calendar=mirroring)
 
 
 def toggle_tag(preferences: Preferences, tag: str) -> Preferences:
