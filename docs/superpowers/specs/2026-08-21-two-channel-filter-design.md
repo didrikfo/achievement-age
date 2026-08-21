@@ -147,6 +147,25 @@ def preferences_to_columns(preferences: Preferences) -> Dict[str, object]:
     """The six columns to write, for both create_subscription and update_subscription_filters."""
 ```
 
+The click behaviour of section 4.3 also lives here, as pure functions over an immutable
+`Preferences`, so that the rules — muting breaks the mirror, seeding the override from the calendar,
+a dim bell turning both channels on — are unit-testable without a Streamlit runtime. A `Row` is a
+`(kind, name)` pair where kind is `"category"` or `"sequence"`, which lets the panel render all
+sixteen rows in one uniform loop:
+
+```python
+def all_rows() -> Tuple[Row, ...]                              # 8 categories, then 8 sequences
+def is_on_calendar(preferences: Preferences, row: Row) -> bool
+def is_notifying(preferences: Preferences, row: Row) -> bool
+def toggle_calendar(preferences: Preferences, row: Row) -> Preferences
+def toggle_notify(preferences: Preferences, row: Row) -> Preferences
+def toggle_tag(preferences: Preferences, tag: str) -> Preferences
+def set_mirror(preferences: Preferences, mirroring: bool) -> Preferences
+```
+
+`app/filters.py` then holds no rules of its own — it renders a row, and hands the click to one of
+these.
+
 Every read stays defensive in the style already established: a missing or null column means the
 pre-feature default, because a cron run against a database that hasn't had the SQL applied yet must
 degrade to today's behaviour rather than kill the whole run over one subscriber.
@@ -284,7 +303,15 @@ other spec's territory.
 - a category added to `TAG_CATEGORIES` notifies by default; a sequence added to
   `SEQUENCE_TAXONOMY` does not
 
-**`tests/test_filters.py`** (new, Streamlit `AppTest` — the harness already used in this repo):
+**`tests/test_filters.py`** (new, Streamlit `AppTest`). Note that AppTest is **not** currently used
+anywhere in this repo — the only mention is a comment in `ui.py` recording a past debugging
+session — so this brings in a new test harness. It cannot point at `ui.py`, which opens a Supabase
+connection at import time; it needs a small script that renders only the panel. That constraint is
+itself an argument for the `app/filters.py` extraction in 3.2.
+
+Because the click logic lives in `core/preferences.py` as pure functions (3.1), these tests cover
+only wiring — that a click reaches the right function — and the interesting cases are unit-tested
+without Streamlit.
 - clicking a row toggles calendar membership
 - clicking a bell toggles notification and turns the mirror off
 - clicking a dim bell turns both on
