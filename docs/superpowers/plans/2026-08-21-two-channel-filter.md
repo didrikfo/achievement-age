@@ -368,7 +368,7 @@ def preferences_from_subscription(subscription: Optional[Dict]) -> Preferences:
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `pytest tests/test_preferences.py -v`
-Expected: PASS — 11 tests
+Expected: PASS — 12 tests
 
 - [ ] **Step 5: Run the whole suite to confirm nothing regressed**
 
@@ -706,7 +706,7 @@ def toggle_tag(preferences: Preferences, tag: str) -> Preferences:
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `pytest tests/test_preferences.py -v`
-Expected: PASS — 23 tests
+Expected: PASS — 24 tests
 
 - [ ] **Step 5: Commit**
 
@@ -933,7 +933,7 @@ Add to `db.py`'s imports: `from core.preferences import Preferences, default_pre
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `pytest tests/test_preferences.py tests/test_db.py -v`
-Expected: PASS — 28 preference tests, 7 db tests
+Expected: PASS — 29 preference tests, 7 db tests
 
 - [ ] **Step 6: Commit**
 
