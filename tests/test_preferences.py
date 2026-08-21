@@ -1,8 +1,19 @@
 from core.config import CATEGORY_NAMES, SEQUENCE_TAXONOMY, TAG_TAXONOMY
 from core.preferences import (
+    CATEGORY,
+    SEQUENCE,
     NotifyOverride,
+    Row,
+    all_rows,
     default_preferences,
+    is_notifying,
+    is_on_calendar,
     preferences_from_subscription,
+    set_mirror,
+    tags_for_category,
+    toggle_calendar,
+    toggle_notify,
+    toggle_tag,
 )
 
 
@@ -155,3 +166,132 @@ def test_notify_override_is_not_a_channel_selection():
     # NotifyOverride deliberately has no `tags` field - a notification-only tag
     # selection is a state the model forbids.
     assert not hasattr(NotifyOverride(categories=(), sequences=()), "tags")
+
+
+SPORT = Row(CATEGORY, "Sport")
+SCIENCE = Row(CATEGORY, "Science & Technology")
+PRIMES = Row(SEQUENCE, "Primes")
+
+
+def test_all_rows_is_the_eight_categories_then_the_eight_sequences():
+    rows = all_rows()
+
+    assert len(rows) == 16
+    assert rows[:8] == tuple(Row(CATEGORY, name) for name in CATEGORY_NAMES)
+    assert rows[8:] == tuple(Row(SEQUENCE, name) for name in SEQUENCE_TAXONOMY)
+
+
+def test_toggle_calendar_removes_and_restores_a_category():
+    preferences = default_preferences()
+    assert is_on_calendar(preferences, SPORT)
+
+    without = toggle_calendar(preferences, SPORT)
+    assert not is_on_calendar(without, SPORT)
+    assert is_on_calendar(without, SCIENCE)
+
+    restored = toggle_calendar(without, SPORT)
+    assert is_on_calendar(restored, SPORT)
+
+
+def test_toggle_calendar_on_a_sequence_opts_it_in():
+    preferences = default_preferences()
+    assert not is_on_calendar(preferences, PRIMES)
+
+    with_primes = toggle_calendar(preferences, PRIMES)
+    assert is_on_calendar(with_primes, PRIMES)
+    assert with_primes.calendar.sequences == ("Primes",)
+
+
+def test_while_mirroring_every_calendar_row_is_notifying():
+    preferences = default_preferences()
+
+    assert is_notifying(preferences, SPORT)
+    assert not is_notifying(preferences, PRIMES)  # not on the calendar at all
+
+
+def test_toggle_notify_mutes_one_row_and_breaks_the_mirror():
+    preferences = default_preferences()
+
+    muted = toggle_notify(preferences, SPORT)
+
+    assert muted.notify_mirrors_calendar is False
+    assert not is_notifying(muted, SPORT)
+    # Seeded from the calendar, so nothing else moved.
+    assert is_notifying(muted, SCIENCE)
+    assert is_on_calendar(muted, SPORT)
+
+
+def test_breaking_the_mirror_seeds_the_override_from_the_calendar():
+    # Two categories already hidden, one sequence tracked. After muting Science,
+    # the notify channel must equal the calendar minus Science - not the whole
+    # taxonomy, and not an empty set.
+    preferences = default_preferences()
+    preferences = toggle_calendar(preferences, SPORT)
+    preferences = toggle_calendar(preferences, Row(CATEGORY, "Disasters"))
+    preferences = toggle_calendar(preferences, PRIMES)
+
+    muted = toggle_notify(preferences, SCIENCE)
+
+    assert set(muted.notify.categories) == set(muted.calendar.categories) - {"Science & Technology"}
+    assert muted.notify.sequences == ("Primes",)
+
+
+def test_toggle_notify_twice_restores_the_row_but_leaves_the_mirror_off():
+    preferences = toggle_notify(default_preferences(), SPORT)
+
+    unmuted = toggle_notify(preferences, SPORT)
+
+    assert is_notifying(unmuted, SPORT)
+    assert unmuted.notify_mirrors_calendar is False
+
+
+def test_clicking_a_dim_bell_turns_both_channels_on_without_breaking_the_mirror():
+    preferences = default_preferences()
+    assert not is_on_calendar(preferences, PRIMES)
+
+    lit = toggle_notify(preferences, PRIMES)
+
+    assert is_on_calendar(lit, PRIMES)
+    assert is_notifying(lit, PRIMES)
+    # "On for both channels" is what mirroring already means - nothing to override.
+    assert lit.notify_mirrors_calendar is True
+
+
+def test_a_row_turned_off_keeps_its_notify_state_for_when_it_comes_back():
+    preferences = toggle_notify(default_preferences(), SPORT)   # mute Sport
+    hidden = toggle_calendar(preferences, SPORT)                # then hide it
+
+    assert not is_notifying(hidden, SPORT)
+
+    back = toggle_calendar(hidden, SPORT)
+    assert is_on_calendar(back, SPORT)
+    assert not is_notifying(back, SPORT)
+
+
+def test_set_mirror_back_on_does_not_clear_the_override():
+    muted = toggle_notify(default_preferences(), SPORT)
+
+    mirrored = set_mirror(muted, True)
+    assert mirrored.notify_mirrors_calendar is True
+    assert is_notifying(mirrored, SPORT)
+
+    # Toggling twice within a session is not destructive.
+    again = set_mirror(mirrored, False)
+    assert not is_notifying(again, SPORT)
+
+
+def test_toggle_tag_narrows_both_channels():
+    preferences = toggle_tag(default_preferences(), "military")
+
+    assert "military" not in preferences.calendar.tags
+    assert "military" not in preferences.notify.tags
+
+
+def test_tags_for_category_returns_the_configured_tags():
+    assert tags_for_category("War & Conflict") == ("military",)
+    assert tags_for_category("Science & Technology") == (
+        "science",
+        "technology",
+        "engineering",
+        "health",
+    )

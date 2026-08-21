@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Dict, Optional, Sequence, Tuple
 
-from core.config import CATEGORY_NAMES, SEQUENCE_TAXONOMY, TAG_TAXONOMY
+from core.config import CATEGORY_NAMES, SEQUENCE_TAXONOMY, TAG_CATEGORIES, TAG_TAXONOMY
 from core.matching import included_from_excluded
 
 CATEGORY = "category"
@@ -153,3 +153,147 @@ def preferences_from_subscription(subscription: Optional[Dict]) -> Preferences:
         notify_mirrors_calendar=True if mirrors is None else bool(mirrors),
         notify_override=override,
     )
+
+
+@dataclass(frozen=True)
+class Row:
+    """One filterable thing: a coarse category or an integer sequence.
+
+    A single type for both so the panel renders all sixteen in one loop, rather
+    than duplicating the row markup for each taxonomy. `kind` is CATEGORY or
+    SEQUENCE.
+    """
+
+    kind: str
+    name: str
+
+
+def all_rows() -> Tuple[Row, ...]:
+    """Every row, categories first, each taxonomy in its published order."""
+    return tuple(Row(CATEGORY, name) for name in CATEGORY_NAMES) + tuple(
+        Row(SEQUENCE, name) for name in SEQUENCE_TAXONOMY
+    )
+
+
+def tags_for_category(category: str) -> Tuple[str, ...]:
+    """The fine tags inside one category, in taxonomy order.
+
+    The panel shows a narrowing popover only where this returns more than one
+    tag - for Sport, Disasters and War & Conflict it returns a single tag and
+    the control would be a no-op.
+    """
+    return tuple(TAG_CATEGORIES.get(category, ()))
+
+
+def _taxonomy_for(row: Row) -> Sequence[str]:
+    return CATEGORY_NAMES if row.kind == CATEGORY else SEQUENCE_TAXONOMY
+
+
+def _selected_for(selection: ChannelSelection, row: Row) -> Tuple[str, ...]:
+    return selection.categories if row.kind == CATEGORY else selection.sequences
+
+
+def is_on_calendar(preferences: Preferences, row: Row) -> bool:
+    """Is this row marked on the calendar?"""
+    return row.name in _selected_for(preferences.calendar, row)
+
+
+def is_notifying(preferences: Preferences, row: Row) -> bool:
+    """Does this row also push a notification? False whenever it is off the calendar."""
+    return row.name in _selected_for(preferences.notify, row)
+
+
+def _with_row(values: Tuple[str, ...], row: Row, present: bool) -> Tuple[str, ...]:
+    """Add or remove row.name from `values`, re-sorted into taxonomy order."""
+    names = set(values)
+    if present:
+        names.add(row.name)
+    else:
+        names.discard(row.name)
+    return tuple(entry for entry in _taxonomy_for(row) if entry in names)
+
+
+def _replace_channel(selection: ChannelSelection, row: Row, values: Tuple[str, ...]) -> ChannelSelection:
+    if row.kind == CATEGORY:
+        return replace(selection, categories=values)
+    return replace(selection, sequences=values)
+
+
+def _replace_override(override: NotifyOverride, row: Row, values: Tuple[str, ...]) -> NotifyOverride:
+    if row.kind == CATEGORY:
+        return replace(override, categories=values)
+    return replace(override, sequences=values)
+
+
+def toggle_calendar(preferences: Preferences, row: Row) -> Preferences:
+    """Mark or unmark a row on the calendar.
+
+    Its notification state is left alone. While the row is off, the intersection
+    in Preferences.notify hides that state anyway, so turning the row back on
+    restores exactly what it had rather than silently re-enabling a notification
+    the subscriber had muted.
+    """
+    turning_on = not is_on_calendar(preferences, row)
+    values = _with_row(_selected_for(preferences.calendar, row), row, turning_on)
+    return replace(preferences, calendar=_replace_channel(preferences.calendar, row, values))
+
+
+def _seeded_override(preferences: Preferences) -> NotifyOverride:
+    """The override that reproduces the current effective notify channel.
+
+    Called when the mirror is about to break, so that the instant it drops
+    nothing has changed except the row the user clicked - the panel never
+    silently rearranges itself around them.
+    """
+    current = preferences.notify
+    return NotifyOverride(categories=current.categories, sequences=current.sequences)
+
+
+def toggle_notify(preferences: Preferences, row: Row) -> Preferences:
+    """Toggle notifications for one row, from any of its three visual states.
+
+    A dim bell (the row is off the calendar) turns both channels on and leaves
+    the mirror alone: "on for both" is what mirroring already means, so there is
+    nothing to override. Muting a live row is the only case that breaks the
+    mirror, and it seeds the override from the calendar first.
+    """
+    if not is_on_calendar(preferences, row):
+        lit = toggle_calendar(preferences, row)
+        if lit.notify_mirrors_calendar:
+            return lit
+        values = _with_row(_selected_for(lit.notify, row), row, True)
+        return replace(lit, notify_override=_replace_override(lit.notify_override, row, values))
+
+    broken = replace(
+        preferences,
+        notify_mirrors_calendar=False,
+        notify_override=(
+            _seeded_override(preferences)
+            if preferences.notify_mirrors_calendar
+            else preferences.notify_override
+        ),
+    )
+    values = _with_row(
+        _selected_for(broken.notify, row), row, not is_notifying(broken, row)
+    )
+    return replace(broken, notify_override=_replace_override(broken.notify_override, row, values))
+
+
+def set_mirror(preferences: Preferences, mirroring: bool) -> Preferences:
+    """Turn mirroring on or off.
+
+    Turning it on does not clear the override, so toggling twice within a
+    session is not destructive. Turning it off simply restores the override
+    that was previously in place (or created when the mirror was first broken).
+    """
+    if mirroring:
+        return replace(preferences, notify_mirrors_calendar=True)
+    return replace(preferences, notify_mirrors_calendar=False)
+
+
+def toggle_tag(preferences: Preferences, tag: str) -> Preferences:
+    """Include or exclude one fine tag. Narrows both channels - tags are not per-channel."""
+    tags = set(preferences.calendar.tags)
+    tags.discard(tag) if tag in tags else tags.add(tag)
+    ordered = tuple(entry for entry in TAG_TAXONOMY if entry in tags)
+    return replace(preferences, calendar=replace(preferences.calendar, tags=ordered))
