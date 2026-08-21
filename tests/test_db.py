@@ -117,7 +117,12 @@ def test_create_subscription_stores_all_six_preference_columns():
     assert inserted["excluded_categories"] == ["Sport"]
     assert inserted["excluded_tags"] == ["military"]
     assert inserted["notify_mirrors_calendar"] is False
-    assert inserted["notify_excluded_categories"] == ["Sport", "Science & Technology"]
+    # Only Science is MUTED. Sport was dropped from the calendar, which is a
+    # different axis - the override never learns about it, and the intersection
+    # in Preferences.notify is what stops a hidden row from notifying. Writing
+    # the union of the two here would destroy a subscriber's mutes on the next
+    # save; see the round-trip test below.
+    assert inserted["notify_excluded_categories"] == ["Science & Technology"]
 
 
 def test_update_subscription_filters_writes_all_six_columns_for_the_right_token():

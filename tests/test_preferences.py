@@ -355,6 +355,32 @@ def test_preferences_to_columns_writes_the_mirror_flag_and_override():
     assert columns["notify_excluded_sequences"] == []
 
 
+def test_a_mute_survives_a_save_reload_while_mirroring():
+    # The property the design ruled on twice, exercised across the DATABASE and
+    # with the mirror ON at write time - the branch the plain round-trip test
+    # below never reaches, because toggle_notify always leaves the mirror off.
+    muted = toggle_notify(default_preferences(), SPORT)
+    mirrored = set_mirror(muted, True)
+
+    reloaded = preferences_from_subscription(preferences_to_columns(mirrored))
+
+    # While mirroring, Sport notifies - that is what mirroring means.
+    assert is_notifying(reloaded, SPORT)
+    # But the mute was preserved underneath, and unticking reveals it again.
+    assert not is_notifying(set_mirror(reloaded, False), SPORT)
+
+
+def test_the_override_is_written_unchanged_whether_or_not_mirroring():
+    # The override column must not depend on the mirror flag. A mirror-dependent
+    # write is how the save/reload above loses the mute.
+    muted = toggle_notify(default_preferences(), SPORT)
+
+    off = preferences_to_columns(muted)["notify_excluded_categories"]
+    on = preferences_to_columns(set_mirror(muted, True))["notify_excluded_categories"]
+
+    assert off == on == ["Sport"]
+
+
 def test_preferences_to_columns_round_trips():
     preferences = default_preferences()
     preferences = toggle_calendar(preferences, Row(CATEGORY, "Disasters"))

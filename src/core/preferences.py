@@ -130,38 +130,31 @@ def preferences_from_subscription(subscription: Optional[Dict]) -> Preferences:
     if not subscription:
         return default_preferences()
 
-    excluded_categories = subscription.get("excluded_categories") or []
-    excluded_tags = subscription.get("excluded_tags") or []
-
     calendar = ChannelSelection(
         categories=tuple(
-            included_from_excluded(excluded_categories, CATEGORY_NAMES)
+            included_from_excluded(
+                subscription.get("excluded_categories") or [], CATEGORY_NAMES
+            )
         ),
-        tags=tuple(included_from_excluded(excluded_tags, TAG_TAXONOMY)),
+        tags=tuple(
+            included_from_excluded(subscription.get("excluded_tags") or [], TAG_TAXONOMY)
+        ),
         sequences=_ordered(
             subscription.get("included_sequences") or [], SEQUENCE_TAXONOMY, SEQUENCE_TAXONOMY
         ),
     )
 
     mirrors = subscription.get("notify_mirrors_calendar")
-    notify_excluded_categories = subscription.get("notify_excluded_categories") or []
-    notify_excluded_sequences = subscription.get("notify_excluded_sequences") or []
-
-    # When not mirroring, the stored notify_excluded columns include both calendar
-    # and override exclusions. Extract just the override exclusions.
-    if mirrors is False:
-        calendar_excluded_set = set(excluded_categories)
-        notify_excluded_set = set(notify_excluded_categories)
-        override_excluded_categories = list(notify_excluded_set - calendar_excluded_set)
-    else:
-        override_excluded_categories = notify_excluded_categories
-
     override = NotifyOverride(
         categories=tuple(
-            included_from_excluded(override_excluded_categories, CATEGORY_NAMES)
+            included_from_excluded(
+                subscription.get("notify_excluded_categories") or [], CATEGORY_NAMES
+            )
         ),
         sequences=tuple(
-            included_from_excluded(notify_excluded_sequences, SEQUENCE_TAXONOMY)
+            included_from_excluded(
+                subscription.get("notify_excluded_sequences") or [], SEQUENCE_TAXONOMY
+            )
         ),
     )
 
@@ -316,32 +309,26 @@ def preferences_to_columns(preferences: Preferences) -> Dict[str, object]:
     """The six subscription columns for a Preferences, ready to insert or update.
 
     Note the asymmetry, which is deliberate and mirrors how each axis is read:
-    categories and tags are stored as EXCLUSIONS, so an entry added to the
-    taxonomy later is visible by default rather than silently hidden; sequences
-    are stored as INCLUSIONS, so a sequence added later stays off rather than
-    pushing itself at everyone.
+    the calendar's categories and tags are stored as EXCLUSIONS, so an entry
+    added to the taxonomy later is visible by default rather than silently
+    hidden; the calendar's sequences are stored as INCLUSIONS, so a sequence
+    added later stays off rather than pushing itself at everyone.
 
-    The override is written even while mirroring. It costs nothing, and it means
-    a subscriber who turns mirroring off and on again does not lose the
-    selection they had.
+    The notify_excluded_* columns are the override's exclusions and nothing
+    else, written identically whether or not the mirror is on - the write side
+    never branches on notify_mirrors_calendar. It costs nothing, and it means a
+    subscriber who turns mirroring off and on again does not lose the mutes
+    they had: the subset rule is enforced on read, in Preferences.notify, not
+    by folding the calendar's exclusions into this column.
     """
-    calendar_excluded_categories = excluded_from_included(preferences.calendar.categories, CATEGORY_NAMES)
-    override_excluded_categories = excluded_from_included(preferences.notify_override.categories, CATEGORY_NAMES)
-
-    # When not mirroring, the notification channel excludes both categories off
-    # the calendar and those in the override. Store the union in taxonomy order.
-    if preferences.notify_mirrors_calendar:
-        notify_excluded_categories = calendar_excluded_categories
-    else:
-        excluded_set = set(calendar_excluded_categories) | set(override_excluded_categories)
-        notify_excluded_categories = [entry for entry in CATEGORY_NAMES if entry in excluded_set]
-
     return {
-        "excluded_categories": calendar_excluded_categories,
+        "excluded_categories": excluded_from_included(preferences.calendar.categories, CATEGORY_NAMES),
         "excluded_tags": excluded_from_included(preferences.calendar.tags, TAG_TAXONOMY),
         "included_sequences": list(preferences.calendar.sequences),
         "notify_mirrors_calendar": preferences.notify_mirrors_calendar,
-        "notify_excluded_categories": notify_excluded_categories,
+        "notify_excluded_categories": excluded_from_included(
+            preferences.notify_override.categories, CATEGORY_NAMES
+        ),
         "notify_excluded_sequences": excluded_from_included(
             preferences.notify_override.sequences, SEQUENCE_TAXONOMY
         ),
