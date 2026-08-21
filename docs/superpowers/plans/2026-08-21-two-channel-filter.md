@@ -16,8 +16,12 @@
   modified exactly once, in Task 4, to put the repo root on the test path — no other change to it.
 - **`core/` must never import from `ingest/` or `app/`.** `core/preferences.py` must not import `streamlit`.
 - **Docstring style:** a one-line summary, then a blank line, then prose explaining *why* — matching `core/matching.py` and `core/sequences.py`. Comments explain rationale, not mechanics.
-- **The six subscription columns**, exact names: `excluded_categories`, `excluded_tags`, `included_sequences` (calendar channel, pre-existing); `notify_mirrors_calendar`, `notify_excluded_categories`, `notify_included_sequences` (notification channel, new).
-- **Semantics are asymmetric on purpose.** Categories and tags are stored as **exclusions**; sequences are stored as **inclusions**. Do not "fix" this.
+- **The six subscription columns**, exact names: `excluded_categories`, `excluded_tags`, `included_sequences` (calendar channel, pre-existing); `notify_mirrors_calendar`, `notify_excluded_categories`, `notify_excluded_sequences` (notification channel, new).
+- **Storage semantics, exactly.** On the CALENDAR channel: categories and tags are stored as
+  **exclusions**, sequences as **inclusions** (they are opt-in). On the NOTIFY override: BOTH
+  `notify_excluded_categories` and `notify_excluded_sequences` are **exclusions**, so "absent"
+  means "notifies" on either axis. Opt-in for sequences is enforced by the calendar axis plus the
+  intersection in `Preferences.notify`, never by the override. Do not "fix" either asymmetry.
 - **Every read of a subscription column must be defensive** — a missing key and a `None` value both mean the pre-feature default, because the cron job may run against a database that has not had the SQL applied.
 - **Run tests with:** `pytest` from the repo root (`pyproject.toml` puts `src` on the path).
 - **Taxonomy constants** live in `core/config.py`: `CATEGORY_NAMES` (8), `TAG_TAXONOMY` (20), `TAG_CATEGORIES` (dict), `SEQUENCE_TAXONOMY` (8), `DEFAULT_SEQUENCES` (first 4).
@@ -85,7 +89,7 @@ def test_mirroring_makes_notify_identical_to_calendar():
             "notify_mirrors_calendar": True,
             # Deliberately contradictory: while mirroring these are never read.
             "notify_excluded_categories": CATEGORY_NAMES,
-            "notify_included_sequences": [],
+            "notify_excluded_sequences": [],
         }
     )
 
@@ -99,14 +103,16 @@ def test_override_applies_when_not_mirroring():
             "included_sequences": ["Primes", "Powers of 2"],
             "notify_mirrors_calendar": False,
             "notify_excluded_categories": ["Sport", "War & Conflict"],
-            "notify_included_sequences": ["Powers of 2"],
+            "notify_excluded_sequences": ["Powers of 2"],
         }
     )
 
     assert "Sport" not in preferences.notify.categories
     assert "War & Conflict" not in preferences.notify.categories
     assert "Science & Technology" in preferences.notify.categories
-    assert preferences.notify.sequences == ("Powers of 2",)
+    # Both override columns are exclusions, so naming "Powers of 2" MUTES it and
+    # leaves the other marked sequence notifying.
+    assert preferences.notify.sequences == ("Primes",)
 
 
 def test_notify_is_intersected_with_calendar_on_read():
@@ -118,7 +124,7 @@ def test_notify_is_intersected_with_calendar_on_read():
             "included_sequences": [],
             "notify_mirrors_calendar": False,
             "notify_excluded_categories": [],
-            "notify_included_sequences": ["Primes"],
+            "notify_excluded_sequences": ["Primes"],
         }
     )
 
@@ -133,7 +139,7 @@ def test_notify_tags_always_equal_calendar_tags():
                 "excluded_tags": ["military", "sports"],
                 "notify_mirrors_calendar": mirroring,
                 "notify_excluded_categories": [],
-                "notify_included_sequences": [],
+                "notify_excluded_sequences": [],
             }
         )
         assert preferences.notify.tags == preferences.calendar.tags
@@ -158,7 +164,7 @@ def test_null_columns_are_treated_as_missing():
             "included_sequences": None,
             "notify_mirrors_calendar": None,
             "notify_excluded_categories": None,
-            "notify_included_sequences": None,
+            "notify_excluded_sequences": None,
         }
     )
 
@@ -174,16 +180,18 @@ def test_unknown_stored_names_are_ignored():
     assert preferences.calendar.sequences == ("Powers of 2",)
 
 
-def test_a_new_category_notifies_by_default_but_a_new_sequence_does_not():
-    # Exclusion semantics for categories mean anything unnamed is kept; inclusion
-    # semantics for sequences mean anything unnamed is off. This is the whole
-    # reason the two axes are stored differently.
+def test_an_unmarked_sequence_never_notifies_even_though_the_override_allows_it():
+    # Both override columns are exclusions, so an empty notify_excluded_sequences
+    # means "every sequence may notify". Opt-in is enforced one level up, by the
+    # CALENDAR axis: a sequence nobody marked is not in calendar.sequences, and
+    # the intersection makes the override's permission unreachable. This is why
+    # the override does not need inclusion semantics of its own.
     preferences = preferences_from_subscription(
         {
             "excluded_categories": ["Sport"],
             "notify_mirrors_calendar": False,
             "notify_excluded_categories": ["Sport"],
-            "notify_included_sequences": [],
+            "notify_excluded_sequences": [],
         }
     )
 
@@ -319,7 +327,12 @@ def default_preferences() -> Preferences:
     return Preferences(
         calendar=calendar,
         notify_mirrors_calendar=True,
-        notify_override=NotifyOverride(categories=tuple(CATEGORY_NAMES), sequences=()),
+        # Both override axes are stored as exclusions, so "everything" is the
+        # empty-exclusion state: every name present, nothing muted. The calendar
+        # axis is what keeps sequences opt-in, not this one.
+        notify_override=NotifyOverride(
+            categories=tuple(CATEGORY_NAMES), sequences=tuple(SEQUENCE_TAXONOMY)
+        ),
     )
 
 
@@ -352,8 +365,10 @@ def preferences_from_subscription(subscription: Optional[Dict]) -> Preferences:
                 subscription.get("notify_excluded_categories") or [], CATEGORY_NAMES
             )
         ),
-        sequences=_ordered(
-            subscription.get("notify_included_sequences") or [], SEQUENCE_TAXONOMY, SEQUENCE_TAXONOMY
+        sequences=tuple(
+            included_from_excluded(
+                subscription.get("notify_excluded_sequences") or [], SEQUENCE_TAXONOMY
+            )
         ),
     )
 
@@ -513,6 +528,29 @@ def test_a_row_turned_off_keeps_its_notify_state_for_when_it_comes_back():
     assert not is_notifying(back, SPORT)
 
 
+def test_unticking_the_mirror_never_silently_mutes_a_marked_sequence():
+    # Regression. With the override stored as inclusions, nothing maintained it
+    # while mirroring, so every marked sequence was absent from it and unticking
+    # the toggle silenced them all at once with no warning.
+    preferences = toggle_calendar(default_preferences(), PRIMES)
+    assert is_notifying(preferences, PRIMES)
+
+    unmirrored = set_mirror(preferences, False)
+
+    assert is_on_calendar(unmirrored, PRIMES)
+    assert is_notifying(unmirrored, PRIMES)
+
+
+def test_unticking_the_mirror_leaves_every_marked_row_notifying():
+    # The same property for categories, and for the panel as a whole: breaking
+    # the mirror changes nothing until a bell is actually clicked.
+    preferences = toggle_calendar(default_preferences(), PRIMES)
+
+    unmirrored = set_mirror(preferences, False)
+
+    assert unmirrored.notify == unmirrored.calendar
+
+
 def test_set_mirror_back_on_does_not_clear_the_override():
     muted = toggle_notify(default_preferences(), SPORT)
 
@@ -590,6 +628,18 @@ def _selected_for(selection: ChannelSelection, row: Row) -> Tuple[str, ...]:
     return selection.categories if row.kind == CATEGORY else selection.sequences
 
 
+def _selected_for_override(override: NotifyOverride, row: Row) -> Tuple[str, ...]:
+    """The override's tuple for this row's axis.
+
+    A sibling of _selected_for rather than one function over both types: an
+    override is edited directly (it is what gets stored), whereas a
+    ChannelSelection read off `.notify` has already been intersected with the
+    calendar. Editing the intersected value would silently drop every muted row
+    the moment any other row was clicked.
+    """
+    return override.categories if row.kind == CATEGORY else override.sequences
+
+
 def is_on_calendar(preferences: Preferences, row: Row) -> bool:
     """Is this row marked on the calendar?"""
     return row.name in _selected_for(preferences.calendar, row)
@@ -635,64 +685,40 @@ def toggle_calendar(preferences: Preferences, row: Row) -> Preferences:
     return replace(preferences, calendar=_replace_channel(preferences.calendar, row, values))
 
 
-def _seeded_override(preferences: Preferences) -> NotifyOverride:
-    """The override that reproduces the current effective notify channel.
-
-    Called when the mirror is about to break, so that the instant it drops
-    nothing has changed except the row the user clicked - the panel never
-    silently rearranges itself around them.
-    """
-    current = preferences.notify
-    return NotifyOverride(categories=current.categories, sequences=current.sequences)
-
-
 def toggle_notify(preferences: Preferences, row: Row) -> Preferences:
     """Toggle notifications for one row, from any of its three visual states.
 
-    A dim bell (the row is off the calendar) turns both channels on and leaves
-    the mirror alone: "on for both" is what mirroring already means, so there is
-    nothing to override. Muting a live row is the only case that breaks the
-    mirror, and it seeds the override from the calendar first.
+    A dim bell (the row is off the calendar) turns both channels on: the row
+    joins the calendar, and it is un-muted in the override so that it notifies
+    whether or not the mirror is currently on.
+
+    Muting a live row is the only case that breaks the mirror. No seeding step
+    is needed when it does, because the override stores exclusions on both axes
+    - an untouched override already means "everything notifies", so breaking the
+    mirror changes nothing except the row that was clicked.
     """
     if not is_on_calendar(preferences, row):
         lit = toggle_calendar(preferences, row)
-        if lit.notify_mirrors_calendar:
-            return lit
-        values = _with_row(_selected_for(lit.notify, row), row, True)
+        values = _with_row(_selected_for_override(lit.notify_override, row), row, True)
         return replace(lit, notify_override=_replace_override(lit.notify_override, row, values))
 
-    broken = replace(
-        preferences,
-        notify_mirrors_calendar=False,
-        notify_override=(
-            _seeded_override(preferences)
-            if preferences.notify_mirrors_calendar
-            else preferences.notify_override
-        ),
-    )
+    broken = replace(preferences, notify_mirrors_calendar=False)
     values = _with_row(
-        _selected_for(broken.notify, row), row, not is_notifying(broken, row)
+        _selected_for_override(broken.notify_override, row),
+        row,
+        not is_notifying(broken, row),
     )
     return replace(broken, notify_override=_replace_override(broken.notify_override, row, values))
 
 
 def set_mirror(preferences: Preferences, mirroring: bool) -> Preferences:
-    """Turn mirroring on or off.
+    """Turn mirroring on or off. A flag flip in both directions.
 
-    Turning it on does not clear the override, so toggling twice within a
-    session is not destructive.
+    Neither direction touches the override, so re-ticking the toggle and
+    unticking it again returns the subscriber to the selection they had rather
+    than quietly resetting it.
     """
-    if mirroring:
-        return replace(preferences, notify_mirrors_calendar=True)
-    return replace(
-        preferences,
-        notify_mirrors_calendar=False,
-        notify_override=(
-            _seeded_override(preferences)
-            if preferences.notify_mirrors_calendar
-            else preferences.notify_override
-        ),
-    )
+    return replace(preferences, notify_mirrors_calendar=mirroring)
 
 
 def toggle_tag(preferences: Preferences, tag: str) -> Preferences:
@@ -706,7 +732,7 @@ def toggle_tag(preferences: Preferences, tag: str) -> Preferences:
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `pytest tests/test_preferences.py -v`
-Expected: PASS — 24 tests
+Expected: PASS — 26 tests
 
 - [ ] **Step 5: Commit**
 
@@ -761,7 +787,7 @@ def test_preferences_to_columns_writes_the_mirror_flag_and_override():
 
     assert columns["notify_mirrors_calendar"] is False
     assert columns["notify_excluded_categories"] == ["Sport"]
-    assert columns["notify_included_sequences"] == []
+    assert columns["notify_excluded_sequences"] == []
 
 
 def test_preferences_to_columns_round_trips():
@@ -783,7 +809,7 @@ def test_preferences_to_columns_writes_all_six_columns():
         "included_sequences",
         "notify_mirrors_calendar",
         "notify_excluded_categories",
-        "notify_included_sequences",
+        "notify_excluded_sequences",
     }
 ```
 
@@ -888,7 +914,9 @@ def preferences_to_columns(preferences: Preferences) -> Dict[str, object]:
         "notify_excluded_categories": excluded_from_included(
             preferences.notify_override.categories, CATEGORY_NAMES
         ),
-        "notify_included_sequences": list(preferences.notify_override.sequences),
+        "notify_excluded_sequences": excluded_from_included(
+            preferences.notify_override.sequences, SEQUENCE_TAXONOMY
+        ),
     }
 ```
 
@@ -933,7 +961,7 @@ Add to `db.py`'s imports: `from core.preferences import Preferences, default_pre
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `pytest tests/test_preferences.py tests/test_db.py -v`
-Expected: PASS — 29 preference tests, 7 db tests
+Expected: PASS — 31 preference tests, 7 db tests
 
 - [ ] **Step 6: Commit**
 
@@ -1051,7 +1079,7 @@ def test_a_subscriber_can_mark_a_sequence_without_being_notified_about_it():
         "included_sequences": ["Powers of 2"],
         "notify_mirrors_calendar": False,
         "notify_excluded_categories": [],
-        "notify_included_sequences": [],
+        "notify_excluded_sequences": [],
     }
 
     _, sent_sequences = _run(subscription, [], 2048)
@@ -1068,7 +1096,7 @@ def test_a_subscriber_can_be_notified_about_one_category_only():
             name for name in ["Sport", "Disasters", "Exploration & Space", "Arts & Culture",
                               "Society & Belief", "War & Conflict", "Politics & Power"]
         ],
-        "notify_included_sequences": [],
+        "notify_excluded_sequences": [],
     }
 
     sent_events, _ = _run(subscription, events, 2048)
@@ -1816,7 +1844,7 @@ preferences" button writes these columns, and the write fails if they don't exis
 ```sql
 alter table subscriptions add column if not exists notify_mirrors_calendar    boolean not null default true;
 alter table subscriptions add column if not exists notify_excluded_categories text[]  not null default '{}';
-alter table subscriptions add column if not exists notify_included_sequences  text[]  not null default '{}';
+alter table subscriptions add column if not exists notify_excluded_sequences  text[]  not null default '{}';
 ```
 
 No backfill is needed, and that is the point of the mirror flag. `default true` puts every existing
@@ -1829,15 +1857,21 @@ the **notification** channel, and are read only while `notify_mirrors_calendar` 
 always intersected with the calendar selection on read (`core.preferences.Preferences.notify`), so a
 stale entry for a category the subscriber later hid can never resurrect a notification.
 
-Semantics follow the axis they mirror rather than each other:
-`notify_excluded_categories` stores **exclusions**, so a category added to `TAG_CATEGORIES` later
-notifies by default; `notify_included_sequences` stores **inclusions**, so a sequence added to
-`SEQUENCE_TAXONOMY` later stays silent. There is no `notify_excluded_tags` — fine tags narrow both
-channels equally.
+**Both override columns store exclusions**, so "absent from the override" means "notifies" on
+either axis. They are deliberately not symmetric with the calendar columns: an earlier draft made
+`notify_*_sequences` inclusions to match `included_sequences`, and it was implemented and found
+broken — nothing maintains the override while mirroring, so every marked sequence was absent from
+it, and unticking the mirror toggle silenced all of a subscriber's anniversaries at once.
+
+Opt-in still holds, one level up: a sequence nobody marked is not in the calendar selection, and
+`Preferences.notify` intersects the override with the calendar, so the override's permission is
+unreachable for an unmarked row. That is also why no seeding step is needed when the mirror breaks.
+
+There is no `notify_excluded_tags` — fine tags narrow both channels equally.
 
 **The rename hazard from sections 11 and 13 now applies twice over.** A `TAG_CATEGORIES` key is
 persisted verbatim into both `excluded_categories` and `notify_excluded_categories`; a
-`SEQUENCE_TAXONOMY` name into both `included_sequences` and `notify_included_sequences`. Renaming
+`SEQUENCE_TAXONOMY` name into both `included_sequences` and `notify_excluded_sequences`. Renaming
 either orphans subscriber state in two columns instead of one, silently. Keep an alias or write a
 migration that rewrites **both**.
 
@@ -1864,7 +1898,7 @@ Replace the "**Tag filtering**" bullet with:
 Run:
 
 ```bash
-grep -n "notify_mirrors_calendar\|notify_excluded_categories\|notify_included_sequences" SUPABASE_SETUP.md src/core/preferences.py
+grep -n "notify_mirrors_calendar\|notify_excluded_categories\|notify_excluded_sequences" SUPABASE_SETUP.md src/core/preferences.py
 ```
 
 Expected: the three column names appear in both files, spelled identically.

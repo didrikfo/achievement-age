@@ -76,19 +76,38 @@ Three new columns carry the notification channel.
 ```sql
 alter table subscriptions add column if not exists notify_mirrors_calendar    boolean  not null default true;
 alter table subscriptions add column if not exists notify_excluded_categories text[]   not null default '{}';
-alter table subscriptions add column if not exists notify_included_sequences  text[]   not null default '{}';
+alter table subscriptions add column if not exists notify_excluded_sequences  text[]   not null default '{}';
 ```
 
 **`default true` on the mirror flag is the entire migration.** Every existing subscriber lands on
 "notify = calendar", which is precisely the behaviour they have today. Nobody who muted War &
 Conflict starts receiving war notifications, and no row needs rewriting.
 
-Semantics follow the axis they mirror, deliberately rather than for symmetry's sake:
+**Both override columns store exclusions**, so that "absent from the override" means "notifies"
+on either axis.
 
-- `notify_excluded_categories` stores **exclusions**, like its calendar counterpart, so a category
-  added to `TAG_CATEGORIES` later notifies by default instead of being silently muted for everyone.
-- `notify_included_sequences` stores **inclusions**, like its calendar counterpart, because
-  mathematical anniversaries are opt-in and a sequence added later must not start pushing itself.
+This is deliberately *not* symmetric with the calendar columns, and an earlier draft of this spec
+got it wrong by making `notify_*_sequences` inclusions to match `included_sequences`. That version
+was implemented and found broken: while mirroring, nothing maintains the override, so every
+sequence a subscriber marked was absent from it — and the moment they unticked the mirror toggle,
+all of their anniversaries went silent at once, with no way to see it coming. Verified against the
+built model before the fix: `calendar.sequences == ("Primes",)` became `notify.sequences == ()`.
+
+Exclusions on both axes remove the failure and the machinery that tried to paper over it. There is
+no seeding step when the mirror breaks, `set_mirror` is a flag flip in both directions, and four
+behaviours hold without special cases:
+
+| Action | Result |
+|---|---|
+| Mark a sequence, untick the mirror | still notifying — no silent mute |
+| Mute a row, re-tick the mirror, untick it | still muted — the customisation survives |
+| Hide a row, then unhide it | still muted — sequences behave exactly like categories |
+| A name added to `SEQUENCE_TAXONOMY` later | silent, because the **calendar** axis stays opt-in |
+
+That last row is the one the inclusion semantics were reaching for, and the calendar axis already
+delivers it: an unknown sequence is not on the calendar, and the intersection makes a notify entry
+for an unmarked row unreachable. Opt-in belongs on the calendar axis, where the subscriber can see
+it, not duplicated onto the override.
 
 There is no `notify_excluded_tags` column. Tags are not a per-channel axis.
 
@@ -148,8 +167,8 @@ def preferences_to_columns(preferences: Preferences) -> Dict[str, object]:
 ```
 
 The click behaviour of section 4.3 also lives here, as pure functions over an immutable
-`Preferences`, so that the rules — muting breaks the mirror, seeding the override from the calendar,
-a dim bell turning both channels on — are unit-testable without a Streamlit runtime. A `Row` is a
+`Preferences`, so that the rules — muting breaks the mirror, a dim bell turning both channels on —
+are unit-testable without a Streamlit runtime. A `Row` is a
 `(kind, name)` pair where kind is `"category"` or `"sequence"`, which lets the panel render all
 sixteen rows in one uniform loop:
 
