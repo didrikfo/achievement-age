@@ -23,7 +23,13 @@
   means "notifies" on either axis. Opt-in for sequences is enforced by the calendar axis plus the
   intersection in `Preferences.notify`, never by the override. Do not "fix" either asymmetry.
 - **Every read of a subscription column must be defensive** — a missing key and a `None` value both mean the pre-feature default, because the cron job may run against a database that has not had the SQL applied.
-- **Run tests with:** `pytest` from the repo root (`pyproject.toml` puts `src` on the path).
+- **Run tests with the project venv, not the system interpreter:**
+  `venv/Scripts/python.exe -m pytest` from the repo root (on this Windows checkout;
+  `venv/bin/python -m pytest` elsewhere). `pyproject.toml` puts `src` on the path.
+  A bare `pytest` may resolve to a system Python without `requests`/`supabase` installed,
+  which produces 13 collection errors in the ingest tests that look like real failures and
+  are not. The full suite is green: if you see collection errors, check your interpreter
+  before you believe them.
 - **Taxonomy constants** live in `core/config.py`: `CATEGORY_NAMES` (8), `TAG_TAXONOMY` (20), `TAG_CATEGORIES` (dict), `SEQUENCE_TAXONOMY` (8), `DEFAULT_SEQUENCES` (first 4).
 
 ---
