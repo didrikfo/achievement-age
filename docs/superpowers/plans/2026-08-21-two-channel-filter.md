@@ -1435,6 +1435,11 @@ STATE_KEY = "filter_preferences"
 SAVED_KEY = "filter_preferences_saved"
 MIRROR_KEY = "notify_mirror"
 
+#: Set by _apply() alongside STATE_KEY, cleared at the top of the next run.
+#: Not a widget key, so writing it is never restricted the way MIRROR_KEY is -
+#: see _apply()'s docstring for why that restriction exists at all.
+_MIRROR_SYNC_KEY = "_notify_mirror_needs_sync"
+
 GROUP_LABELS = {CATEGORY: "Historical events", SEQUENCE: "Mathematical anniversaries"}
 
 BELL = "🔔"
@@ -1478,16 +1483,28 @@ def _bell_key(preferences: Preferences, row: Row) -> str:
 
 
 def _apply(preferences: Preferences) -> None:
-    """Store a new Preferences and rerun.
+    """Store a new Preferences, flag the mirror toggle for a resync, and rerun.
 
-    The mirror toggle's widget key is written too. Streamlit prefers a keyed
-    widget's stored state over the `value=` argument, so a bell click that
-    breaks the mirror would otherwise leave the toggle drawn in its old
-    position - the state and the control would disagree until the next manual
-    click.
+    MIRROR_KEY itself is not written here. It backs the toggle widget
+    instantiated near the top of render_filter_panel, and Streamlit forbids
+    writing to a widget-backed session_state key once that widget has been
+    instantiated during the current run - every row and bell live below the
+    toggle in the script, so writing MIRROR_KEY from this function would
+    always raise.
+
+    _MIRROR_SYNC_KEY carries the intent across the rerun instead. It is
+    plain, not widget-backed, so setting it here is always legal; the top of
+    render_filter_panel clears it and force-writes MIRROR_KEY from the new
+    preferences before the toggle is instantiated for that run, which is the
+    one point where that write is legal. A plain equality check between
+    MIRROR_KEY and the model can't stand in for this flag: Streamlit resolves
+    a genuine toggle click into session_state before the script body even
+    starts, so by the time this function's caller runs, a fresh click and a
+    stale value left over from a bell click are indistinguishable by value
+    alone - only the call path (through here, or not) tells them apart.
     """
     st.session_state[STATE_KEY] = preferences
-    st.session_state[MIRROR_KEY] = preferences.notify_mirrors_calendar
+    st.session_state[_MIRROR_SYNC_KEY] = True
     st.rerun()
 
 
@@ -1542,6 +1559,16 @@ def render_filter_panel(subscription: Optional[Dict]) -> Preferences:
     """
     _seed(subscription)
     preferences = st.session_state[STATE_KEY]
+
+    # Force the toggle's stored value to match the model, but only when
+    # _apply() flagged this run for it - i.e. only when the previous run's
+    # mutation came from a row or bell, not from the toggle itself. This is
+    # the only point in the run where writing MIRROR_KEY is legal (before the
+    # toggle below has been instantiated), and skipping it would leave the
+    # toggle drawn in its old position after a bell click breaks the mirror,
+    # since Streamlit prefers a keyed widget's stored state over `value=`.
+    if st.session_state.pop(_MIRROR_SYNC_KEY, False):
+        st.session_state[MIRROR_KEY] = preferences.notify_mirrors_calendar
 
     mirroring = st.toggle("Notify me about everything I've marked", key=MIRROR_KEY)
     if mirroring != preferences.notify_mirrors_calendar:
