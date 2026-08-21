@@ -796,6 +796,32 @@ def test_preferences_to_columns_writes_the_mirror_flag_and_override():
     assert columns["notify_excluded_sequences"] == []
 
 
+def test_a_mute_survives_a_save_reload_while_mirroring():
+    # The property the design ruled on twice, exercised across the DATABASE and
+    # with the mirror ON at write time - the branch the plain round-trip test
+    # below never reaches, because toggle_notify always leaves the mirror off.
+    muted = toggle_notify(default_preferences(), SPORT)
+    mirrored = set_mirror(muted, True)
+
+    reloaded = preferences_from_subscription(preferences_to_columns(mirrored))
+
+    # While mirroring, Sport notifies - that is what mirroring means.
+    assert is_notifying(reloaded, SPORT)
+    # But the mute was preserved underneath, and unticking reveals it again.
+    assert not is_notifying(set_mirror(reloaded, False), SPORT)
+
+
+def test_the_override_is_written_unchanged_whether_or_not_mirroring():
+    # The override column must not depend on the mirror flag. A mirror-dependent
+    # write is how the save/reload above loses the mute.
+    muted = toggle_notify(default_preferences(), SPORT)
+
+    off = preferences_to_columns(muted)["notify_excluded_categories"]
+    on = preferences_to_columns(set_mirror(muted, True))["notify_excluded_categories"]
+
+    assert off == on == ["Sport"]
+
+
 def test_preferences_to_columns_round_trips():
     preferences = default_preferences()
     preferences = toggle_calendar(preferences, Row(CATEGORY, "Disasters"))
@@ -854,7 +880,12 @@ def test_create_subscription_stores_all_six_preference_columns():
     assert inserted["excluded_categories"] == ["Sport"]
     assert inserted["excluded_tags"] == ["military"]
     assert inserted["notify_mirrors_calendar"] is False
-    assert inserted["notify_excluded_categories"] == ["Sport", "Science & Technology"]
+    # Only Science is MUTED. Sport was dropped from the calendar, which is a
+    # different axis - the override never learns about it, and the intersection
+    # in Preferences.notify is what stops a hidden row from notifying. Writing
+    # the union of the two here would destroy a subscriber's mutes on the next
+    # save; see the round-trip test below.
+    assert inserted["notify_excluded_categories"] == ["Science & Technology"]
 
 
 def test_update_subscription_filters_writes_all_six_columns_for_the_right_token():
@@ -962,12 +993,19 @@ def update_subscription_filters(token: str, preferences: Preferences) -> None:
 
 Add to `db.py`'s imports: `from core.preferences import Preferences, default_preferences, preferences_to_columns`.
 
+> **Do not touch `preferences_from_subscription`.** It is Task 1 code, already reviewed. The write
+> side here is its exact inverse: `notify_excluded_categories` is the override's exclusions and
+> nothing else, written identically whether or not the mirror is on. If you find yourself wanting to
+> combine it with the calendar's exclusions on write and subtract them back on read, stop — that
+> scheme was tried, it silently destroys a subscriber's mutes on the next save, and the two tests
+> above exist to catch it.
+
 > **Import-cycle check:** `core/preferences.py` imports from `core/config.py` and `core/matching.py` only. `core/matching.py` imports from `core/config.py` only. So `db.py → preferences → matching → config` is acyclic. Do not add a `db` import to `preferences.py`.
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `pytest tests/test_preferences.py tests/test_db.py -v`
-Expected: PASS — 31 preference tests, 7 db tests
+Expected: PASS — 33 preference tests, 7 db tests
 
 - [ ] **Step 6: Commit**
 
