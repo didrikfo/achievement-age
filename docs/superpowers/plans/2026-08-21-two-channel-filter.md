@@ -12,7 +12,8 @@
 
 - **Spec:** `docs/superpowers/specs/2026-08-21-two-channel-filter-design.md`. Read it before starting.
 - **Python ≥3.11**, `from __future__ import annotations` at the top of every module (matches every existing file).
-- **No new dependencies.** `requirements.txt` and `pyproject.toml` are not modified by this plan.
+- **No new dependencies.** `requirements.txt` is not modified by this plan. `pyproject.toml` is
+  modified exactly once, in Task 4, to put the repo root on the test path — no other change to it.
 - **`core/` must never import from `ingest/` or `app/`.** `core/preferences.py` must not import `streamlit`.
 - **Docstring style:** a one-line summary, then a blank line, then prose explaining *why* — matching `core/matching.py` and `core/sequences.py`. Comments explain rationale, not mechanics.
 - **The six subscription columns**, exact names: `excluded_categories`, `excluded_tags`, `included_sequences` (calendar channel, pre-existing); `notify_mirrors_calendar`, `notify_excluded_categories`, `notify_included_sequences` (notification channel, new).
@@ -946,14 +947,54 @@ git commit -m "feat: persist the two-channel preference model"
 ### Task 4: Notifications use the notify channel
 
 **Files:**
-- Modify: `scripts/send_daily_notifications.py:1-40` (docstring, imports), `:88-110` (`main`)
+- Create: `scripts/__init__.py` (empty)
+- Modify: `pyproject.toml` (`pythonpath`)
+- Modify: `scripts/send_daily_notifications.py:1-40` (docstring, imports), `:54` (`MATCHERS`), `:88-110` (`main`)
 - Test: `tests/test_send_daily_notifications.py` (create)
 
 **Interfaces:**
 - Consumes: `preferences_from_subscription` (Task 1), `Preferences.notify` (Task 1)
-- Produces: no new public API; `main()` keeps its signature
+- Produces: `build_matchers() -> List[Matcher]`; `main()` keeps its signature
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Make the module importable without a database**
+
+Two things currently prevent a test from importing this script at all, and both must be fixed
+before the test in Step 2 can even collect.
+
+**(a) `MATCHERS` is built at import time.** Line 54 reads
+`MATCHERS: List[Matcher] = [_make_db_event_matcher()]`, and `_make_db_event_matcher` calls
+`fetch_events()` — so merely importing the module opens a Supabase connection and downloads the
+whole corpus. Replace line 54 with:
+
+```python
+def build_matchers() -> List[Matcher]:
+    """The matchers to run, built at call time rather than at import.
+
+    Deferred so that importing this module is free of side effects: at module
+    scope this opened a Supabase connection and pulled the entire corpus, which
+    made the script impossible to import in a test and meant any import error
+    downstream surfaced as a database error.
+    """
+    return [_make_db_event_matcher()]
+```
+
+`main()` is rewritten in Step 4 and calls `build_matchers()` once above the subscription loop, so
+the corpus is still fetched exactly once per run rather than once per subscriber.
+
+**(b) `scripts` is not an importable package.** Create an empty `scripts/__init__.py`, and in
+`pyproject.toml` change:
+
+```toml
+pythonpath = ["src"]
+```
+
+to:
+
+```toml
+pythonpath = ["src", "."]
+```
+
+- [ ] **Step 2: Write the failing test**
 
 Create `tests/test_send_daily_notifications.py`:
 
@@ -980,7 +1021,7 @@ def _run(subscription, events, age_days):
     subscription = {"ntfy_topic": "t", "token": "tok", "birthday": birthday, **subscription}
 
     with patch.object(notify, "fetch_all_subscriptions", return_value=[subscription]), \
-         patch.object(notify, "MATCHERS", [lambda age: list(events)]), \
+         patch.object(notify, "build_matchers", return_value=[lambda age: list(events)]), \
          patch.object(notify, "_send_ntfy_notification") as send_event, \
          patch.object(notify, "_send_anniversary_notification") as send_anniversary:
         notify.main()
@@ -1044,14 +1085,14 @@ def test_an_unmigrated_row_falls_back_to_the_calendar_channel():
     assert sent_events == ["Ada"]
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 3: Run the test to verify it fails**
 
 Run: `pytest tests/test_send_daily_notifications.py -v`
-Expected: FAIL — `test_a_subscriber_can_mark_a_sequence_without_being_notified_about_it` and `test_a_subscriber_can_be_notified_about_one_category_only` fail, because the script still filters on the calendar columns.
+Expected: FAIL — `test_a_subscriber_can_mark_a_sequence_without_being_notified_about_it` and `test_a_subscriber_can_be_notified_about_one_category_only` fail on the assertion, because the script still filters on the calendar columns. The other two pass.
 
-> If the import itself fails with `ModuleNotFoundError: No module named 'scripts'`, add an empty `scripts/__init__.py` and include it in the commit.
+If instead the tests ERROR at collection, Step 1 is incomplete — a `ModuleNotFoundError: No module named 'scripts'` means the `pythonpath` or `__init__.py` change is missing, and a Supabase/connection error means `MATCHERS` is still being built at import time.
 
-- [ ] **Step 3: Rewrite the filtering in `main()`**
+- [ ] **Step 4: Rewrite the filtering in `main()`**
 
 In `scripts/send_daily_notifications.py`, replace the imports:
 
@@ -1065,13 +1106,15 @@ from core.sequences import anniversary_matches, anniversary_sentence
 and replace the body of the per-subscription loop in `main()`:
 
 ```python
+    matchers = build_matchers()
+
     for subscription in subscriptions:
         birthday = date.fromisoformat(subscription["birthday"])
         age_days = (today - birthday).days
         notify_channel = preferences_from_subscription(subscription).notify
 
         matches: List[Dict] = []
-        for matcher in MATCHERS:
+        for matcher in matchers:
             matches.extend(matcher(age_days))
         matches = filter_events(matches, notify_channel.categories, notify_channel.tags)
 
@@ -1097,24 +1140,24 @@ without being pushed one every nine days, or browse every category while being
 notified about science alone.
 
 Mathematical anniversaries are computed rather than looked up, so they are
-gathered separately from MATCHERS - they share no fields with an event - but
-they are filtered through the same notification channel.
+gathered separately from the matchers - they share no fields with an event -
+but they are filtered through the same notification channel.
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `pytest tests/test_send_daily_notifications.py -v`
 Expected: PASS — 4 tests
 
-- [ ] **Step 5: Run the whole suite**
+- [ ] **Step 6: Run the whole suite**
 
 Run: `pytest`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add scripts/send_daily_notifications.py tests/test_send_daily_notifications.py
+git add scripts/__init__.py scripts/send_daily_notifications.py pyproject.toml tests/test_send_daily_notifications.py
 git commit -m "feat: filter daily notifications through the notification channel"
 ```
 
