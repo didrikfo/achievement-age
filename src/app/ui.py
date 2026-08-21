@@ -17,27 +17,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import streamlit as st
 
 from core.age import age_breakdown
-from core.config import CATEGORY_NAMES, DEFAULT_SEQUENCES, SEQUENCE_TAXONOMY, TAG_TAXONOMY
 from core.db import (
     create_subscription,
     fetch_events,
     get_subscription,
     update_subscription_filters,
 )
-from core.matching import (
-    events_by_age_days,
-    excluded_from_included,
-    filter_events,
-    full_sentence,
-    included_categories_for_subscription,
-    included_tags_for_subscription,
-)
-from core.sequences import (
-    anniversary_matches,
-    anniversary_sentence,
-    included_sequences_for_subscription,
-)
+from core.matching import events_by_age_days, filter_events, full_sentence
+from core.sequences import anniversary_matches, anniversary_sentence
 
+from app.filters import SAVED_KEY, STATE_KEY, render_filter_panel
 from app.links import further_reading_links, subscription_link
 from app.styles import MASTHEAD_HTML, PAGE_CSS
 
@@ -61,40 +50,6 @@ st.write(
 token = st.query_params.get("u")
 subscription = get_subscription(token) if token else None
 
-# The filter is a session value for anonymous visitors and a saved preference
-# for subscribers. Seed it once per session so a rerun doesn't clobber an
-# in-progress selection.
-if "included_tags" not in st.session_state:
-    if subscription:
-        st.session_state.included_tags = included_tags_for_subscription(subscription)
-    else:
-        st.session_state.included_tags = list(TAG_TAXONOMY)
-
-if "included_categories" not in st.session_state:
-    if subscription:
-        st.session_state.included_categories = included_categories_for_subscription(subscription)
-    else:
-        st.session_state.included_categories = list(CATEGORY_NAMES)
-
-# Mathematical anniversaries are opt-in, so the checkbox starts off for everyone
-# who hasn't already chosen sequences - including existing subscribers, whose
-# stored column is empty. The multiselect behind it is pre-loaded with the
-# recommended four regardless, so enabling the feature is one click rather than
-# five.
-if "included_sequences" not in st.session_state:
-    stored_sequences = included_sequences_for_subscription(subscription) if subscription else []
-    st.session_state.included_sequences = stored_sequences or list(DEFAULT_SEQUENCES)
-    st.session_state.anniversaries_on = bool(stored_sequences)
-
-# Read here for the "Get notified" button below, which runs earlier in the
-# script than the expander that renders the sequence widgets. Correct for that
-# use: clicking the button is its own rerun, so widget state is current at the
-# top of it. The expander RE-READS this into the same name after the widgets
-# have run, because the multiselect assigns mid-script - see Task 4 Step 4.
-active_sequences = (
-    st.session_state.included_sequences if st.session_state.anniversaries_on else []
-)
-
 if subscription:
     birthdate = date.fromisoformat(subscription["birthday"])
     st.caption("Welcome back — this link remembers your birthday.")
@@ -110,10 +65,7 @@ else:
         if st.button("Get notified"):
             try:
                 new_subscription = create_subscription(
-                    birthdate,
-                    excluded_from_included(st.session_state.included_tags),
-                    excluded_from_included(st.session_state.included_categories, CATEGORY_NAMES),
-                    active_sequences,
+                    birthdate, st.session_state.get(STATE_KEY)
                 )
             except Exception:
                 st.error("Couldn't save your preferences — try again in a moment.")
@@ -137,71 +89,26 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-with st.expander("Filter what shows up on the calendar"):
-    st.multiselect("Show events about:", options=CATEGORY_NAMES, key="included_categories")
-    st.caption(
-        "Every event belongs to exactly one of these. Events that haven't been "
-        "tagged yet always show up, whatever you pick."
-    )
-    # A popover, not a nested expander - Streamlit rejects expander-in-expander.
-    with st.popover("Advanced: filter by detailed tag"):
-        st.multiselect("Show events tagged:", options=TAG_TAXONOMY, key="included_tags")
-        st.caption(
-            "These narrow things down within the categories you kept above. "
-            "Unchecking a tag can never bring back an event from a category you hid."
-        )
-
-    st.checkbox("Also mark mathematical anniversaries", key="anniversaries_on")
-    st.caption(
-        "Days when your age in days is itself an interesting number. "
-        "Marked with a triangle instead of a circle."
-    )
-    if st.session_state.anniversaries_on:
-        # A stable widget key, not an unkeyed multiselect fed from session
-        # state via `default`: Streamlit hashes `default` into an unkeyed
-        # widget's element id, so feeding last run's selection back in as
-        # `default` changes the id on the very next run and silently drops
-        # whatever the user just picked (confirmed against Streamlit's own
-        # element-id hashing and reproduced with AppTest - every second edit
-        # was reverted). The key still gets garbage-collected whenever the
-        # checkbox above is unticked, which is why included_sequences below
-        # stays the durable value the rest of the script reads, reseeded from
-        # this widget's key rather than replaced by it.
-        if "sequence_picker" not in st.session_state:
-            st.session_state.sequence_picker = list(st.session_state.included_sequences)
-        st.multiselect(
-            "Track these sequences:", options=SEQUENCE_TAXONOMY, key="sequence_picker"
-        )
-        st.session_state.included_sequences = list(st.session_state.sequence_picker)
-        st.caption(
-            "Primes and squares are off to begin with because they'd land far more "
-            "often — a prime day comes round roughly once every nine days."
-        )
-
-    # Refresh the value now that the widgets above have run. The copy made at
-    # the top of the script is already stale by this point: the multiselect
-    # assigns included_sequences here, mid-script, so everything BELOW the
-    # expander - the save button and the calendar - must re-read it or it will
-    # render one interaction behind.
-    active_sequences = (
-        st.session_state.included_sequences if st.session_state.anniversaries_on else []
-    )
+with st.expander("What counts as a match"):
+    preferences = render_filter_panel(subscription)
 
     if subscription:
-        if st.button("Update preferences"):
+        if preferences != st.session_state[SAVED_KEY]:
+            st.caption("You have unsaved changes.")
+        if st.button("Save preferences"):
             try:
-                update_subscription_filters(
-                    subscription["token"],
-                    excluded_from_included(st.session_state.included_tags),
-                    excluded_from_included(st.session_state.included_categories, CATEGORY_NAMES),
-                    active_sequences,
-                )
+                update_subscription_filters(subscription["token"], preferences)
             except Exception:
                 st.error("Couldn't save your preferences — try again in a moment.")
             else:
-                st.success("Saved — your notifications will follow these filters from now on.")
+                st.session_state[SAVED_KEY] = preferences
+                st.success("Saved — your notifications will follow these from now on.")
 
-st.caption("A red circle marks a day that matches a historical event, a triangle marks a mathematical anniversary — click either for details. A filled black date marks today. Use the filter above to narrow what counts.")
+st.caption(
+    "A red circle marks a day that matches a historical event, a triangle marks a "
+    "mathematical anniversary — click either for details. A filled black date marks "
+    "today. Use the panel above to choose what counts, and which of it notifies you."
+)
 
 
 @st.dialog("This day")
@@ -304,10 +211,10 @@ with st.container(key="calendar-grid"):
             age_days = (day_date - birthdate).days
             day_matches = filter_events(
                 EVENTS_BY_AGE.get(age_days, []),
-                st.session_state.included_categories,
-                st.session_state.included_tags,
+                preferences.calendar.categories,
+                preferences.calendar.tags,
             )
-            day_anniversaries = anniversary_matches(age_days, active_sequences)
+            day_anniversaries = anniversary_matches(age_days, preferences.calendar.sequences)
             is_today = day_date == today
 
             if not day_matches and not day_anniversaries:
