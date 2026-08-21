@@ -1123,7 +1123,10 @@ def test_a_subscriber_can_mark_a_sequence_without_being_notified_about_it():
         "included_sequences": ["Powers of 2"],
         "notify_mirrors_calendar": False,
         "notify_excluded_categories": [],
-        "notify_excluded_sequences": [],
+        # Both notify_excluded_* columns are exclusions, so naming the sequence
+        # here is what mutes it. An empty list would mean every marked sequence
+        # still notifies, and this test would assert nothing.
+        "notify_excluded_sequences": ["Powers of 2"],
     }
 
     _, sent_sequences = _run(subscription, [], 2048)
