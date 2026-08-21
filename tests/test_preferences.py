@@ -322,3 +322,57 @@ def test_tags_for_category_returns_the_configured_tags():
         "engineering",
         "health",
     )
+
+
+from core.preferences import preferences_to_columns
+
+
+def test_preferences_to_columns_stores_exclusions_for_categories_and_tags():
+    preferences = toggle_calendar(default_preferences(), SPORT)
+    preferences = toggle_tag(preferences, "military")
+
+    columns = preferences_to_columns(preferences)
+
+    assert columns["excluded_categories"] == ["Sport"]
+    assert columns["excluded_tags"] == ["military"]
+
+
+def test_preferences_to_columns_stores_inclusions_for_sequences():
+    preferences = toggle_calendar(default_preferences(), PRIMES)
+
+    columns = preferences_to_columns(preferences)
+
+    assert columns["included_sequences"] == ["Primes"]
+
+
+def test_preferences_to_columns_writes_the_mirror_flag_and_override():
+    preferences = toggle_notify(default_preferences(), SPORT)
+
+    columns = preferences_to_columns(preferences)
+
+    assert columns["notify_mirrors_calendar"] is False
+    assert columns["notify_excluded_categories"] == ["Sport"]
+    assert columns["notify_excluded_sequences"] == []
+
+
+def test_preferences_to_columns_round_trips():
+    preferences = default_preferences()
+    preferences = toggle_calendar(preferences, Row(CATEGORY, "Disasters"))
+    preferences = toggle_calendar(preferences, PRIMES)
+    preferences = toggle_tag(preferences, "military")
+    preferences = toggle_notify(preferences, SCIENCE)
+
+    assert preferences_from_subscription(preferences_to_columns(preferences)) == preferences
+
+
+def test_preferences_to_columns_writes_all_six_columns():
+    columns = preferences_to_columns(default_preferences())
+
+    assert set(columns) == {
+        "excluded_categories",
+        "excluded_tags",
+        "included_sequences",
+        "notify_mirrors_calendar",
+        "notify_excluded_categories",
+        "notify_excluded_sequences",
+    }
