@@ -85,3 +85,51 @@ def test_an_unmigrated_row_falls_back_to_the_calendar_channel():
     sent_events, _ = _run({"excluded_categories": []}, events, 2048)
 
     assert sent_events == ["Ada"]
+
+
+def test_send_ntfy_notification_uses_the_same_age_title():
+    event = {"name": "George Washington", "event_phrase": "x"}
+    with patch.object(notify, "APP_BASE_URL", ""), \
+         patch.object(notify.requests, "post") as post:
+        notify._send_ntfy_notification("topic", event, "")
+
+    kwargs = post.call_args.kwargs
+    assert kwargs["headers"]["Title"] == "You're now the same age George Washington was".encode("utf-8")
+
+
+def test_send_ntfy_notification_appends_a_visible_link_when_token_and_base_url_present():
+    event = {"name": "George Washington", "event_phrase": "George Washington was when he hoisted the flag."}
+    with patch.object(notify, "APP_BASE_URL", "https://almanac-of-you.streamlit.app"), \
+         patch.object(notify.requests, "post") as post:
+        notify._send_ntfy_notification("topic", event, "tok123")
+
+    kwargs = post.call_args.kwargs
+    body = kwargs["data"].decode("utf-8")
+    link = "https://almanac-of-you.streamlit.app?u=tok123"
+    assert body == f"You're the same age George Washington was when he hoisted the flag.\n\n{link}"
+    assert kwargs["headers"]["Click"] == link
+
+
+def test_send_ntfy_notification_omits_the_link_when_token_is_missing():
+    event = {"name": "George Washington", "event_phrase": "George Washington was when he hoisted the flag."}
+    with patch.object(notify, "APP_BASE_URL", "https://almanac-of-you.streamlit.app"), \
+         patch.object(notify.requests, "post") as post:
+        notify._send_ntfy_notification("topic", event, "")
+
+    kwargs = post.call_args.kwargs
+    body = kwargs["data"].decode("utf-8")
+    assert body == "You're the same age George Washington was when he hoisted the flag."
+    assert "Click" not in kwargs["headers"]
+
+
+def test_send_anniversary_notification_appends_a_visible_link():
+    anniversary = {"sequence": "Powers of 2", "age_days": 2048, "description": "a power of two, 2¹¹"}
+    with patch.object(notify, "APP_BASE_URL", "https://almanac-of-you.streamlit.app"), \
+         patch.object(notify.requests, "post") as post:
+        notify._send_anniversary_notification("topic", anniversary, "tok123")
+
+    kwargs = post.call_args.kwargs
+    body = kwargs["data"].decode("utf-8")
+    link = "https://almanac-of-you.streamlit.app?u=tok123"
+    assert body == f"Your age in days (2,048) is a power of two, 2¹¹.\n\n{link}"
+    assert kwargs["headers"]["Click"] == link

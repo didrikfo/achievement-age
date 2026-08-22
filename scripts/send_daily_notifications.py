@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import os
 from datetime import date
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 
 import requests
 
@@ -58,13 +58,26 @@ def build_matchers() -> List[Matcher]:
     return [_make_db_event_matcher()]
 
 
-def _send_ntfy_notification(topic: str, event: Dict, token: str) -> None:
-    headers = {"Title": f"You're now as old as {event['name']} was".encode("utf-8")}
+def _subscriber_link(token: str) -> Optional[str]:
+    """The subscriber's app link (Click header target and visible body text), or
+    None when there's nothing to build one from - matches the existing
+    Click-header conditional, now shared by two call sites and by body text.
+    """
     if token and APP_BASE_URL:
-        headers["Click"] = f"{APP_BASE_URL}?u={token}"
+        return f"{APP_BASE_URL}?u={token}"
+    return None
+
+
+def _send_ntfy_notification(topic: str, event: Dict, token: str) -> None:
+    headers = {"Title": f"You're now the same age {event['name']} was".encode("utf-8")}
+    link = _subscriber_link(token)
+    body = full_sentence(event, "today")
+    if link:
+        headers["Click"] = link
+        body = f"{body}\n\n{link}"
     requests.post(
         f"https://ntfy.sh/{topic}",
-        data=full_sentence(event).encode("utf-8"),
+        data=body.encode("utf-8"),
         headers=headers,
         timeout=10,
     )
@@ -78,11 +91,14 @@ def _send_anniversary_notification(topic: str, anniversary: Dict, token: str) ->
     name, no person and no date - only a number and what's interesting about it.
     """
     headers = {"Title": "You've hit a mathematical anniversary".encode("utf-8")}
-    if token and APP_BASE_URL:
-        headers["Click"] = f"{APP_BASE_URL}?u={token}"
+    link = _subscriber_link(token)
+    body = anniversary_sentence(anniversary)
+    if link:
+        headers["Click"] = link
+        body = f"{body}\n\n{link}"
     requests.post(
         f"https://ntfy.sh/{topic}",
-        data=anniversary_sentence(anniversary).encode("utf-8"),
+        data=body.encode("utf-8"),
         headers=headers,
         timeout=10,
     )
