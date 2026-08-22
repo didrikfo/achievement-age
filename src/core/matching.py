@@ -122,11 +122,11 @@ def _phrase_body(event: Dict) -> str:
     if stripped.lower().startswith(LEGACY_PHRASE_PREFIX.lower()):
         return stripped[len(LEGACY_PHRASE_PREFIX):]
 
-    hinge_at = phrase.lower().find(PHRASE_HINGE)
-    if hinge_at != -1 and normalize_name(event["name"]) in normalize_name(phrase[:hinge_at]):
-        return phrase
+    hinge_at = stripped.lower().find(PHRASE_HINGE)
+    if hinge_at != -1 and normalize_name(event["name"]) in normalize_name(stripped[:hinge_at]):
+        return stripped
 
-    return f"{event['name']}{PHRASE_HINGE}{phrase}"
+    return f"{event['name']}{PHRASE_HINGE}{stripped}"
 
 
 def full_sentence(event: Dict, tense: Tense) -> str:

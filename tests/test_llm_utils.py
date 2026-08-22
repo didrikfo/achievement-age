@@ -142,7 +142,7 @@ def test_merge_reworded_chunk_writes_review_entry_for_invalid_tags(tmp_path):
     result = [
         {
             **chunk[0],
-            "event_phrase": "The same age that Ada Lovelace was when she published her notes.",
+            "event_phrase": "Ada Lovelace was when she published her notes.",
             "tags": ["not-a-real-tag"],
         }
     ]
@@ -205,7 +205,7 @@ def test_merge_reworded_chunk_stamps_the_prompt_version_only_on_subagent_output(
     result = [
         {
             **chunk[0],
-            "event_phrase": "The same age that Ada Lovelace was when she published her notes.",
+            "event_phrase": "Ada Lovelace was when she published her notes.",
             "tags": ["science"],
         }
     ]

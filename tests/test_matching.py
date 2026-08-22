@@ -81,6 +81,21 @@ def test_full_sentence_strips_the_legacy_opening_regardless_of_case_or_leading_s
     assert full_sentence(event, "today") == "You're the same age Ada Lovelace was when she published her notes."
 
 
+def test_full_sentence_strips_leading_whitespace_from_a_new_format_phrase():
+    event = {
+        "name": "Sir Richard Owen",
+        "event_phrase": "  Sir Richard Owen was when he unveiled the model.",
+    }
+    assert full_sentence(event, "today") == (
+        "You're the same age Sir Richard Owen was when he unveiled the model."
+    )
+
+
+def test_full_sentence_strips_leading_whitespace_from_a_reconstructed_phrase():
+    event = {"name": "George Washington", "event_phrase": "  he hoisted the flag"}
+    assert full_sentence(event, "today") == "You're the same age George Washington was when he hoisted the flag"
+
+
 def test_full_sentence_reconstructs_a_legacy_suffix_only_phrase():
     event = {"name": "George Washington", "event_phrase": "he hoisted the flag"}
     assert full_sentence(event, "today") == "You're the same age George Washington was when he hoisted the flag"

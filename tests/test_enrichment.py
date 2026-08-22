@@ -157,6 +157,24 @@ def test_check_phrase_format_rejects_a_missing_terminal_period():
     assert "punctuation" in reason
 
 
+def test_check_phrase_format_rejects_an_echoed_tensed_opening():
+    # A subagent could echo one of the three tensed openers illustrated in
+    # reword_prompt.md straight into its output. The name is still technically
+    # present before the hinge, so this must be caught by a dedicated check,
+    # not the name-containment one.
+    phrase = "You're the same age Sir Richard Owen was when he unveiled the model."
+    reason = check_phrase_format(phrase, "Sir Richard Owen")
+    assert reason is not None
+    assert "the same age" in reason.lower()
+
+
+def test_check_phrase_format_rejects_the_legacy_full_sentence_opening():
+    phrase = "The same age that Sir Richard Owen was when he unveiled the model."
+    reason = check_phrase_format(phrase, "Sir Richard Owen")
+    assert reason is not None
+    assert "the same age" in reason.lower()
+
+
 def test_check_facts_preserved_returns_empty_when_everything_survives():
     text = "Fulgencio Batista, dictator of Cuba, is overthrown by Fidel Castro's forces."
     phrase = "The same age that Fidel Castro was when his forces overthrew Fulgencio Batista, dictator of Cuba."

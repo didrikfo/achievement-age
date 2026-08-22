@@ -66,10 +66,12 @@ def check_phrase_format(event_phrase: str, name: str) -> Optional[str]:
     """Structural check on an event_phrase. Advisory - never blocks a write.
 
     Returns a rejection reason, or None when the phrase is well formed:
-    contains PHRASE_HINGE, names `name` before it (so a title prefix passes
-    but a substituted person doesn't), and ends with terminal punctuation.
-    There's no fixed opening to check for - the phrase starts directly with
-    the person, whatever their name or title.
+    contains PHRASE_HINGE, doesn't echo a display-time opening ("the same
+    age ...", covering both the legacy full-sentence prefix and all three
+    tensed openers) before the hinge, names `name` before it (so a title
+    prefix passes but a substituted person doesn't), and ends with terminal
+    punctuation. There's no fixed opening the phrase itself should start
+    with - it starts directly with the person, whatever their name or title.
     """
     phrase = (event_phrase or "").strip()
     if not phrase:
@@ -81,6 +83,9 @@ def check_phrase_format(event_phrase: str, name: str) -> Optional[str]:
         return f"phrase does not contain {PHRASE_HINGE.strip()!r}"
 
     subject_span = phrase[:hinge_at]
+    if "the same age" in subject_span.lower():
+        return f"phrase includes a display opening: {subject_span!r}"
+
     if normalize_name(name) not in normalize_name(subject_span):
         return f"opening names {subject_span!r}, expected it to contain {name!r}"
 

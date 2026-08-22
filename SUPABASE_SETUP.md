@@ -91,7 +91,7 @@ Then run the one-off backfill (same environment/credentials as the original migr
 python -m ingest.backfill_persons_and_phrases
 ```
 
-> **Do not re-run this after section 9 (full-sentence event phrases) has been applied.** Its
+> **Do not re-run this after section 9 (person-onward event phrases) has been applied.** Its
 > `strip_prefix` step assumes `event_phrase` holds only the suffix, so it would strip the "The
 > same age that {name} was when " opening from the full-sentence format too — silently discarding
 > any title placed next to the name (e.g. "Sir Richard Owen"), since the rebuilt opening is plain
@@ -275,7 +275,7 @@ venv\Scripts\python.exe -m ingest.migrate_to_supabase
 event that could not be auto-accepted — ambiguous subjects, birth dates that are only
 year-precision, implausible ages. Nothing in it was guessed at or silently dropped.
 
-## 9. Full-sentence event phrases
+## 9. Person-onward event phrases
 
 `event_phrase` stores the sentence from the person onward ("Sir Richard Owen was when …"), not a
 fixed opening. The tensed opening ("You were the same age", "You're the same age", "You'll be the

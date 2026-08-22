@@ -29,8 +29,8 @@ For each record, return a JSON object with these fields:
   - If `text` attaches a title, rank, honorific, or established epithet to that person, include it
     here — "Sir Richard Owen", "Flight lieutenant Jerry Rawlings". Never invent one that isn't in
     `text`, and never substitute a different person.
-  - After the opening, use a pronoun rather than repeating the name. If `text` doesn't establish the
-    person's pronouns, use a short form of their name instead — don't guess.
+  - After first naming the person, use a pronoun rather than repeating the name. If `text` doesn't
+    establish the person's pronouns, use a short form of their name instead — don't guess.
 
   **Rewording**
   - Reword for how it *reads*, not to stay close to the original wording. Restructure clauses,
