@@ -191,14 +191,3 @@ def anniversary_sentence(match: Dict) -> str:
     return f"Your age in days ({match['age_days']:,}) is {match['description']}."
 
 
-def included_sequences_for_subscription(subscription: Dict) -> List[str]:
-    """The sequences a subscription tracks, in taxonomy order.
-
-    Read defensively: a row from before the column was added has no key at all,
-    and raising would kill the whole daily run rather than one subscriber. Here
-    the safe read and the intended default are the same thing - absent, null and
-    empty all mean "this subscriber never opted in", which is how every existing
-    subscriber starts.
-    """
-    stored = set(subscription.get("included_sequences") or ())
-    return [name for name in SEQUENCE_TAXONOMY if name in stored]

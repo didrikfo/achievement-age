@@ -6,7 +6,7 @@ import re
 import unicodedata
 from typing import Collection, Dict, Iterable, List, Optional, Sequence
 
-from core.config import CATEGORY_NAMES, TAG_CATEGORIES, TAG_TAXONOMY
+from core.config import TAG_CATEGORIES, TAG_TAXONOMY
 
 
 def primary_category(event: Dict) -> Optional[str]:
@@ -79,31 +79,6 @@ def filter_events(
         if category in categories and any(tag in tags for tag in event.get("tags") or ()):
             kept.append(event)
     return kept
-
-
-def included_tags_for_subscription(subscription: Dict) -> List[str]:
-    """The fine tags a subscription should see. Missing/null column means everything."""
-    return included_from_excluded(subscription.get("excluded_tags") or [], TAG_TAXONOMY)
-
-
-def included_categories_for_subscription(subscription: Dict) -> List[str]:
-    """The categories a subscription should see. Missing/null column means everything."""
-    return included_from_excluded(subscription.get("excluded_categories") or [], CATEGORY_NAMES)
-
-
-def events_for_subscription(events: Iterable[Dict], subscription: Dict) -> List[Dict]:
-    """Filter events by a subscription's stored category and tag preferences.
-
-    Reads both columns defensively: if either hasn't been added to the database
-    yet, every subscriber's row is missing that key, and raising here would kill
-    the whole daily notification run rather than just one subscriber. Absent or
-    null means no filtering on that axis, which is the pre-feature behavior.
-    """
-    return filter_events(
-        events,
-        included_categories_for_subscription(subscription),
-        included_tags_for_subscription(subscription),
-    )
 
 
 def find_matching_events(events: Iterable[Dict], age_in_days: int) -> List[Dict]:

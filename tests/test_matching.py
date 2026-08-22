@@ -3,13 +3,10 @@ from datetime import date
 from core.config import CATEGORY_NAMES, TAG_CATEGORIES, TAG_TAXONOMY
 from core.matching import (
     events_by_age_days,
-    events_for_subscription,
     excluded_from_included,
     filter_events,
     full_sentence,
-    included_categories_for_subscription,
     included_from_excluded,
-    included_tags_for_subscription,
     name_matches_text,
     normalize_name,
     primary_category,
@@ -177,59 +174,6 @@ def test_missing_tags_key_is_treated_as_untagged():
     # An event dict from a code path that never set "tags" must not raise.
     event = {"name": "Someone", "age_days": 1, "event_phrase": ""}
     assert filter_events([event], [], []) == [event]
-
-
-def test_events_for_subscription_applies_stored_tag_exclusions():
-    science = _tagged(["science"])
-    military = _tagged(["military"])
-    subscription = {"excluded_tags": ["military"], "excluded_categories": ["War & Conflict"]}
-    assert events_for_subscription([science, military], subscription) == [science]
-
-
-def test_events_for_subscription_applies_stored_category_exclusions():
-    science = _tagged(["science"])
-    sport = _tagged(["sports"])
-    subscription = {"excluded_categories": ["Sport"]}
-    assert events_for_subscription([science, sport], subscription) == [science]
-
-
-def test_events_for_subscription_survives_a_missing_column():
-    # Before the alter-table lands, subscription rows have no excluded_categories
-    # key at all. That must mean "no filtering", not a KeyError that kills the cron.
-    science = _tagged(["science"])
-    military = _tagged(["military"])
-    assert events_for_subscription([science, military], {}) == [science, military]
-
-
-def test_events_for_subscription_treats_null_columns_as_no_filtering():
-    events = [_tagged(["science"])]
-    subscription = {"excluded_tags": None, "excluded_categories": None}
-    assert events_for_subscription(events, subscription) == events
-
-
-def test_included_tags_for_subscription_applies_stored_exclusions():
-    subscription = {"excluded_tags": ["military", "sports"]}
-    result = included_tags_for_subscription(subscription)
-    assert "military" not in result
-    assert "sports" not in result
-    assert "science" in result
-
-
-def test_included_tags_for_subscription_survives_a_missing_column():
-    assert included_tags_for_subscription({}) == TAG_TAXONOMY
-
-
-def test_included_categories_for_subscription_applies_stored_exclusions():
-    subscription = {"excluded_categories": ["Sport", "Disasters"]}
-    result = included_categories_for_subscription(subscription)
-    assert "Sport" not in result
-    assert "Disasters" not in result
-    assert "Politics & Power" in result
-
-
-def test_included_categories_for_subscription_survives_a_missing_column():
-    assert included_categories_for_subscription({}) == CATEGORY_NAMES
-    assert included_categories_for_subscription({"excluded_categories": None}) == CATEGORY_NAMES
 
 
 def test_categories_partition_the_tag_taxonomy():

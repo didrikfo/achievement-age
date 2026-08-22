@@ -5,7 +5,6 @@ from core.sequences import (
     _superscript,
     anniversary_matches,
     anniversary_sentence,
-    included_sequences_for_subscription,
     sequences_for,
 )
 
@@ -189,26 +188,3 @@ def test_superscript_handles_multiple_digits():
     assert _superscript(2) == "²"
 
 
-# --- subscription reader ---
-
-
-def test_included_sequences_for_subscription_reads_the_stored_list():
-    subscription = {"included_sequences": ["Primes", "Powers of 2"]}
-    # Ordered by the taxonomy, not by how they were stored.
-    assert included_sequences_for_subscription(subscription) == ["Powers of 2", "Primes"]
-
-
-def test_included_sequences_for_subscription_survives_a_missing_column():
-    # Before the alter-table lands, every subscription row is missing the key.
-    # Raising here would kill the whole daily run; and "nothing" is also the
-    # correct default, so this path is safe in both directions.
-    assert included_sequences_for_subscription({}) == []
-
-
-def test_included_sequences_for_subscription_treats_null_as_nothing():
-    assert included_sequences_for_subscription({"included_sequences": None}) == []
-
-
-def test_included_sequences_for_subscription_ignores_unknown_names():
-    subscription = {"included_sequences": ["Powers of 2", "Retired Sequence"]}
-    assert included_sequences_for_subscription(subscription) == ["Powers of 2"]
