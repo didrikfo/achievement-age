@@ -6,6 +6,7 @@ import re
 import unicodedata
 from typing import Collection, Dict, Iterable, List, Optional, Sequence
 
+from core.age import Tense
 from core.config import TAG_CATEGORIES, TAG_TAXONOMY
 
 
@@ -95,26 +96,47 @@ def events_by_age_days(events: Iterable[Dict]) -> Dict[int, List[Dict]]:
 
 
 LEGACY_PHRASE_PREFIX = "The same age that "
+PHRASE_HINGE = " was when "
+
+TENSE_OPENERS = {"past": "You were", "today": "You're", "future": "You'll be"}
 
 
-def full_sentence(event: Dict) -> str:
-    """Return the event's display sentence, rebuilding the opening for legacy rows.
+def _phrase_body(event: Dict) -> str:
+    """Return event_phrase normalized to its name-onward clause, no tensed opening.
 
-    event_phrase now stores the complete sentence - the reword subagent writes
-    it end to end so it can put a title next to the name ("Sir Richard Owen").
-    Rows written before that change store only the fragment after "...was when ",
-    so anything that doesn't already open the sentence gets the old static
-    prefix rebuilt around it.
+    Three shapes of event_phrase coexist in the database while the reprocessing
+    pass (docs/superpowers/specs/2026-08-22-tense-aware-display-text-design.md)
+    is still running manually:
 
-    Kept as a normalizer rather than a plain field read because the reprocessing
-    backfill is run manually: both formats coexist in the database for as long
-    as that takes, and a subagent that ignores the template would otherwise
-    render with no opening at all.
+    1. New format, already name-onward ("Sir Richard Owen was when ..."): used
+       as-is.
+    2. Current full-sentence format, opening with LEGACY_PHRASE_PREFIX ("The
+       same age that Sir Richard Owen was when ..."): the fixed prefix is
+       stripped off.
+    3. Oldest suffix-only format (predates both prompts, no recognizable
+       opening): reconstructed as "{name} was when {phrase}", the same
+       fallback this module has always used for pre-2026-08-08 rows.
     """
     phrase = event["event_phrase"]
-    if phrase.lstrip().lower().startswith(LEGACY_PHRASE_PREFIX.lower()):
+    stripped = phrase.lstrip()
+    if stripped.lower().startswith(LEGACY_PHRASE_PREFIX.lower()):
+        return stripped[len(LEGACY_PHRASE_PREFIX):]
+
+    hinge_at = phrase.lower().find(PHRASE_HINGE)
+    if hinge_at != -1 and normalize_name(event["name"]) in normalize_name(phrase[:hinge_at]):
         return phrase
-    return f"{LEGACY_PHRASE_PREFIX}{event['name']} was when {phrase}"
+
+    return f"{event['name']}{PHRASE_HINGE}{phrase}"
+
+
+def full_sentence(event: Dict, tense: Tense) -> str:
+    """Return the event's tensed display sentence.
+
+    tense is the caller's own comparison of the viewed day to the real today
+    (core.age.tense_for) - not recomputed here, since a caller rendering
+    several events for the same day should compute it once and reuse it.
+    """
+    return f"{TENSE_OPENERS[tense]} the same age {_phrase_body(event)}"
 
 
 def normalize_name(text: str) -> str:
