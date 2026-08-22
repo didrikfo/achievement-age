@@ -18,7 +18,6 @@ from typing import Dict, Optional
 
 import streamlit as st
 
-from core.config import TAG_CATEGORIES
 from core.preferences import (
     CATEGORY,
     SEQUENCE,

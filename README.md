@@ -21,10 +21,9 @@ to share an age with someone from history.
   notified about science. Notifications follow your calendar by default; click a bell to break that
   and pick per row. If you're subscribed, the whole panel is saved to your private link.
 - **Mathematical anniversaries** — optionally also mark the days when your age in days is itself an
-  interesting number: a power of two, a Fibonacci number, the 100th triangular number. Off by
-  default, and each sequence can be switched on or off individually — primes are left off to begin
-  with, since roughly one day in nine is one. If you're subscribed, an enabled sequence is pushed
-  the same way a historical-event match is.
+  interesting number: a power of two, a Fibonacci number, the 100th triangular number. All eight
+  sequences are off by default; click a row in the panel to start tracking one. If you're
+  subscribed, an enabled sequence is pushed the same way a historical-event match is.
 - **Passive notifications** — sign up once with your birthday and get a free push notification (via
   [ntfy](https://ntfy.sh)) on the actual day a match happens, without needing to check the app
   yourself. This is the main point of the project: something that runs quietly in the background

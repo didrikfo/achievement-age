@@ -375,7 +375,7 @@ a one-off migration that rewrites the old name to the new one in every `subscrip
 array.
 
 Like `excluded_tags`, this column stores **exclusions**, so a category added later is visible to
-existing subscribers by default. `core.matching.events_for_subscription` reads it defensively, so
+existing subscribers by default. `core.preferences.preferences_from_subscription` reads it defensively, so
 if the cron job runs before this SQL is applied it falls back to tag-only filtering rather than
 failing the run.
 
@@ -423,7 +423,7 @@ construction, with nothing to migrate and nobody to miss. An exclusion column wo
 one-off `UPDATE` over every row plus app code to keep seeding it, either of which fails open if it
 misses someone.
 
-`core.sequences.included_sequences_for_subscription` reads the column defensively
+`core.preferences.preferences_from_subscription` reads the column defensively
 (`.get("included_sequences") or []`), so if the cron job runs before this SQL is applied it falls
 back to sending no anniversaries — which is also the intended default, so a slipped deployment
 order fails safe in both directions.

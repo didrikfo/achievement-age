@@ -139,6 +139,9 @@ def preferences_from_subscription(subscription: Optional[Dict]) -> Preferences:
         tags=tuple(
             included_from_excluded(subscription.get("excluded_tags") or [], TAG_TAXONOMY)
         ),
+        # limit_to is the taxonomy itself here, not a second selection to
+        # intersect against - this call only needs to filter out unknown
+        # names left over from a renamed or retired sequence.
         sequences=_ordered(
             subscription.get("included_sequences") or [], SEQUENCE_TAXONOMY, SEQUENCE_TAXONOMY
         ),
@@ -300,7 +303,7 @@ def set_mirror(preferences: Preferences, mirroring: bool) -> Preferences:
 def toggle_tag(preferences: Preferences, tag: str) -> Preferences:
     """Include or exclude one fine tag. Narrows both channels - tags are not per-channel."""
     tags = set(preferences.calendar.tags)
-    tags.discard(tag) if tag in tags else tags.add(tag)
+    tags.symmetric_difference_update({tag})
     ordered = tuple(entry for entry in TAG_TAXONOMY if entry in tags)
     return replace(preferences, calendar=replace(preferences.calendar, tags=ordered))
 

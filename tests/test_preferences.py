@@ -9,6 +9,7 @@ from core.preferences import (
     is_notifying,
     is_on_calendar,
     preferences_from_subscription,
+    preferences_to_columns,
     set_mirror,
     tags_for_category,
     toggle_calendar,
@@ -225,7 +226,7 @@ def test_toggle_notify_mutes_one_row_and_breaks_the_mirror():
     assert is_on_calendar(muted, SPORT)
 
 
-def test_breaking_the_mirror_seeds_the_override_from_the_calendar():
+def test_muting_one_row_leaves_every_other_marked_row_notifying():
     # Two categories already hidden, one sequence tracked. After muting Science,
     # the notify channel must equal the calendar minus Science - not the whole
     # taxonomy, and not an empty set.
@@ -322,9 +323,6 @@ def test_tags_for_category_returns_the_configured_tags():
         "engineering",
         "health",
     )
-
-
-from core.preferences import preferences_to_columns
 
 
 def test_preferences_to_columns_stores_exclusions_for_categories_and_tags():

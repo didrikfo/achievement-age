@@ -60,7 +60,7 @@ else:
         st.write(
             "Get a push notification (via the free [ntfy](https://ntfy.sh) app) on days "
             "when your age matches a historical event, without having to check the calendar yourself. "
-            "If you've turned on mathematical anniversaries above, those are pushed too."
+            "Whatever you mark and choose to be notified about in the panel below carries over."
         )
         if st.button("Get notified"):
             try:

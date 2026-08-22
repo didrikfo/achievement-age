@@ -6,8 +6,6 @@ runtime; these only prove the buttons are connected to them.
 
 from pathlib import Path
 
-import pytest
-
 from streamlit.testing.v1 import AppTest
 
 APP = str(Path(__file__).parent / "apps" / "filter_panel_app.py")
@@ -90,3 +88,14 @@ def test_single_tag_categories_get_no_narrowing_popover():
     # War & Conflict maps to exactly one tag, so a narrowing control is a no-op.
     assert not any(key == "tag-military" for key in keys)
     assert any(key == "tag-science" for key in keys)
+
+
+def test_clicking_a_tag_narrows_only_that_tag():
+    app = _run()
+
+    # Science & Technology has four tags, so its popover is a real narrowing
+    # control rather than a no-op.
+    _button(app, "tag-science").click().run()
+
+    assert "science" not in _value(app, "calendar_tags=").split(",")
+    assert "technology" in _value(app, "calendar_tags=").split(",")

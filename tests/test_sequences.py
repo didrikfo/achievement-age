@@ -1,4 +1,4 @@
-from core.config import DEFAULT_SEQUENCES, SEQUENCE_TAXONOMY
+from core.config import SEQUENCE_TAXONOMY
 from core.sequences import (
     _ordinal,
     _SEQUENCES,
@@ -22,22 +22,6 @@ def _description(age_days, sequence):
 
 def test_every_taxonomy_name_has_exactly_one_implementation():
     assert list(_SEQUENCES) == SEQUENCE_TAXONOMY
-
-
-def test_the_default_set_is_the_sparse_legible_four():
-    assert DEFAULT_SEQUENCES == [
-        "Powers of 2",
-        "Powers of 10",
-        "Triangle numbers",
-        "Fibonacci numbers",
-    ]
-
-
-def test_primes_are_never_on_by_default():
-    # ~1 in 9 days is prime near a 90-year lifespan, so defaulting these on
-    # would turn a handful-of-times-a-year feature into a weekly push.
-    assert "Primes" not in DEFAULT_SEQUENCES
-    assert set(DEFAULT_SEQUENCES).issubset(SEQUENCE_TAXONOMY)
 
 
 def test_sequences_for_returns_taxonomy_order_not_discovery_order():
