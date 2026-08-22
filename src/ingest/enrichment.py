@@ -24,7 +24,7 @@ PROMPT_TEMPLATE_PATH = Path(__file__).parent / "reword_prompt.md"
 #: results. Rows in Supabase carry the version they were written under
 #: (events.reword_prompt_version, default 0 for everything predating this), so a
 #: prompt revision makes the affected rows re-queueable instead of one-shot.
-REWORD_PROMPT_VERSION = 1
+REWORD_PROMPT_VERSION = 2
 
 
 def build_prompt() -> str:
@@ -55,7 +55,6 @@ def validate_tags(raw_tags: List[str]) -> Tuple[List[str], Optional[str]]:
     return valid, None
 
 
-PHRASE_OPENING = "The same age that "
 PHRASE_HINGE = " was when "
 
 _PARENTHESISED = re.compile(r"\([^)]*\)")
@@ -64,26 +63,24 @@ _NUMERAL = re.compile(r"\b\d[\d,]*\b")
 
 
 def check_phrase_format(event_phrase: str, name: str) -> Optional[str]:
-    """Structural check on a full-sentence event_phrase. Advisory - never blocks a write.
+    """Structural check on an event_phrase. Advisory - never blocks a write.
 
     Returns a rejection reason, or None when the phrase is well formed:
-    opens with PHRASE_OPENING, contains PHRASE_HINGE, names `name` between the
-    two (so a title prefix passes but a substituted person doesn't), and ends
-    with terminal punctuation.
+    contains PHRASE_HINGE, names `name` before it (so a title prefix passes
+    but a substituted person doesn't), and ends with terminal punctuation.
+    There's no fixed opening to check for - the phrase starts directly with
+    the person, whatever their name or title.
     """
     phrase = (event_phrase or "").strip()
     if not phrase:
         return "phrase is empty"
 
     lowered = phrase.lower()
-    if not lowered.startswith(PHRASE_OPENING.lower()):
-        return f"phrase does not start with {PHRASE_OPENING.strip()!r}"
-
     hinge_at = lowered.find(PHRASE_HINGE.lower())
     if hinge_at == -1:
         return f"phrase does not contain {PHRASE_HINGE.strip()!r}"
 
-    subject_span = phrase[len(PHRASE_OPENING) : hinge_at]
+    subject_span = phrase[:hinge_at]
     if normalize_name(name) not in normalize_name(subject_span):
         return f"opening names {subject_span!r}, expected it to contain {name!r}"
 

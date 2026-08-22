@@ -277,12 +277,17 @@ year-precision, implausible ages. Nothing in it was guessed at or silently dropp
 
 ## 9. Full-sentence event phrases
 
-`event_phrase` now stores the **complete** display sentence ("The same age that Sir Richard Owen was
-when …"), not just the fragment after "…was when ". The reword subagent writes the whole sentence so
-it can place a title next to the name; `events.name` still holds the bare name.
+`event_phrase` stores the sentence from the person onward ("Sir Richard Owen was when …"), not a
+fixed opening. The tensed opening ("You were the same age", "You're the same age", "You'll be the
+same age", depending on whether the reader is viewing a day before, on, or after today) is prepended
+by the app at display time — see `core.matching.full_sentence` and
+`docs/superpowers/specs/2026-08-22-tense-aware-display-text-design.md`. The reword subagent writes
+the person-onward clause so it can place a title next to the name; `events.name` still holds the
+bare name.
 
-`core.matching.full_sentence` prefixes anything that doesn't already open with "The same age that",
-so rows in the older suffix-only format keep displaying correctly until the backfill below has run.
+`core.matching.full_sentence`'s normalizer strips or reconstructs whatever shape an older row is in,
+so rows written under any previous prompt version keep displaying correctly until the backfill below
+has run.
 
 Run this in the SQL editor first — it tracks which rows have been written under which version of
 `src/ingest/reword_prompt.md`, so the backfill is resumable and future prompt revisions are

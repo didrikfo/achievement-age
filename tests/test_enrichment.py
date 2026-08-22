@@ -119,39 +119,39 @@ def test_build_tag_rows_skips_unknown_tag_names():
     assert rows == [{"event_id": 42, "tag_id": 5}]
 
 
-def test_check_phrase_format_accepts_a_well_formed_sentence():
-    phrase = "The same age that Jerry Rawlings was when a coup d'état removed the PNP government."
+def test_check_phrase_format_accepts_a_well_formed_phrase():
+    phrase = "Jerry Rawlings was when a coup d'état removed the PNP government."
     assert check_phrase_format(phrase, "Jerry Rawlings") is None
 
 
 def test_check_phrase_format_accepts_a_title_in_front_of_the_name():
     # The whole point of the rewrite: titles move next to the name, and the bare
-    # name in the DB still has to be recognisable inside the opening.
-    phrase = "The same age that Flight lieutenant Jerry Rawlings was when a coup d'état removed the PNP government."
+    # name in the DB still has to be recognisable before the hinge.
+    phrase = "Flight lieutenant Jerry Rawlings was when a coup d'état removed the PNP government."
     assert check_phrase_format(phrase, "Jerry Rawlings") is None
 
 
-def test_check_phrase_format_rejects_a_legacy_suffix_only_phrase():
+def test_check_phrase_format_rejects_a_phrase_with_no_hinge_at_all():
     reason = check_phrase_format("he hoisted the flag.", "George Washington")
     assert reason is not None
-    assert "start" in reason
+    assert "was when" in reason
 
 
-def test_check_phrase_format_rejects_a_missing_hinge():
-    reason = check_phrase_format("The same age that George Washington hoisted the flag.", "George Washington")
+def test_check_phrase_format_rejects_a_phrase_missing_the_hinge():
+    reason = check_phrase_format("George Washington hoisted the flag.", "George Washington")
     assert reason is not None
     assert "was when" in reason
 
 
 def test_check_phrase_format_rejects_a_substituted_person():
-    phrase = "The same age that Benjamin Franklin was when he hoisted the flag."
+    phrase = "Benjamin Franklin was when he hoisted the flag."
     reason = check_phrase_format(phrase, "George Washington")
     assert reason is not None
     assert "George Washington" in reason
 
 
 def test_check_phrase_format_rejects_a_missing_terminal_period():
-    phrase = "The same age that George Washington was when he hoisted the flag"
+    phrase = "George Washington was when he hoisted the flag"
     reason = check_phrase_format(phrase, "George Washington")
     assert reason is not None
     assert "punctuation" in reason
@@ -204,22 +204,21 @@ def test_check_facts_preserved_deduplicates_repeated_tokens():
     assert check_facts_preserved(text, phrase) == ["Prussia", "Austria"]
 
 
-def test_reword_prompt_version_is_one():
+def test_reword_prompt_version_is_two():
     from ingest.enrichment import REWORD_PROMPT_VERSION
 
-    assert REWORD_PROMPT_VERSION == 1
+    assert REWORD_PROMPT_VERSION == 2
 
 
-def test_build_prompt_asks_for_a_full_sentence_with_titles():
+def test_build_prompt_asks_for_a_name_onward_phrase_with_titles():
     prompt = build_prompt()
-    # The template, the freedom to restructure, title placement, and the
-    # topic-prefix rule are the four things this rewrite exists to convey.
-    assert "The same age that" in prompt
+    # The hinge, the freedom to restructure, and title placement are the three
+    # things this rewrite exists to convey; the old fixed opening must be gone.
     assert "was when" in prompt
     assert "title, rank, honorific" in prompt
     assert "Preserving the source's sentence structure is not a goal" in prompt
-    # And the old suffix-only instruction must be gone.
     assert "Don't capitalize the first word" not in prompt
+    assert "The same age that" not in prompt
 
 
 def test_build_prompt_still_substitutes_the_tag_taxonomy():
