@@ -433,3 +433,46 @@ eight names in `core.config.SEQUENCE_TAXONOMY` (`"Powers of 2"`, `"Fibonacci num
 persisted verbatim into this column and matched by exact string. Renaming one — even a copy edit
 like "Primes" → "Prime numbers" — silently drops it from every subscriber who selected it. Keep the
 old string as an alias, or migrate the arrays.
+
+## 14. Two-channel filter preferences
+
+Run this in the SQL editor **before** deploying the two-channel filter code — the app's "Save
+preferences" button writes these columns, and the write fails if they don't exist.
+
+```sql
+alter table subscriptions add column if not exists notify_mirrors_calendar    boolean not null default true;
+alter table subscriptions add column if not exists notify_excluded_categories text[]  not null default '{}';
+alter table subscriptions add column if not exists notify_excluded_sequences  text[]  not null default '{}';
+```
+
+No backfill is needed, and that is the point of the mirror flag. `default true` puts every existing
+subscriber on "notifications follow my calendar", which is exactly the behaviour they had before
+the split — so nobody who muted a category starts hearing about it again.
+
+The three pre-existing columns (`excluded_categories`, `excluded_tags`, `included_sequences`) keep
+their meaning unchanged and now describe the **calendar** channel. The two new list columns describe
+the **notification** channel, and are read only while `notify_mirrors_calendar` is false. They are
+always intersected with the calendar selection on read (`core.preferences.Preferences.notify`), so a
+stale entry for a category the subscriber later hid can never resurrect a notification.
+
+**Both override columns store exclusions**, so "absent from the override" means "notifies" on
+either axis. They are deliberately not symmetric with the calendar columns: an earlier draft made
+`notify_excluded_sequences` inclusions to match `included_sequences`, and it was implemented and found
+broken — nothing maintains the override while mirroring, so every marked sequence was absent from
+it, and unticking the mirror toggle silenced all of a subscriber's anniversaries at once.
+
+Opt-in still holds, one level up: a sequence nobody marked is not in the calendar selection, and
+`Preferences.notify` intersects the override with the calendar, so the override's permission is
+unreachable for an unmarked row. That is also why no seeding step is needed when the mirror breaks.
+
+There is no `notify_excluded_tags` — fine tags narrow both channels equally.
+
+**The rename hazard from sections 11 and 13 now applies twice over.** A `TAG_CATEGORIES` key is
+persisted verbatim into both `excluded_categories` and `notify_excluded_categories`; a
+`SEQUENCE_TAXONOMY` name into both `included_sequences` and `notify_excluded_sequences`. Renaming
+either orphans subscriber state in two columns instead of one, silently. Keep an alias or write a
+migration that rewrites **both**.
+
+`core.preferences.preferences_from_subscription` reads every column defensively, so if the daily
+cron job runs before this SQL is applied it falls back to the calendar channel rather than failing
+the run.
