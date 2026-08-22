@@ -114,11 +114,18 @@ under the new prompt.
 check for; it now requires the phrase to contain `" was when "`, the span before that hinge to
 contain the event's `name` (via `normalize_name`, so a title prefix still passes), and the phrase
 to end in terminal punctuation. `check_facts_preserved` is unaffected — it doesn't reason about
-the opening.
+the opening. `PHRASE_OPENING` in `enrichment.py` was only ever read by `check_phrase_format`'s old
+"starts with" branch, so it's removed along with that branch.
 
-`PHRASE_OPENING` in `enrichment.py` and `LEGACY_PHRASE_PREFIX` in `matching.py` keep their current
-names and values, but change role: they stop being something the prompt or the format check
-assert *should* be present, and become purely the string `_phrase_body`'s branch 2 strips off.
+`LEGACY_PHRASE_PREFIX` in `matching.py` keeps its current name and value ("The same age that "),
+but changes role: it's no longer something a well-formed row is expected to start with — it
+becomes purely the string `_phrase_body`'s branch 2 strips off existing rows still in that shape.
+
+`ingest/llm_utils._fallback_event_phrase` — the deterministic template used when a subagent
+returns nothing usable during the (separate, still-live) local-JSON ingestion of genuinely new
+events — mirrors the same change: it drops "The same age that " and returns
+`f"{name} was when {lowered_text}"` instead, so a fallback-generated row is already in the new
+shape rather than needing `_phrase_body` to strip it later.
 
 ## Notification changes
 
