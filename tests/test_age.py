@@ -1,6 +1,6 @@
 from datetime import date
 
-from core.age import age_breakdown, days_between_dates
+from core.age import age_breakdown, days_between_dates, tense_for
 
 
 def test_age_breakdown_straightforward():
@@ -23,3 +23,15 @@ def test_age_breakdown_leap_day_birthday():
 
 def test_days_between_dates():
     assert days_between_dates(date(2000, 2, 29), date(2001, 2, 28)) == 365
+
+
+def test_tense_for_a_day_before_today_is_past():
+    assert tense_for(date(2020, 1, 1), date(2020, 6, 1)) == "past"
+
+
+def test_tense_for_today_is_today():
+    assert tense_for(date(2020, 6, 1), date(2020, 6, 1)) == "today"
+
+
+def test_tense_for_a_day_after_today_is_future():
+    assert tense_for(date(2020, 12, 1), date(2020, 6, 1)) == "future"
