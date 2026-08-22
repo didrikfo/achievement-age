@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st
 
-from core.age import age_breakdown
+from core.age import age_breakdown, tense_for
 from core.db import (
     create_subscription,
     fetch_events,
@@ -111,11 +111,15 @@ st.caption(
 )
 
 
+DIALOG_TENSE_VERB = {"past": "were", "today": "are", "future": "will be"}
+
+
 @st.dialog("This day")
 def show_day_dialog(day_date: date, events: List[Dict], anniversaries: List[Dict]) -> None:
+    tense = tense_for(day_date, date.today())
     match_years, match_months, match_days = age_breakdown(birthdate, day_date)
     st.markdown(
-        f"On **{day_date.strftime('%B %d, %Y')}** you are/were "
+        f"On **{day_date.strftime('%B %d, %Y')}** you {DIALOG_TENSE_VERB[tense]} "
         f"**{match_years} years, {match_months} months, {match_days} days** old:"
     )
     # A scrolling box only past a few entries - day 1 alone carries seven
@@ -129,7 +133,7 @@ def show_day_dialog(day_date: date, events: List[Dict], anniversaries: List[Dict
             st.markdown("**Historical matches**")
             for event in events:
                 event_date = date(int(event["year"]), int(event["month"]), int(event["day"]))
-                st.markdown(f"- {full_sentence(event)} *({event_date.strftime('%B %d, %Y')})*")
+                st.markdown(f"- {full_sentence(event, tense)} *({event_date.strftime('%B %d, %Y')})*")
                 description = event.get("detailed_description") or event.get("text")
                 if description:
                     st.caption(description)
