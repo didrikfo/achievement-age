@@ -52,7 +52,17 @@ subscription = get_subscription(token) if token else None
 
 if subscription:
     birthdate = date.fromisoformat(subscription["birthday"])
-    st.caption("Welcome back — this link remembers your birthday.")
+    st.markdown(
+        f"<p class='aa-birthday'>Born <b>{birthdate.strftime('%B %d, %Y')}</b></p>",
+        unsafe_allow_html=True,
+    )
+    with st.expander("Show my notification link"):
+        link = subscription_link(subscription["token"])
+        st.code(link, language=None)
+        st.markdown(
+            f"If you haven't already, install the [ntfy app](https://ntfy.sh) and "
+            f"subscribe to the topic `{subscription['ntfy_topic']}` to get notified."
+        )
 else:
     birthdate = st.date_input("Your birthday", value=date(2000, 1, 1), min_value=date(1900, 1, 1))
 

@@ -41,6 +41,7 @@ PAGE_CSS = """
 
 /* Age line accent */
 .aa-age b { border-bottom: 1px solid var(--aa-accent); color: var(--aa-accent); }
+.aa-birthday b { border-bottom: 1px solid var(--aa-accent); color: var(--aa-accent); }
 
 /* Calendar grid: table borders */
 .st-key-calendar-grid { border-top: 1px solid var(--aa-ink); border-left: 1px solid var(--aa-ink); }
