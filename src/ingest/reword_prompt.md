@@ -14,18 +14,23 @@ For each record, return a JSON object with these fields:
 - `id`: copied unchanged from the input (when the input record has one).
 - `name`: copied unchanged from the input.
 - `text`: copied unchanged from the input.
-- `event_phrase`: the **complete display sentence** shown to the app user. It always follows this
-  template, with the `was when` hinge never varied:
+- `event_phrase`: the sentence shown to the app user, written from the person onward. It always
+  follows this template, with the `was when` hinge never varied:
 
-  > The same age that **{person}** was when **{event}**.
+  > **{person}** was when **{event}**.
+
+  The app prepends a tensed opening in front of this ("You were the same age", "You're the same
+  age", "You'll be the same age", depending on whether the reader is viewing a day before, on, or
+  after today) — that part is computed by the app, not written by you. Begin your output directly
+  with the person.
 
   **Naming the person**
   - Default to `name` exactly as given.
   - If `text` attaches a title, rank, honorific, or established epithet to that person, include it
     here — "Sir Richard Owen", "Flight lieutenant Jerry Rawlings". Never invent one that isn't in
     `text`, and never substitute a different person.
-  - After the opening, use a pronoun rather than repeating the name. If `text` doesn't establish the
-    person's pronouns, use a short form of their name instead — don't guess.
+  - After first naming the person, use a pronoun rather than repeating the name. If `text` doesn't
+    establish the person's pronouns, use a short form of their name instead — don't guess.
 
   **Rewording**
   - Reword for how it *reads*, not to stay close to the original wording. Restructure clauses,
@@ -51,8 +56,8 @@ For each record, return a JSON object with these fields:
   model of an iguanodon created by Benjamin Waterhouse Hawkins and Sir Richard Owen in south London,
   England.":
 
-  > The same age that Sir Richard Owen was when a dinner party was held inside a life-size model of an
-  > iguanodon, which he had created with Benjamin Waterhouse Hawkins, in south London, England.
+  > Sir Richard Owen was when a dinner party was held inside a life-size model of an iguanodon, which
+  > he had created with Benjamin Waterhouse Hawkins, in south London, England.
 
   Note the title moved up next to the name, and the model's creation was recast so he is the one doing
   it. `name` in your output stays the bare "Richard Owen" — titles belong only in `event_phrase`.

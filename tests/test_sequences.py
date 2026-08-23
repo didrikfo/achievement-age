@@ -1,11 +1,10 @@
-from core.config import DEFAULT_SEQUENCES, SEQUENCE_TAXONOMY
+from core.config import SEQUENCE_TAXONOMY
 from core.sequences import (
     _ordinal,
     _SEQUENCES,
     _superscript,
     anniversary_matches,
     anniversary_sentence,
-    included_sequences_for_subscription,
     sequences_for,
 )
 
@@ -23,22 +22,6 @@ def _description(age_days, sequence):
 
 def test_every_taxonomy_name_has_exactly_one_implementation():
     assert list(_SEQUENCES) == SEQUENCE_TAXONOMY
-
-
-def test_the_default_set_is_the_sparse_legible_four():
-    assert DEFAULT_SEQUENCES == [
-        "Powers of 2",
-        "Powers of 10",
-        "Triangle numbers",
-        "Fibonacci numbers",
-    ]
-
-
-def test_primes_are_never_on_by_default():
-    # ~1 in 9 days is prime near a 90-year lifespan, so defaulting these on
-    # would turn a handful-of-times-a-year feature into a weekly push.
-    assert "Primes" not in DEFAULT_SEQUENCES
-    assert set(DEFAULT_SEQUENCES).issubset(SEQUENCE_TAXONOMY)
 
 
 def test_sequences_for_returns_taxonomy_order_not_discovery_order():
@@ -189,26 +172,3 @@ def test_superscript_handles_multiple_digits():
     assert _superscript(2) == "²"
 
 
-# --- subscription reader ---
-
-
-def test_included_sequences_for_subscription_reads_the_stored_list():
-    subscription = {"included_sequences": ["Primes", "Powers of 2"]}
-    # Ordered by the taxonomy, not by how they were stored.
-    assert included_sequences_for_subscription(subscription) == ["Powers of 2", "Primes"]
-
-
-def test_included_sequences_for_subscription_survives_a_missing_column():
-    # Before the alter-table lands, every subscription row is missing the key.
-    # Raising here would kill the whole daily run; and "nothing" is also the
-    # correct default, so this path is safe in both directions.
-    assert included_sequences_for_subscription({}) == []
-
-
-def test_included_sequences_for_subscription_treats_null_as_nothing():
-    assert included_sequences_for_subscription({"included_sequences": None}) == []
-
-
-def test_included_sequences_for_subscription_ignores_unknown_names():
-    subscription = {"included_sequences": ["Powers of 2", "Retired Sequence"]}
-    assert included_sequences_for_subscription(subscription) == ["Powers of 2"]

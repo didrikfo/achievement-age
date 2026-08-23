@@ -49,11 +49,13 @@ def _event_key(event: Dict) -> Tuple[object, object]:
 
 
 def _fallback_event_phrase(event: Dict) -> str:
-    """Deterministic full sentence used when a subagent can't produce usable output.
+    """Deterministic name-onward phrase used when a subagent can't produce usable output.
 
-    Mirrors exactly what core.matching.full_sentence used to reconstruct: the
-    plain name (never a title - we have no source for one without the LLM) plus
-    the original text, lowercased at the join. Degraded but well-formed.
+    Mirrors exactly what core.matching.full_sentence's normalizer reconstructs
+    for the oldest suffix-only rows: the plain name (never a title - we have no
+    source for one without the LLM) plus the original text, lowercased at the
+    join. Degraded but well-formed, and already in the current shape - no
+    tensed opening, since that's computed at display time, not stored.
 
     Records built this way are deliberately NOT stamped with
     REWORD_PROMPT_VERSION by the caller, so the phrasing backfill re-queues
@@ -61,7 +63,7 @@ def _fallback_event_phrase(event: Dict) -> str:
     """
     text = event.get("text", "") or ""
     lowered = text[:1].lower() + text[1:] if text else text
-    return f"The same age that {event.get('name', '')} was when {lowered}"
+    return f"{event.get('name', '')} was when {lowered}"
 
 
 def get_pending_events(

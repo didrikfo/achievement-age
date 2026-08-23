@@ -63,17 +63,9 @@ SEQUENCE_TAXONOMY: List[str] = [
     "Catalan numbers",
 ]
 
-#: What the sequence multiselect is pre-loaded with the first time a visitor
-#: enables the feature - never a database default, and never applied to an
-#: existing subscriber. The four are the sparse, legible ones; primes alone
-#: land roughly 1 day in 9 near a 90-year lifespan, and squares and cubes
-#: cluster densely in the first months of life.
-DEFAULT_SEQUENCES: List[str] = SEQUENCE_TAXONOMY[:4]
-
 __all__ = [
     "CATEGORY_NAMES",
     "DATA_DIR",
-    "DEFAULT_SEQUENCES",
     "PROJECT_ROOT",
     "SEQUENCE_TAXONOMY",
     "TAG_CATEGORIES",

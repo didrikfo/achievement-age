@@ -216,7 +216,7 @@ def test_pending_phrasing_events_selects_rows_below_the_current_version():
 def test_resolve_event_update_phrasing_mode_writes_only_phrase_and_version():
     event = {"id": 4, "name": "Ada Lovelace", "text": "Ada Lovelace published notes.", "year": 1843, "month": 1, "day": 1}
     result = {
-        "event_phrase": "The same age that Ada Lovelace was when she published her notes.",
+        "event_phrase": "Ada Lovelace was when she published her notes.",
         "tags": ["science"],
         "suggested_subject": None,
     }
@@ -224,7 +224,7 @@ def test_resolve_event_update_phrasing_mode_writes_only_phrase_and_version():
     update, tags, review_entries = resolve_event_update(event, result, births_lookup={}, mode="phrasing")
 
     assert update == {
-        "event_phrase": "The same age that Ada Lovelace was when she published her notes.",
+        "event_phrase": "Ada Lovelace was when she published her notes.",
         "reword_prompt_version": REWORD_PROMPT_VERSION,
     }
     # Tags are already assigned for these rows; the phrasing pass must not touch them.
@@ -244,7 +244,7 @@ def test_resolve_event_update_phrasing_mode_records_but_does_not_apply_a_subject
     result = {
         # Names both people, so the fact check stays quiet and this test isolates
         # the subject behaviour.
-        "event_phrase": "The same age that George Washington was when he and John Adams hoisted the flag.",
+        "event_phrase": "George Washington was when he and John Adams hoisted the flag.",
         "suggested_subject": "John Adams",
     }
     births_lookup = {"john adams": {"name": "John Adams", "year": 1735, "month": 10, "day": 30}}
@@ -286,7 +286,7 @@ def test_merge_chunk_phrasing_mode_skips_tags_and_persons(tmp_path):
             "id": 20,
             # Names both people, so the fact check stays quiet and the review
             # assertion below isolates the subject entry.
-            "event_phrase": "The same age that George Washington was when he and John Adams hoisted the flag.",
+            "event_phrase": "George Washington was when he and John Adams hoisted the flag.",
             "tags": ["military"],
             "suggested_subject": "John Adams",
         }
@@ -305,7 +305,7 @@ def test_merge_chunk_phrasing_mode_skips_tags_and_persons(tmp_path):
 
     mock_client._table_mocks["events"].update.assert_called_once_with(
         {
-            "event_phrase": "The same age that George Washington was when he and John Adams hoisted the flag.",
+            "event_phrase": "George Washington was when he and John Adams hoisted the flag.",
             "reword_prompt_version": REWORD_PROMPT_VERSION,
         }
     )

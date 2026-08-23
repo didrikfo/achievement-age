@@ -91,7 +91,7 @@ Then run the one-off backfill (same environment/credentials as the original migr
 python -m ingest.backfill_persons_and_phrases
 ```
 
-> **Do not re-run this after section 9 (full-sentence event phrases) has been applied.** Its
+> **Do not re-run this after section 9 (person-onward event phrases) has been applied.** Its
 > `strip_prefix` step assumes `event_phrase` holds only the suffix, so it would strip the "The
 > same age that {name} was when " opening from the full-sentence format too — silently discarding
 > any title placed next to the name (e.g. "Sir Richard Owen"), since the rebuilt opening is plain
@@ -275,14 +275,19 @@ venv\Scripts\python.exe -m ingest.migrate_to_supabase
 event that could not be auto-accepted — ambiguous subjects, birth dates that are only
 year-precision, implausible ages. Nothing in it was guessed at or silently dropped.
 
-## 9. Full-sentence event phrases
+## 9. Person-onward event phrases
 
-`event_phrase` now stores the **complete** display sentence ("The same age that Sir Richard Owen was
-when …"), not just the fragment after "…was when ". The reword subagent writes the whole sentence so
-it can place a title next to the name; `events.name` still holds the bare name.
+`event_phrase` stores the sentence from the person onward ("Sir Richard Owen was when …"), not a
+fixed opening. The tensed opening ("You were the same age", "You're the same age", "You'll be the
+same age", depending on whether the reader is viewing a day before, on, or after today) is prepended
+by the app at display time — see `core.matching.full_sentence` and
+`docs/superpowers/specs/2026-08-22-tense-aware-display-text-design.md`. The reword subagent writes
+the person-onward clause so it can place a title next to the name; `events.name` still holds the
+bare name.
 
-`core.matching.full_sentence` prefixes anything that doesn't already open with "The same age that",
-so rows in the older suffix-only format keep displaying correctly until the backfill below has run.
+`core.matching.full_sentence`'s normalizer strips or reconstructs whatever shape an older row is in,
+so rows written under any previous prompt version keep displaying correctly until the backfill below
+has run.
 
 Run this in the SQL editor first — it tracks which rows have been written under which version of
 `src/ingest/reword_prompt.md`, so the backfill is resumable and future prompt revisions are
@@ -375,7 +380,7 @@ a one-off migration that rewrites the old name to the new one in every `subscrip
 array.
 
 Like `excluded_tags`, this column stores **exclusions**, so a category added later is visible to
-existing subscribers by default. `core.matching.events_for_subscription` reads it defensively, so
+existing subscribers by default. `core.preferences.preferences_from_subscription` reads it defensively, so
 if the cron job runs before this SQL is applied it falls back to tag-only filtering rather than
 failing the run.
 
@@ -423,7 +428,7 @@ construction, with nothing to migrate and nobody to miss. An exclusion column wo
 one-off `UPDATE` over every row plus app code to keep seeding it, either of which fails open if it
 misses someone.
 
-`core.sequences.included_sequences_for_subscription` reads the column defensively
+`core.preferences.preferences_from_subscription` reads the column defensively
 (`.get("included_sequences") or []`), so if the cron job runs before this SQL is applied it falls
 back to sending no anniversaries — which is also the intended default, so a slipped deployment
 order fails safe in both directions.
@@ -433,3 +438,46 @@ eight names in `core.config.SEQUENCE_TAXONOMY` (`"Powers of 2"`, `"Fibonacci num
 persisted verbatim into this column and matched by exact string. Renaming one — even a copy edit
 like "Primes" → "Prime numbers" — silently drops it from every subscriber who selected it. Keep the
 old string as an alias, or migrate the arrays.
+
+## 14. Two-channel filter preferences
+
+Run this in the SQL editor **before** deploying the two-channel filter code — the app's "Save
+preferences" button writes these columns, and the write fails if they don't exist.
+
+```sql
+alter table subscriptions add column if not exists notify_mirrors_calendar    boolean not null default true;
+alter table subscriptions add column if not exists notify_excluded_categories text[]  not null default '{}';
+alter table subscriptions add column if not exists notify_excluded_sequences  text[]  not null default '{}';
+```
+
+No backfill is needed, and that is the point of the mirror flag. `default true` puts every existing
+subscriber on "notifications follow my calendar", which is exactly the behaviour they had before
+the split — so nobody who muted a category starts hearing about it again.
+
+The three pre-existing columns (`excluded_categories`, `excluded_tags`, `included_sequences`) keep
+their meaning unchanged and now describe the **calendar** channel. The two new list columns describe
+the **notification** channel, and are read only while `notify_mirrors_calendar` is false. They are
+always intersected with the calendar selection on read (`core.preferences.Preferences.notify`), so a
+stale entry for a category the subscriber later hid can never resurrect a notification.
+
+**Both override columns store exclusions**, so "absent from the override" means "notifies" on
+either axis. They are deliberately not symmetric with the calendar columns: an earlier draft made
+`notify_excluded_sequences` inclusions to match `included_sequences`, and it was implemented and found
+broken — nothing maintains the override while mirroring, so every marked sequence was absent from
+it, and unticking the mirror toggle silenced all of a subscriber's anniversaries at once.
+
+Opt-in still holds, one level up: a sequence nobody marked is not in the calendar selection, and
+`Preferences.notify` intersects the override with the calendar, so the override's permission is
+unreachable for an unmarked row. That is also why no seeding step is needed when the mirror breaks.
+
+There is no `notify_excluded_tags` — fine tags narrow both channels equally.
+
+**The rename hazard from sections 11 and 13 now applies twice over.** A `TAG_CATEGORIES` key is
+persisted verbatim into both `excluded_categories` and `notify_excluded_categories`; a
+`SEQUENCE_TAXONOMY` name into both `included_sequences` and `notify_excluded_sequences`. Renaming
+either orphans subscriber state in two columns instead of one, silently. Keep an alias or write a
+migration that rewrites **both**.
+
+`core.preferences.preferences_from_subscription` reads every column defensively, so if the daily
+cron job runs before this SQL is applied it falls back to the calendar channel rather than failing
+the run.

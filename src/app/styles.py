@@ -154,6 +154,81 @@ PAGE_CSS = """
 .aa-cal-heading {
     font-weight: 700; letter-spacing: .05em; text-align: center; margin: 0 0 10px 0;
 }
+
+/* ---- Filter panel ---------------------------------------------------- */
+
+/* Rows are flat buttons, not chrome: the panel should read as a list. */
+[class*="st-key-filter-row-"] button[data-testid="stBaseButton-secondary"] {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+    padding: 2px 4px !important;
+    min-height: 0 !important;
+}
+
+/* A row that is off: dimmed and struck through, so it reads as "you turned this
+   off" rather than "this is unavailable". Both digits zero. */
+[class*="st-key-filter-row-00-"] button[data-testid="stBaseButton-secondary"] {
+    opacity: .34;
+}
+[class*="st-key-filter-row-00-"] button[data-testid="stBaseButton-secondary"] p {
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+}
+
+/* Marked rows carry their name in full weight. */
+[class*="st-key-filter-row-11-"] button[data-testid="stBaseButton-secondary"] p,
+[class*="st-key-filter-row-10-"] button[data-testid="stBaseButton-secondary"] p {
+    font-weight: 600;
+}
+
+/* Bells live in their own keyed container, so they can be targeted without a
+   positional selector - the label and the bell sit in different st.columns, and
+   each is the only button in its own column. */
+[class*="st-key-filter-bell-"] button[data-testid="stBaseButton-secondary"] {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 2px !important;
+    min-height: 0 !important;
+}
+
+/* The bell for a row that is off the calendar: dim, but still clickable - it
+   turns the row on. */
+[class*="st-key-filter-bell-00-"] button[data-testid="stBaseButton-secondary"] {
+    opacity: .25;
+}
+
+/* Marked but muted: a red slash across the bell, in the same ink as the
+   calendar's circle. Drawn rather than swapped to the 🔕 glyph, which renders
+   grey on every platform and so reads as "disabled" instead of "deliberately
+   muted". The pale outline keeps it legible over the emoji beneath.
+   FALLBACK: if the overlay proves fragile across platforms, delete this rule
+   and render the label as 🔕 in filters.py instead - it is a local change. */
+[class*="st-key-filter-bell-10-"] button[data-testid="stBaseButton-secondary"] {
+    position: relative;
+}
+[class*="st-key-filter-bell-10-"] button[data-testid="stBaseButton-secondary"]::after {
+    content: '';
+    position: absolute; top: 50%; left: 50%;
+    width: 22px; height: 2px; margin: -1px 0 0 -11px;
+    background: var(--aa-accent);
+    box-shadow: 0 0 0 1px rgba(242, 239, 230, .75);
+    border-radius: 2px;
+    transform: rotate(-45deg);
+    pointer-events: none;
+}
+
+/* Tag popover trigger: a quiet hint, not a button. */
+[class*="st-key-filter-row-"] [data-testid="stPopover"] button {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    opacity: .5;
+    font-size: 11px;
+}
 </style>
 """
 

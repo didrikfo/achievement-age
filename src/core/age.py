@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from typing import Literal
 
 
 def days_between_dates(start: date, end: date) -> int:
@@ -26,3 +27,15 @@ def age_breakdown(start: date, end: date) -> tuple[int, int, int]:
         months += 12
 
     return years, months, days
+
+
+Tense = Literal["past", "today", "future"]
+
+
+def tense_for(day: date, today: date) -> Tense:
+    """Whether day is before, on, or after today, from the viewer's perspective."""
+    if day < today:
+        return "past"
+    if day > today:
+        return "future"
+    return "today"

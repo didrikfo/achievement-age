@@ -2,6 +2,16 @@ from datetime import date
 from unittest.mock import MagicMock, patch
 
 from core.db import create_subscription, fetch_events, update_subscription_filters
+from core.preferences import (
+    CATEGORY,
+    SEQUENCE,
+    Row,
+    default_preferences,
+    preferences_to_columns,
+    toggle_calendar,
+    toggle_notify,
+    toggle_tag,
+)
 
 
 def test_fetch_events_selects_with_person_and_tag_joins():
@@ -75,7 +85,7 @@ def test_fetch_events_gives_untagged_events_an_empty_list():
     assert result[1]["tags"] == []
 
 
-def test_create_subscription_defaults_to_no_filters_and_no_sequences():
+def test_create_subscription_without_preferences_uses_the_defaults():
     mock_client = MagicMock()
     mock_client.table.return_value.insert.return_value.execute.return_value.data = [{"token": "abc"}]
 
@@ -87,36 +97,42 @@ def test_create_subscription_defaults_to_no_filters_and_no_sequences():
     assert inserted["excluded_categories"] == []
     # Inclusions, not exclusions: empty means mathematical anniversaries are off.
     assert inserted["included_sequences"] == []
+    # Mirroring is the default, so a new subscriber's notifications follow their calendar.
+    assert inserted["notify_mirrors_calendar"] is True
 
 
-def test_create_subscription_stores_all_three_preference_lists():
+def test_create_subscription_stores_all_six_preference_columns():
     mock_client = MagicMock()
     mock_client.table.return_value.insert.return_value.execute.return_value.data = [{"token": "abc"}]
 
+    preferences = toggle_notify(
+        toggle_tag(toggle_calendar(default_preferences(), Row(CATEGORY, "Sport")), "military"),
+        Row(CATEGORY, "Science & Technology"),
+    )
+
     with patch("core.db.get_client", return_value=mock_client):
-        create_subscription(
-            date(2000, 1, 1), ["military"], ["Sport", "Disasters"], ["Powers of 2"]
-        )
+        create_subscription(date(2000, 1, 1), preferences)
 
     inserted = mock_client.table.return_value.insert.call_args.args[0]
+    assert inserted["excluded_categories"] == ["Sport"]
     assert inserted["excluded_tags"] == ["military"]
-    assert inserted["excluded_categories"] == ["Sport", "Disasters"]
-    assert inserted["included_sequences"] == ["Powers of 2"]
+    assert inserted["notify_mirrors_calendar"] is False
+    # Only Science is MUTED. Sport was dropped from the calendar, which is a
+    # different axis - the override never learns about it, and the intersection
+    # in Preferences.notify is what stops a hidden row from notifying. Writing
+    # the union of the two here would destroy a subscriber's mutes on the next
+    # save; see the round-trip test below.
+    assert inserted["notify_excluded_categories"] == ["Science & Technology"]
 
 
-def test_update_subscription_filters_writes_all_three_columns_for_the_right_token():
+def test_update_subscription_filters_writes_all_six_columns_for_the_right_token():
     mock_client = MagicMock()
+    preferences = toggle_calendar(default_preferences(), Row(SEQUENCE, "Primes"))
 
     with patch("core.db.get_client", return_value=mock_client):
-        update_subscription_filters("tok123", ["disaster"], ["Sport"], ["Primes"])
+        update_subscription_filters("tok123", preferences)
 
     mock_client.table.assert_called_with("subscriptions")
-    mock_client.table.return_value.update.assert_called_with(
-        {
-            "excluded_tags": ["disaster"],
-            "excluded_categories": ["Sport"],
-            "included_sequences": ["Primes"],
-        }
-    )
+    mock_client.table.return_value.update.assert_called_with(preferences_to_columns(preferences))
     mock_client.table.return_value.update.return_value.eq.assert_called_with("token", "tok123")
     mock_client.table.return_value.update.return_value.eq.return_value.execute.assert_called_once()

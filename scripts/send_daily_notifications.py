@@ -4,38 +4,34 @@ For every subscriber, checks whether today's age-in-days matches any event
 and pushes a notification via ntfy.sh if so. Reads SUPABASE_URL/SUPABASE_KEY/
 APP_BASE_URL from the environment (no Streamlit context here).
 
-Each subscriber's matches are filtered via core.matching.events_for_subscription,
-which excludes matches against both the subscriber's stored tag preference
-(subscriptions.excluded_tags) and their stored coarse category preference
-(subscriptions.excluded_categories) before sending, so a subscriber only hears
-about the tags and categories they kept.
+Each subscriber's matches are filtered through the NOTIFICATION channel of
+core.preferences - which is their calendar selection unless they have turned
+mirroring off, in which case it is their narrower notification selection
+intersected with it. A subscriber can therefore mark prime days on the calendar
+without being pushed one every nine days, or browse every category while being
+notified about science alone.
 
 Matches are gathered from a small list of matcher callables rather than one
 hardcoded lookup, so a future matcher producing event-shaped records can be
 added without restructuring this script.
 
-Mathematical anniversaries - days when the subscriber's age in days is itself
-an interesting number - are computed separately by core.sequences and kept in
-their own list, because they share no fields with an event. They carry their
-own opt-in preference (subscriptions.included_sequences), which is empty for
-every subscriber until they choose otherwise.
+Mathematical anniversaries are computed rather than looked up, so they are
+gathered separately from the matchers - they share no fields with an event -
+but they are filtered through the same notification channel.
 """
 
 from __future__ import annotations
 
 import os
 from datetime import date
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 
 import requests
 
 from core.db import fetch_all_subscriptions, fetch_events
-from core.matching import events_by_age_days, events_for_subscription, full_sentence
-from core.sequences import (
-    anniversary_matches,
-    anniversary_sentence,
-    included_sequences_for_subscription,
-)
+from core.matching import events_by_age_days, filter_events, full_sentence
+from core.preferences import preferences_from_subscription
+from core.sequences import anniversary_matches, anniversary_sentence
 
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "").strip()
 
@@ -51,16 +47,37 @@ def _make_db_event_matcher() -> Matcher:
     return matcher
 
 
-MATCHERS: List[Matcher] = [_make_db_event_matcher()]
+def build_matchers() -> List[Matcher]:
+    """The matchers to run, built at call time rather than at import.
+
+    Deferred so that importing this module is free of side effects: at module
+    scope this opened a Supabase connection and pulled the entire corpus, which
+    made the script impossible to import in a test and meant any import error
+    downstream surfaced as a database error.
+    """
+    return [_make_db_event_matcher()]
+
+
+def _subscriber_link(token: str) -> Optional[str]:
+    """The subscriber's app link (Click header target and visible body text), or
+    None when there's nothing to build one from - matches the existing
+    Click-header conditional, now shared by two call sites and by body text.
+    """
+    if token and APP_BASE_URL:
+        return f"{APP_BASE_URL}?u={token}"
+    return None
 
 
 def _send_ntfy_notification(topic: str, event: Dict, token: str) -> None:
-    headers = {"Title": f"You're now as old as {event['name']} was".encode("utf-8")}
-    if token and APP_BASE_URL:
-        headers["Click"] = f"{APP_BASE_URL}?u={token}"
+    headers = {"Title": f"You're now the same age {event['name']} was".encode("utf-8")}
+    link = _subscriber_link(token)
+    body = full_sentence(event, "today")
+    if link:
+        headers["Click"] = link
+        body = f"{body}\n\n{link}"
     requests.post(
         f"https://ntfy.sh/{topic}",
-        data=full_sentence(event).encode("utf-8"),
+        data=body.encode("utf-8"),
         headers=headers,
         timeout=10,
     )
@@ -74,11 +91,14 @@ def _send_anniversary_notification(topic: str, anniversary: Dict, token: str) ->
     name, no person and no date - only a number and what's interesting about it.
     """
     headers = {"Title": "You've hit a mathematical anniversary".encode("utf-8")}
-    if token and APP_BASE_URL:
-        headers["Click"] = f"{APP_BASE_URL}?u={token}"
+    link = _subscriber_link(token)
+    body = anniversary_sentence(anniversary)
+    if link:
+        headers["Click"] = link
+        body = f"{body}\n\n{link}"
     requests.post(
         f"https://ntfy.sh/{topic}",
-        data=anniversary_sentence(anniversary).encode("utf-8"),
+        data=body.encode("utf-8"),
         headers=headers,
         timeout=10,
     )
@@ -88,26 +108,23 @@ def main() -> None:
     subscriptions = fetch_all_subscriptions()
     today = date.today()
     notified = 0
+    matchers = build_matchers()
 
     for subscription in subscriptions:
         birthday = date.fromisoformat(subscription["birthday"])
         age_days = (today - birthday).days
+        notify_channel = preferences_from_subscription(subscription).notify
 
         matches: List[Dict] = []
-        for matcher in MATCHERS:
+        for matcher in matchers:
             matches.extend(matcher(age_days))
-        matches = events_for_subscription(matches, subscription)
+        matches = filter_events(matches, notify_channel.categories, notify_channel.tags)
 
         for event in matches:
             _send_ntfy_notification(subscription["ntfy_topic"], event, subscription["token"])
             notified += 1
 
-        # Anniversaries are computed, not looked up, and carry their own opt-in
-        # preference - the event category/tag filter has no bearing on them.
-        anniversaries = anniversary_matches(
-            age_days, included_sequences_for_subscription(subscription)
-        )
-        for anniversary in anniversaries:
+        for anniversary in anniversary_matches(age_days, notify_channel.sequences):
             _send_anniversary_notification(
                 subscription["ntfy_topic"], anniversary, subscription["token"]
             )
