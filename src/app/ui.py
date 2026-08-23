@@ -29,6 +29,7 @@ from core.sequences import anniversary_matches, anniversary_sentence
 from app.filters import SAVED_KEY, STATE_KEY, render_filter_panel
 from app.links import further_reading_links, subscription_link
 from app.styles import MASTHEAD_HTML, PAGE_CSS
+from app.swipe import render_swipe_nav
 
 
 @st.cache_data(ttl=3600)
@@ -52,7 +53,17 @@ subscription = get_subscription(token) if token else None
 
 if subscription:
     birthdate = date.fromisoformat(subscription["birthday"])
-    st.caption("Welcome back — this link remembers your birthday.")
+    st.markdown(
+        f"<p class='aa-birthday'>Born <b>{birthdate.strftime('%B %d, %Y')}</b></p>",
+        unsafe_allow_html=True,
+    )
+    with st.expander("Show my notification link"):
+        link = subscription_link(subscription["token"])
+        st.code(link, language=None)
+        st.markdown(
+            f"If you haven't already, install the [ntfy app](https://ntfy.sh) and "
+            f"subscribe to the topic `{subscription['ntfy_topic']}` to get notified."
+        )
 else:
     birthdate = st.date_input("Your birthday", value=date(2000, 1, 1), min_value=date(1900, 1, 1))
 
@@ -241,3 +252,5 @@ with st.container(key="calendar-grid"):
                             use_container_width=True,
                         ):
                             show_day_dialog(day_date, day_matches, day_anniversaries)
+
+render_swipe_nav()

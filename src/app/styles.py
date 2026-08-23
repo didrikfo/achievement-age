@@ -41,6 +41,7 @@ PAGE_CSS = """
 
 /* Age line accent */
 .aa-age b { border-bottom: 1px solid var(--aa-accent); color: var(--aa-accent); }
+.aa-birthday b { border-bottom: 1px solid var(--aa-accent); color: var(--aa-accent); }
 
 /* Calendar grid: table borders */
 .st-key-calendar-grid { border-top: 1px solid var(--aa-ink); border-left: 1px solid var(--aa-ink); }
@@ -156,6 +157,21 @@ PAGE_CSS = """
 }
 
 /* ---- Filter panel ---------------------------------------------------- */
+
+/* Mobile fix: keep each row's label/tags/bell on one line. Same fix as the
+   calendar grid above - Streamlit stacks stColumn to full-width below
+   ~640px by default. Scoped to that breakpoint so desktop's 6:2:1 column
+   ratio (label/tags/bell) is left alone. */
+@media (max-width: 640px) {
+    [class*="st-key-filter-row-"] [data-testid="stHorizontalBlock"] {
+        gap: 0 !important;
+        flex-wrap: nowrap !important;
+    }
+    [class*="st-key-filter-row-"] [data-testid="stColumn"] {
+        min-width: 0 !important;
+        flex: 1 1 0 !important;
+    }
+}
 
 /* Rows are flat buttons, not chrome: the panel should read as a list. */
 [class*="st-key-filter-row-"] button[data-testid="stBaseButton-secondary"] {
