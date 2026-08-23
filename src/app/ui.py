@@ -29,6 +29,7 @@ from core.sequences import anniversary_matches, anniversary_sentence
 from app.filters import SAVED_KEY, STATE_KEY, render_filter_panel
 from app.links import further_reading_links, subscription_link
 from app.styles import MASTHEAD_HTML, PAGE_CSS
+from app.swipe import render_swipe_nav
 
 
 @st.cache_data(ttl=3600)
@@ -251,3 +252,5 @@ with st.container(key="calendar-grid"):
                             use_container_width=True,
                         ):
                             show_day_dialog(day_date, day_matches, day_anniversaries)
+
+render_swipe_nav()
