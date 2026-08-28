@@ -90,8 +90,10 @@ sentence plays for the rest of the corpus — is built deterministically:
 {name} won the Nobel Prize in {category}: "{motivation}"
 ```
 
-with one special case: `category == "Economic Sciences"` renders as *"the Nobel Memorial Prize in
-Economic Sciences"*, since it's not one of the five prizes established in Alfred Nobel's 1895 will.
+with two special cases: `category == "Economic Sciences"` renders as *"the Nobel Memorial Prize in
+Economic Sciences"*, since it's not one of the five prizes established in Alfred Nobel's 1895 will,
+and `category == "Peace"` renders as *"the Nobel Peace Prize"* rather than the grammatically-awkward
+"the Nobel Prize in Peace".
 
 ### `src/ingest/migrate_nobel_to_supabase.py` (new) — person resolution, the duplicate-day guard, and the final write
 

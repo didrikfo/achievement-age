@@ -1,6 +1,7 @@
 import csv
 import json
 
+from core.config import TAG_TAXONOMY
 from ingest.sources.nobel import (
     NOBEL_CATEGORY_TAGS,
     NOBEL_SOURCE,
@@ -87,7 +88,12 @@ def test_split_by_birth_data_separates_thin_records():
 def test_category_display_name_special_cases_economic_sciences():
     assert category_display_name("Economic Sciences") == "the Nobel Memorial Prize in Economic Sciences"
     assert category_display_name("Physics") == "the Nobel Prize in Physics"
-    assert category_display_name("Peace") == "the Nobel Prize in Peace"
+
+
+def test_category_display_name_special_cases_peace():
+    # "the Nobel Prize in Peace" is not how anyone actually says it - the
+    # universal real-world name is "the Nobel Peace Prize".
+    assert category_display_name("Peace") == "the Nobel Peace Prize"
 
 
 def test_nobel_category_tags_covers_every_real_category():
@@ -98,6 +104,13 @@ def test_nobel_category_tags_covers_every_real_category():
     }
     assert NOBEL_CATEGORY_TAGS["Peace"] == "politics"
     assert NOBEL_CATEGORY_TAGS["Physiology or Medicine"] == "health"
+
+
+def test_nobel_category_tags_values_are_all_valid_taxonomy_tags():
+    # A category mapped to a tag outside TAG_TAXONOMY would be silently
+    # dropped by ingest.enrichment.build_tag_rows, producing a Nobel event
+    # with no tag rows at all.
+    assert set(NOBEL_CATEGORY_TAGS.values()) <= set(TAG_TAXONOMY)
 
 
 def test_build_event_text_uses_the_category_display_name():
@@ -111,6 +124,13 @@ def test_build_event_text_special_cases_economic_sciences():
     record = {"name": "Milton Friedman", "category": "Economic Sciences", "motivation": "for his achievements"}
     assert build_event_text(record) == (
         'Milton Friedman won the Nobel Memorial Prize in Economic Sciences: "for his achievements"'
+    )
+
+
+def test_build_event_text_special_cases_peace():
+    record = {"name": "Henry Kissinger", "category": "Peace", "motivation": "for negotiating peace"}
+    assert build_event_text(record) == (
+        'Henry Kissinger won the Nobel Peace Prize: "for negotiating peace"'
     )
 
 

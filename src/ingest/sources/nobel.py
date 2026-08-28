@@ -40,10 +40,14 @@ def category_display_name(category: str) -> str:
     Economic Sciences is officially the Nobel Memorial Prize in Economic
     Sciences in Memory of Alfred Nobel, not one of the five prizes established
     in Nobel's 1895 will - the other five categories read as "the Nobel Prize
-    in {category}".
+    in {category}", except Peace, whose universal real-world name is "the
+    Nobel Peace Prize" rather than the grammatically-awkward "the Nobel Prize
+    in Peace".
     """
     if category == "Economic Sciences":
         return _ECONOMIC_SCIENCES_DISPLAY
+    if category == "Peace":
+        return "the Nobel Peace Prize"
     return f"the Nobel Prize in {category}"
 
 
