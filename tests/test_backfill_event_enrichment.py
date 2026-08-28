@@ -16,6 +16,18 @@ def test_pending_events_excludes_already_tagged():
     assert result == [{"id": 1}, {"id": 3}]
 
 
+def test_pending_events_excludes_nobel_sourced_rows():
+    from ingest.sources.nobel import NOBEL_SOURCE
+
+    events = [
+        {"id": 1, "source": "initial_migration"},
+        {"id": 2, "source": NOBEL_SOURCE},  # untagged Nobel row must not enter the generic sweep
+        {"id": 3},  # no source column value - not Nobel, still pending
+    ]
+    result = pending_events(events, tagged_event_ids=set())
+    assert [event["id"] for event in result] == [1, 3]
+
+
 def test_resolve_event_update_flags_missing_event_phrase():
     event = {"id": 1, "text": "did a thing", "year": 2000, "month": 1, "day": 1}
     update, tags, review_entries = resolve_event_update(event, result=None, births_lookup={})

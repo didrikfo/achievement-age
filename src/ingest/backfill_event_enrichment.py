@@ -82,8 +82,20 @@ def _fetch_tagged_event_ids(client) -> Set[int]:
 
 
 def pending_events(all_events: List[Dict], tagged_event_ids: Set[int]) -> List[Dict]:
-    """Events with no event_tags rows yet - safe to call repeatedly (resumable backfill)."""
-    return [event for event in all_events if event["id"] not in tagged_event_ids]
+    """Events with no event_tags rows yet - safe to call repeatedly (resumable backfill).
+
+    Nobel-sourced rows are excluded regardless of tag status, the same as
+    pending_phrasing_events: they already carry deterministic tags from
+    NOBEL_CATEGORY_TAGS, so a Nobel event with no event_tags rows (e.g. from a
+    partial insert) must go through the Nobel-specific merge path, not this
+    generic mode="tags" sweep, which would assign a non-deterministic LLM
+    tag and overwrite the phrase.
+    """
+    return [
+        event
+        for event in all_events
+        if event["id"] not in tagged_event_ids and event.get("source") != NOBEL_SOURCE
+    ]
 
 
 def pending_phrasing_events(all_events: List[Dict], version: int) -> List[Dict]:
