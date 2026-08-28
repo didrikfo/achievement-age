@@ -2,6 +2,7 @@ import json
 from unittest.mock import MagicMock, patch
 
 from ingest.migrate_nobel_to_supabase import (
+    _to_event_row,
     build_pending_records,
     build_person_rows,
     fetch_all_persons,
@@ -329,3 +330,56 @@ def test_prepare_pending_records_excludes_duplicate_day_records_from_pending(tmp
     assert len(pending) == 0
     assert counts["duplicate_day_blocked"] == 1
     assert counts["pending"] == 0
+
+
+# --- Integration: phase-1 → phrasing → phase-2 handoff ---
+
+
+def test_pending_record_shape_is_consumable_by_the_phrasing_and_insert_stages(tmp_path):
+    """Integration check across the Task 4 / Task 5 file boundary.
+
+    prepare_pending_records's output must have every field prepare_nobel_chunks
+    needs (category, for category_display and the tag lookup) and every field
+    _to_event_row needs after phrasing (person_id, age_days, award_year/month/day,
+    motivation, category, name) - this test fails loudly if either module's
+    expectations drift from what the other produces.
+    """
+    from ingest.nobel_llm_utils import merge_nobel_chunk, prepare_nobel_chunks
+
+    records = [_record(name="Marie Curie")]
+    mock_client = _make_mock_client(
+        persons=[], upsert_data=[{"id": 7, "name": "Marie Curie", "wikipedia_url": None}]
+    )
+    pending_path = tmp_path / "nobel_pending.json"
+
+    with patch("ingest.migrate_nobel_to_supabase.get_client", return_value=mock_client):
+        prepare_pending_records(
+            records,
+            output_path=pending_path,
+            person_review_path=tmp_path / "person_review.json",
+            duplicate_review_path=tmp_path / "duplicate_review.json",
+            age_review_path=tmp_path / "age_review.json",
+        )
+
+    pending = json.loads(pending_path.read_text(encoding="utf-8"))
+    chunk_dir = tmp_path / "chunks"
+    with patch("ingest.nobel_llm_utils.CHUNK_DIR", chunk_dir):
+        chunk_paths = prepare_nobel_chunks(pending, chunk_size=100)
+
+    displayable_path = tmp_path / "nobel_displayable.json"
+    merge_nobel_chunk(
+        chunk_paths[0],
+        tmp_path / "no_result_file.json",  # forces the fallback phrase - no subagent needed for this check
+        displayable_path=displayable_path,
+        review_path=tmp_path / "phrasing_review.json",
+    )
+
+    phrased = json.loads(displayable_path.read_text(encoding="utf-8"))
+    row = _to_event_row(phrased[0])
+
+    assert row["name"] == "Marie Curie"
+    assert row["person_id"] == 7
+    assert row["age_days"] == 16103
+    assert row["year"] == 1911
+    assert row["event_phrase"] == "Marie Curie was when they won the Nobel Prize in Chemistry."
+    assert row["source"] == "nobel_prize_dataset"
