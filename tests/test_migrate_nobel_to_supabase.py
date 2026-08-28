@@ -104,7 +104,9 @@ def test_find_duplicate_day_records_blocks_a_real_exact_match():
     keep, blocked = find_duplicate_day_records(records, name_to_person_id, existing_event_keys)
 
     assert keep == []
-    assert [r["name"] for r in blocked] == ["Jean-Paul Sartre"]
+    assert len(blocked) == 1
+    assert blocked[0][0]["name"] == "Jean-Paul Sartre"
+    assert blocked[0][1]["id"] == 979
 
 
 def test_find_duplicate_day_records_keeps_a_different_day_same_person_same_year():
@@ -194,12 +196,13 @@ def test_fetch_existing_event_person_dates_skips_rows_with_no_person():
 # --- prepare_pending_records (the phase-1 orchestrator) ---
 
 
-def _make_mock_client(persons=None, upsert_data=None, event_dates_page=None):
+def _make_mock_client(persons=None, upsert_data=None, event_dates_page=None, upsert_call_count=1):
     persons = persons if persons is not None else []
     table_mocks = {"persons": MagicMock(), "events": MagicMock()}
     table_mocks["persons"].select.return_value.range.return_value.execute.side_effect = [
         MagicMock(data=persons), MagicMock(data=[]),
     ]
+    # Handle batched upsert calls - return the same data for each batch call
     table_mocks["persons"].upsert.return_value.execute.return_value.data = upsert_data or []
     table_mocks["events"].select.return_value.range.return_value.execute.side_effect = [
         MagicMock(data=event_dates_page or []), MagicMock(data=[]),
@@ -235,3 +238,94 @@ def test_prepare_pending_records_writes_survivors_to_the_pending_file(tmp_path):
     mock_client._table_mocks["persons"].upsert.assert_called_once_with(
         [{"name": "Marie Curie"}], on_conflict="name"
     )
+
+
+def test_prepare_pending_records_excludes_normalized_name_collisions_from_upsert_and_pending(tmp_path):
+    """Finding 4.1: Name collisions excluded from persons.upsert AND pending file."""
+    records = [
+        _record(name="J.J. Thomson"),  # Will collide
+        _record(name="Marie Curie"),   # Will succeed
+    ]
+    existing_persons = [{"id": 1, "name": "J. J. Thomson", "wikipedia_url": None}]
+    mock_client = _make_mock_client(
+        persons=existing_persons,
+        upsert_data=[{"id": 7, "name": "Marie Curie", "wikipedia_url": None}],
+    )
+    output_path = tmp_path / "nobel_pending.json"
+
+    with patch("ingest.migrate_nobel_to_supabase.get_client", return_value=mock_client):
+        counts = prepare_pending_records(
+            records,
+            output_path=output_path,
+            person_review_path=tmp_path / "person_review.json",
+            duplicate_review_path=tmp_path / "duplicate_review.json",
+            age_review_path=tmp_path / "age_review.json",
+        )
+
+    # Verify the colliding name was excluded from upsert
+    upsert_call_args = mock_client._table_mocks["persons"].upsert.call_args
+    upserted_names = {row["name"] for row in upsert_call_args[0][0]}
+    assert "J.J. Thomson" not in upserted_names
+    assert "Marie Curie" in upserted_names
+
+    # Verify the colliding name is absent from pending file
+    pending = json.loads(output_path.read_text(encoding="utf-8"))
+    pending_names = {p["name"] for p in pending}
+    assert "J.J. Thomson" not in pending_names
+    assert "Marie Curie" in pending_names
+
+    assert counts["name_collisions"] == 1
+    assert counts["pending"] == 1
+
+
+def test_prepare_pending_records_never_overwrites_existing_wikipedia_url(tmp_path):
+    """Finding 4.2: persons.update NOT called for already-set wikipedia_url."""
+    records = [
+        _record(name="Marie Curie", wikipedia_url="https://en.wikipedia.org/wiki/Marie_Curie_new"),
+    ]
+    existing_persons = [{"id": 7, "name": "Marie Curie", "wikipedia_url": "https://en.wikipedia.org/wiki/Marie_Curie_old"}]
+    mock_client = _make_mock_client(
+        persons=existing_persons,
+        upsert_data=[{"id": 7, "name": "Marie Curie", "wikipedia_url": "https://en.wikipedia.org/wiki/Marie_Curie_old"}],
+    )
+    output_path = tmp_path / "nobel_pending.json"
+
+    with patch("ingest.migrate_nobel_to_supabase.get_client", return_value=mock_client):
+        prepare_pending_records(
+            records,
+            output_path=output_path,
+            person_review_path=tmp_path / "person_review.json",
+            duplicate_review_path=tmp_path / "duplicate_review.json",
+            age_review_path=tmp_path / "age_review.json",
+        )
+
+    # Verify persons.update was never called (no URL should be updated)
+    mock_client._table_mocks["persons"].update.assert_not_called()
+
+
+def test_prepare_pending_records_excludes_duplicate_day_records_from_pending(tmp_path):
+    """Finding 4.3: Duplicate-day blocked record absent from pending file."""
+    records = [
+        _record(name="Jean-Paul Sartre", award_year=1964, award_month=10, award_day=22),
+    ]
+    mock_client = _make_mock_client(
+        persons=[],
+        upsert_data=[{"id": 501, "name": "Jean-Paul Sartre", "wikipedia_url": None}],
+        event_dates_page=[{"person_id": 501, "year": 1964, "month": 10, "day": 22, "id": 979, "text": "existing"}],
+    )
+    output_path = tmp_path / "nobel_pending.json"
+
+    with patch("ingest.migrate_nobel_to_supabase.get_client", return_value=mock_client):
+        counts = prepare_pending_records(
+            records,
+            output_path=output_path,
+            person_review_path=tmp_path / "person_review.json",
+            duplicate_review_path=tmp_path / "duplicate_review.json",
+            age_review_path=tmp_path / "age_review.json",
+        )
+
+    # Verify the blocked record is absent from pending
+    pending = json.loads(output_path.read_text(encoding="utf-8"))
+    assert len(pending) == 0
+    assert counts["duplicate_day_blocked"] == 1
+    assert counts["pending"] == 0

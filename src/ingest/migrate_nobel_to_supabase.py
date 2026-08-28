@@ -97,20 +97,23 @@ def find_duplicate_day_records(
     records: List[Dict],
     name_to_person_id: Dict[str, int],
     existing_event_keys: Dict[Tuple[int, int, int, int], Dict],
-) -> Tuple[List[Dict], List[Dict]]:
+) -> Tuple[List[Dict], List[Tuple[Dict, Dict]]]:
     """Split records into (keep, blocked): one event per person per day.
 
     A record whose person_id + exact award date already has an events row
     (typically scraped from Wikipedia's "on this day" corpus) is blocked. A
     record with no resolved person_id can't be checked and is always kept.
+
+    blocked items are (record, existing_event) tuples, so the caller doesn't
+    have to reconstruct the key to find the matched event.
     """
     keep: List[Dict] = []
-    blocked: List[Dict] = []
+    blocked: List[Tuple[Dict, Dict]] = []
     for record in records:
         person_id = name_to_person_id.get(record["name"])
         key = (person_id, record["award_year"], record["award_month"], record["award_day"])
         if person_id is not None and key in existing_event_keys:
-            blocked.append(record)
+            blocked.append((record, existing_event_keys[key]))
         else:
             keep.append(record)
     return keep, blocked
@@ -222,6 +225,9 @@ def prepare_pending_records(
     The last point before any LLM cost is spent (Task 4's phrasing pass reads
     output_path), so a bad guard or upsert never wastes a phrasing run.
     """
+    # Ensure output directory exists before any Supabase writes (Finding 2)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
     client = get_client()
 
     existing_persons = fetch_all_persons(client)
@@ -230,9 +236,19 @@ def prepare_pending_records(
     colliding_names = {collision["name"] for collision in collisions}
     records = [record for record in records if record["name"] not in colliding_names]
 
+    # Batch upsert into 500-row chunks to guard against PostgREST truncation (Finding 1)
     person_rows = build_person_rows(records)
-    upserted = client.table("persons").upsert(person_rows, on_conflict="name").execute().data
-    name_to_person_id = {person["name"]: person["id"] for person in upserted}
+    name_to_person_id: Dict[str, int] = {}
+    for start in range(0, len(person_rows), 500):
+        batch = person_rows[start : start + 500]
+        upserted = client.table("persons").upsert(batch, on_conflict="name").execute().data
+        for person in upserted:
+            name_to_person_id[person["name"]] = person["id"]
+
+    # Validate that all names got resolved
+    missing = {r["name"] for r in records} - name_to_person_id.keys()
+    if missing:
+        raise RuntimeError(f"{len(missing)} name(s) unresolved after upsert: {sorted(missing)[:5]}")
 
     existing_wikipedia_by_id = {person["id"]: person["wikipedia_url"] for person in existing_persons}
     for person_id, url in wikipedia_url_updates(records, name_to_person_id, existing_wikipedia_by_id):
@@ -247,10 +263,10 @@ def prepare_pending_records(
                 "name": record["name"],
                 "detail": (
                     f"event already exists on {record['award_year']}-{record['award_month']:02d}-{record['award_day']:02d} "
-                    f"(existing event id={existing_event_keys[(name_to_person_id.get(record['name']), record['award_year'], record['award_month'], record['award_day'])]['id']})"
+                    f"(existing event id={existing_event['id']})"
                 ),
             }
-            for record in blocked
+            for record, existing_event in blocked
         ],
         duplicate_review_path,
     )
