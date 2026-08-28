@@ -9,6 +9,7 @@ from ingest.migrate_nobel_to_supabase import (
     fetch_existing_event_person_dates,
     find_duplicate_day_records,
     find_normalized_name_collisions,
+    insert_nobel_events,
     prepare_pending_records,
     wikipedia_url_updates,
 )
@@ -162,13 +163,14 @@ def test_fetch_all_persons_paginates_past_the_page_size():
     mock_client = MagicMock()
     full_page = [{"id": i, "name": f"Person {i}", "wikipedia_url": None} for i in range(1000)]
     short_page = [{"id": 1000, "name": "Person 1000", "wikipedia_url": None}]
-    mock_execute = mock_client.table.return_value.select.return_value.range.return_value.execute
+    mock_execute = mock_client.table.return_value.select.return_value.order.return_value.range.return_value.execute
     mock_execute.side_effect = [MagicMock(data=full_page), MagicMock(data=short_page)]
 
     result = fetch_all_persons(mock_client)
 
     assert len(result) == 1001
-    range_calls = mock_client.table.return_value.select.return_value.range.call_args_list
+    mock_client.table.return_value.select.return_value.order.assert_called_with("id")
+    range_calls = mock_client.table.return_value.select.return_value.order.return_value.range.call_args_list
     assert range_calls[0].args == (0, 999)
     assert range_calls[1].args == (1000, 1999)
 
@@ -176,19 +178,20 @@ def test_fetch_all_persons_paginates_past_the_page_size():
 def test_fetch_existing_event_person_dates_keys_by_person_id_and_date():
     mock_client = MagicMock()
     page = [{"person_id": 979, "year": 1964, "month": 10, "day": 22, "id": 979, "text": "Jean-Paul Sartre..."}]
-    mock_client.table.return_value.select.return_value.range.return_value.execute.side_effect = [
+    mock_client.table.return_value.select.return_value.order.return_value.range.return_value.execute.side_effect = [
         MagicMock(data=page)
     ]
 
     result = fetch_existing_event_person_dates(mock_client)
 
     assert result == {(979, 1964, 10, 22): {"id": 979, "text": "Jean-Paul Sartre..."}}
+    mock_client.table.return_value.select.return_value.order.assert_called_with("id")
 
 
 def test_fetch_existing_event_person_dates_skips_rows_with_no_person():
     mock_client = MagicMock()
     page = [{"person_id": None, "year": 2000, "month": 1, "day": 1, "id": 5, "text": "unrelated"}]
-    mock_client.table.return_value.select.return_value.range.return_value.execute.side_effect = [
+    mock_client.table.return_value.select.return_value.order.return_value.range.return_value.execute.side_effect = [
         MagicMock(data=page)
     ]
     assert fetch_existing_event_person_dates(mock_client) == {}
@@ -200,12 +203,12 @@ def test_fetch_existing_event_person_dates_skips_rows_with_no_person():
 def _make_mock_client(persons=None, upsert_data=None, event_dates_page=None, upsert_call_count=1):
     persons = persons if persons is not None else []
     table_mocks = {"persons": MagicMock(), "events": MagicMock()}
-    table_mocks["persons"].select.return_value.range.return_value.execute.side_effect = [
+    table_mocks["persons"].select.return_value.order.return_value.range.return_value.execute.side_effect = [
         MagicMock(data=persons), MagicMock(data=[]),
     ]
     # Handle batched upsert calls - return the same data for each batch call
     table_mocks["persons"].upsert.return_value.execute.return_value.data = upsert_data or []
-    table_mocks["events"].select.return_value.range.return_value.execute.side_effect = [
+    table_mocks["events"].select.return_value.order.return_value.range.return_value.execute.side_effect = [
         MagicMock(data=event_dates_page or []), MagicMock(data=[]),
     ]
 
@@ -383,3 +386,101 @@ def test_pending_record_shape_is_consumable_by_the_phrasing_and_insert_stages(tm
     assert row["year"] == 1911
     assert row["event_phrase"] == "Marie Curie was when they won the Nobel Prize in Chemistry."
     assert row["source"] == "nobel_prize_dataset"
+
+
+# --- insert_nobel_events (the phase-2 orchestrator) ---
+
+
+def _phrased_record(**overrides):
+    """A record that has already passed prepare_pending_records + the LLM phrasing pass."""
+    base = {
+        "laureate_id": "6", "name": "Marie Curie", "category": "Chemistry",
+        "award_year": 1911, "award_month": 12, "award_day": 10,
+        "motivation": "in recognition of her services",
+        "person_id": 7, "age_days": 16103,
+        "event_phrase": "Marie Curie was when they won the Nobel Prize in Chemistry.",
+        "reword_prompt_version": 1,
+        "tags": ["science"],
+    }
+    return {**base, **overrides}
+
+
+def _make_insert_mock_client(existing_event_page=None, tags=None, inserted_events=None):
+    tags = tags if tags is not None else []
+    table_mocks = {"tags": MagicMock(), "events": MagicMock(), "event_tags": MagicMock()}
+    table_mocks["tags"].select.return_value.execute.return_value.data = tags
+    table_mocks["events"].select.return_value.order.return_value.range.return_value.execute.side_effect = [
+        MagicMock(data=existing_event_page or []), MagicMock(data=[]),
+    ]
+    table_mocks["events"].insert.return_value.execute.return_value.data = inserted_events or []
+
+    client = MagicMock()
+    client.table.side_effect = lambda name: table_mocks[name]
+    client._table_mocks = table_mocks
+    return client
+
+
+def test_insert_nobel_events_batches_correctly_and_pairs_tags_to_the_right_event_ids():
+    records = [
+        _phrased_record(name="Marie Curie", person_id=7, category="Chemistry", tags=["science"]),
+        _phrased_record(
+            name="Albert Einstein", person_id=8, category="Physics",
+            award_year=1921, award_month=11, award_day=9, tags=["science"],
+        ),
+    ]
+    mock_client = _make_insert_mock_client(
+        tags=[{"id": 1, "name": "science"}],
+        inserted_events=[{"id": 101}, {"id": 102}],
+    )
+
+    with patch("ingest.migrate_nobel_to_supabase.get_client", return_value=mock_client):
+        count = insert_nobel_events(records)
+
+    assert count == 2
+    inserted_rows = mock_client._table_mocks["events"].insert.call_args[0][0]
+    assert [row["name"] for row in inserted_rows] == ["Marie Curie", "Albert Einstein"]
+
+    tag_rows = mock_client._table_mocks["event_tags"].insert.call_args[0][0]
+    assert tag_rows == [
+        {"event_id": 101, "tag_id": 1},
+        {"event_id": 102, "tag_id": 1},
+    ]
+
+
+def test_insert_nobel_events_skips_a_record_that_already_has_an_events_row():
+    # Finding 1: a rerun (or a partial-batch-failure recovery) must not
+    # re-insert a record already present in `events`, keyed the same way
+    # find_duplicate_day_records keys its own guard.
+    records = [
+        _phrased_record(name="Marie Curie", person_id=7, award_year=1911, award_month=12, award_day=10),
+        _phrased_record(
+            name="Albert Einstein", person_id=8, category="Physics",
+            award_year=1921, award_month=11, award_day=9,
+        ),
+    ]
+    existing_page = [{"id": 500, "person_id": 7, "year": 1911, "month": 12, "day": 10, "text": "already there"}]
+    mock_client = _make_insert_mock_client(existing_event_page=existing_page, inserted_events=[{"id": 101}])
+
+    with patch("ingest.migrate_nobel_to_supabase.get_client", return_value=mock_client):
+        count = insert_nobel_events(records)
+
+    assert count == 1
+    inserted_rows = mock_client._table_mocks["events"].insert.call_args[0][0]
+    assert len(inserted_rows) == 1
+    assert inserted_rows[0]["name"] == "Albert Einstein"
+
+
+def test_insert_nobel_events_deduplicates_records_within_the_same_call():
+    # Finding 1: a doubly-appended chunk (merge_nobel_chunk re-run on the same
+    # chunk) must not insert the same record twice within one call, even
+    # before anything has landed in `events` yet.
+    record = _phrased_record(name="Marie Curie", person_id=7, award_year=1911, award_month=12, award_day=10)
+    records = [record, dict(record)]
+    mock_client = _make_insert_mock_client(inserted_events=[{"id": 101}])
+
+    with patch("ingest.migrate_nobel_to_supabase.get_client", return_value=mock_client):
+        count = insert_nobel_events(records)
+
+    assert count == 1
+    inserted_rows = mock_client._table_mocks["events"].insert.call_args[0][0]
+    assert len(inserted_rows) == 1

@@ -172,6 +172,7 @@ def fetch_all_persons(client) -> List[Dict]:
         page = (
             client.table("persons")
             .select("id, name, wikipedia_url")
+            .order("id")
             .range(start, start + EVENTS_PAGE_SIZE - 1)
             .execute()
             .data
@@ -194,6 +195,7 @@ def fetch_existing_event_person_dates(client) -> Dict[Tuple[int, int, int, int],
         page = (
             client.table("events")
             .select("id, person_id, year, month, day, text")
+            .order("id")
             .range(start, start + EVENTS_PAGE_SIZE - 1)
             .execute()
             .data
@@ -301,15 +303,36 @@ def insert_nobel_events(records: List[Dict], batch_size: int = 200) -> int:
     set, age_days computed, duplicates guarded) and the LLM phrasing pass
     (event_phrase and tags set) - i.e. records loaded from
     ingest.nobel_llm_utils.DISPLAYABLE_PATH.
+
+    Rerun guard (Finding 1): records whose (person_id, award_year,
+    award_month, award_day) key already has an events row are skipped, and
+    the same key shape de-duplicates records against each other within this
+    call. This makes the function safe to call again on the same input - e.g.
+    after re-running merge_nobel_chunk on an already-merged chunk, or after a
+    batch insert partially fails and the natural recovery is to re-run this
+    function on the same records. The returned count reflects only the rows
+    actually inserted, not the ones skipped.
     """
     client = get_client()
     tag_name_to_id = {tag["name"]: tag["id"] for tag in client.table("tags").select("id, name").execute().data}
 
-    rows = [_to_event_row(record) for record in records]
+    existing_event_keys = fetch_existing_event_person_dates(client)
+    seen_keys = set()
+    deduped: List[Dict] = []
+    for record in records:
+        person_id = record.get("person_id")
+        key = (person_id, record["award_year"], record["award_month"], record["award_day"])
+        if person_id is not None and (key in existing_event_keys or key in seen_keys):
+            continue
+        if person_id is not None:
+            seen_keys.add(key)
+        deduped.append(record)
+
+    rows = [_to_event_row(record) for record in deduped]
     inserted = 0
     for start in range(0, len(rows), batch_size):
         batch = rows[start : start + batch_size]
-        batch_records = records[start : start + batch_size]
+        batch_records = deduped[start : start + batch_size]
         inserted_events = client.table("events").insert(batch).execute().data
 
         tag_rows = []
