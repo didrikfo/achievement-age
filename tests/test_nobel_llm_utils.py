@@ -118,7 +118,9 @@ def test_merge_nobel_chunk_flags_a_malformed_phrase(tmp_path):
     chunk_path = tmp_path / "chunk_0000.json"
     chunk_path.write_text(json.dumps(chunk), encoding="utf-8")
 
-    # Old suffix-only shape, not name-onward.
+    # Old suffix-only shape, not name-onward. This phrase is both malformed AND
+    # missing facts (the category "Chemistry" and other proper nouns), so both
+    # checks should fire independently.
     result = [{"laureate_id": "6", "name": "Marie Curie", "award_year": 1911, "event_phrase": "she won the prize"}]
     result_path = tmp_path / "chunk_0000_result.json"
     result_path.write_text(json.dumps(result), encoding="utf-8")
@@ -127,7 +129,8 @@ def test_merge_nobel_chunk_flags_a_malformed_phrase(tmp_path):
     merge_nobel_chunk(chunk_path, result_path, displayable_path=tmp_path / "nobel_displayable.json", review_path=review_path)
 
     review = json.loads(review_path.read_text(encoding="utf-8"))
-    assert [entry["issue_type"] for entry in review] == ["format"]
+    # Both format and facts checks should fire independently
+    assert sorted([entry["issue_type"] for entry in review]) == ["facts", "format"]
 
 
 def test_merge_nobel_chunk_appends_to_existing_displayable_file(tmp_path):

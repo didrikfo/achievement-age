@@ -127,18 +127,17 @@ def merge_nobel_chunk(
             review_entries.append(
                 {"name": record["name"], "category": record["category"], "issue_type": "format", "detail": format_reason}
             )
-        else:
-            # Only check facts if format passes - a malformed phrase is fundamentally broken
-            missing = check_facts_preserved(build_event_text(record), event_phrase)
-            if missing:
-                review_entries.append(
-                    {
-                        "name": record["name"],
-                        "category": record["category"],
-                        "issue_type": "facts",
-                        "detail": f"missing from phrase: {', '.join(missing)}",
-                    }
-                )
+
+        missing = check_facts_preserved(build_event_text(record), event_phrase)
+        if missing:
+            review_entries.append(
+                {
+                    "name": record["name"],
+                    "category": record["category"],
+                    "issue_type": "facts",
+                    "detail": f"missing from phrase: {', '.join(missing)}",
+                }
+            )
 
         merged.append(merged_record)
 
