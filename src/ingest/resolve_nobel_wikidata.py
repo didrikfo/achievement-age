@@ -65,6 +65,12 @@ def run(
     review_path: Path = REVIEW_PATH,
 ) -> Dict[str, int]:
     """Load the CSV, resolve the missing-birth-date rows, write survivors to output_path."""
+    # Ensure the output directory exists before any network calls start - a
+    # fully-successful run with zero review entries would otherwise crash on
+    # the final save_to_json call, after up to hundreds of real Wikidata
+    # lookups (same fix pattern as prepare_pending_records).
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
     records = load_nobel_records(csv_path)
     _, missing = split_by_birth_data(records)
 

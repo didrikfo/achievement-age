@@ -1,7 +1,17 @@
 import json
 
 from ingest import resolve_nobel_wikidata
+from ingest.resolve_nobel_wikidata import run
 from ingest.sources import wikidata
+
+_CSV_HEADER = "award_year,date_awarded,laureate_id,known_name,category,motivation,birth_date,wikipedia_url"
+
+
+def _write_csv(tmp_path, rows):
+    lines = [_CSV_HEADER] + rows
+    path = tmp_path / "nobel.csv"
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return path
 
 
 def _record(**overrides):
@@ -94,3 +104,33 @@ def test_resolves_multiple_records_independently(monkeypatch, tmp_path):
         records, cache={}, review_path=tmp_path / "review.json"
     )
     assert [r["name"] for r in resolved] == ["Resolvable Person"]
+
+
+def test_run_creates_a_fresh_output_directory_with_zero_review_entries(tmp_path):
+    # Every row already has a birth_date, so split_by_birth_data's "missing"
+    # list is empty and resolve_missing_birth_dates produces zero review
+    # entries - write_review_entries (called from within
+    # resolve_missing_birth_dates) never runs, so it can't create the output
+    # directory as a side effect. Before the Finding 7 fix, the trailing
+    # save_to_json(output_path, resolved) call would crash with FileNotFoundError
+    # here, because the directory represented by tmp_path/"fresh" (data/tmp/ in
+    # a fresh checkout) doesn't exist yet.
+    csv_path = _write_csv(
+        tmp_path,
+        [
+            '1911,12/10/1911,6,Marie Curie,Chemistry,"in recognition of...",1867-11-07,'
+            "https://en.wikipedia.org/wiki/Marie_Curie"
+        ],
+    )
+    fresh_dir = tmp_path / "fresh"
+    output_path = fresh_dir / "nobel_resolved_thin.json"
+    review_path = fresh_dir / "nobel_wikidata_review.json"
+    cache_path = fresh_dir / "wikidata_persons_cache.json"
+
+    assert not fresh_dir.exists()
+
+    counts = run(csv_path=csv_path, output_path=output_path, cache_path=cache_path, review_path=review_path)
+
+    assert counts == {"missing": 0, "resolved": 0}
+    assert output_path.exists()
+    assert json.loads(output_path.read_text(encoding="utf-8")) == []
