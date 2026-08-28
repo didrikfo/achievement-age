@@ -29,6 +29,7 @@ from ingest.enrichment import (
     validate_tags,
     write_review_entries,
 )
+from ingest.sources.nobel import NOBEL_SOURCE
 
 CHUNK_SIZE = 100
 CHUNK_DIR = DATA_DIR / "tmp" / "enrichment_chunks"
@@ -44,7 +45,7 @@ def _fetch_all_events(client) -> List[Dict]:
     while True:
         page = (
             client.table("events")
-            .select("id, name, text, year, month, day, reword_prompt_version")
+            .select("id, name, text, year, month, day, reword_prompt_version, source")
             .range(start, start + EVENTS_PAGE_SIZE - 1)
             .execute()
             .data
@@ -88,10 +89,19 @@ def pending_events(all_events: List[Dict], tagged_event_ids: Set[int]) -> List[D
 def pending_phrasing_events(all_events: List[Dict], version: int) -> List[Dict]:
     """Events not yet written under the current reword prompt.
 
-    A missing key counts as 0 (the column default), so rows predating the
-    column are always pending.
+    A missing reword_prompt_version key counts as 0 (the column default), so
+    rows predating the column are always pending. Nobel-sourced rows are
+    excluded regardless of version: they are written under their own prompt
+    (ingest.nobel_reword_prompt.md) and their own version counter sharing this
+    same column, so sweeping them into this generic pass would re-word them
+    with the wrong prompt and re-derive tags by free LLM choice instead of the
+    deterministic NOBEL_CATEGORY_TAGS mapping.
     """
-    return [event for event in all_events if (event.get("reword_prompt_version") or 0) < version]
+    return [
+        event
+        for event in all_events
+        if event.get("source") != NOBEL_SOURCE and (event.get("reword_prompt_version") or 0) < version
+    ]
 
 
 def prepare_chunks(chunk_size: int = CHUNK_SIZE, mode: str = "tags") -> List[Path]:

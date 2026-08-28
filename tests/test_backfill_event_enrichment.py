@@ -213,6 +213,18 @@ def test_pending_phrasing_events_selects_rows_below_the_current_version():
     assert [event["id"] for event in result] == [1, 3]
 
 
+def test_pending_phrasing_events_excludes_nobel_sourced_rows():
+    from ingest.sources.nobel import NOBEL_SOURCE
+
+    events = [
+        {"id": 1, "reword_prompt_version": 0, "source": "initial_migration"},
+        {"id": 2, "reword_prompt_version": 0, "source": NOBEL_SOURCE},
+        {"id": 3, "reword_prompt_version": 0},  # no source column value - not Nobel, still pending
+    ]
+    result = pending_phrasing_events(events, REWORD_PROMPT_VERSION)
+    assert [event["id"] for event in result] == [1, 3]
+
+
 def test_resolve_event_update_phrasing_mode_writes_only_phrase_and_version():
     event = {"id": 4, "name": "Ada Lovelace", "text": "Ada Lovelace published notes.", "year": 1843, "month": 1, "day": 1}
     result = {
