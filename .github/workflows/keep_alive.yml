@@ -1,0 +1,13 @@
+name: Keep achievement-age awake
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the app to prevent Streamlit Community Cloud from sleeping it
+        run: curl -sSf --retry 3 --retry-delay 10 "${{ secrets.APP_BASE_URL }}" > /dev/null

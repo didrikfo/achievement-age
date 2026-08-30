@@ -136,7 +136,7 @@ PAGE_CSS = """
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
-    font-size: 15px;
+    font-size: 26px;
     opacity: .6;
 }
 
