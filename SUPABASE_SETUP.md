@@ -481,3 +481,166 @@ migration that rewrites **both**.
 `core.preferences.preferences_from_subscription` reads every column defensively, so if the daily
 cron job runs before this SQL is applied it falls back to the calendar channel rather than failing
 the run.
+
+## 15. Row level security
+
+Until this section is applied, RLS is off on every table. Supabase grants the `anon` role full
+CRUD on the `public` schema by default, and with no RLS to narrow it, that grant is the whole
+story: anyone holding the project's publishable/anon key can read *and write* every table. The
+key isn't served to browsers — Streamlit runs server-side, so `st.secrets` never leaves the host —
+but it does sit in Streamlit Cloud's secret store and in GitHub Actions secrets, and a key that
+leaks from either is a full write credential until the policies below exist.
+
+The two parts are independent. **Part A is safe to run on its own** and needs no code change.
+Part B needs the matching application commit deployed at the same time.
+
+### Part A — public tables become read-only
+
+`events`, `persons`, `tags` and `event_tags` are public reference data: the app reads them and
+nothing else should write them.
+
+```sql
+alter table events     enable row level security;
+alter table persons    enable row level security;
+alter table tags       enable row level security;
+alter table event_tags enable row level security;
+
+create policy "public read" on events     for select to anon, authenticated using (true);
+create policy "public read" on persons    for select to anon, authenticated using (true);
+create policy "public read" on tags       for select to anon, authenticated using (true);
+create policy "public read" on event_tags for select to anon, authenticated using (true);
+```
+
+Granting only `select` is what makes these read-only: with RLS enabled, an operation with no
+policy is denied, so no `insert`/`update`/`delete` policy means no writes.
+
+**This is what breaks the ingest scripts**, and it's the intended trade. `migrate_to_supabase`,
+`migrate_nobel_to_supabase`, `backfill_persons_and_phrases`, `backfill_event_enrichment` and
+`backfill_person_wikipedia` all write to these tables, and they will now silently write nothing
+under the publishable key. Put the **service-role key** in your local `.env` before running any
+of them (Project Settings -> API -> `service_role`, or a secret key under the new key system) —
+it bypasses RLS by design. Keep the publishable key in the Streamlit Cloud secret, which only
+ever reads.
+
+### Part B — subscriptions become reachable only by token
+
+A subscription token is a bearer credential: whoever holds it controls that subscription. This
+cannot be expressed as a policy, because a policy can't see *which* token the caller asked for —
+the `token` filter is sent by the client, so `using (true)` on `select` would let anyone page
+through every subscriber's birthday, ntfy topic and token. The table is therefore closed
+completely and reached through three `security definer` functions, which take the token as an
+argument and can only ever touch the row that matches it.
+
+```sql
+alter table subscriptions enable row level security;
+revoke all on table subscriptions from anon, authenticated;
+
+-- Look up one subscription. setof, so a miss is an empty result rather than a row of nulls.
+create or replace function public.get_subscription(p_token text)
+returns setof subscriptions
+language sql
+stable
+security definer
+set search_path = public
+as $$
+    select * from subscriptions where token = p_token;
+$$;
+
+-- Create one. The token and topic are generated here, not chosen by the caller.
+create or replace function public.create_subscription(
+    p_birthday date,
+    p_preferences jsonb default '{}'::jsonb
+)
+returns subscriptions
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+    prefs   subscriptions;
+    created subscriptions;
+begin
+    select * into prefs from jsonb_populate_record(null::subscriptions, p_preferences);
+
+    insert into subscriptions (
+        token, ntfy_topic, birthday,
+        excluded_categories, excluded_tags, included_sequences,
+        notify_mirrors_calendar, notify_excluded_categories, notify_excluded_sequences
+    ) values (
+        replace(gen_random_uuid()::text, '-', ''),
+        'achage-' || replace(gen_random_uuid()::text, '-', ''),
+        p_birthday,
+        coalesce(prefs.excluded_categories,        '{}'),
+        coalesce(prefs.excluded_tags,              '{}'),
+        coalesce(prefs.included_sequences,         '{}'),
+        coalesce(prefs.notify_mirrors_calendar,    true),
+        coalesce(prefs.notify_excluded_categories, '{}'),
+        coalesce(prefs.notify_excluded_sequences,  '{}')
+    )
+    returning * into created;
+
+    return created;
+end;
+$$;
+
+-- Overwrite one subscription's preferences. Only these six columns are assignable,
+-- so a caller cannot reach token or birthday through the jsonb payload.
+create or replace function public.update_subscription_filters(
+    p_token text,
+    p_preferences jsonb
+)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+    update subscriptions s set
+        excluded_categories        = coalesce(p.excluded_categories,        s.excluded_categories),
+        excluded_tags              = coalesce(p.excluded_tags,              s.excluded_tags),
+        included_sequences         = coalesce(p.included_sequences,         s.included_sequences),
+        notify_mirrors_calendar    = coalesce(p.notify_mirrors_calendar,    s.notify_mirrors_calendar),
+        notify_excluded_categories = coalesce(p.notify_excluded_categories, s.notify_excluded_categories),
+        notify_excluded_sequences  = coalesce(p.notify_excluded_sequences,  s.notify_excluded_sequences)
+    from jsonb_populate_record(null::subscriptions, p_preferences) p
+    where s.token = p_token;
+$$;
+
+revoke all on function public.get_subscription(text)                       from public;
+revoke all on function public.create_subscription(date, jsonb)             from public;
+revoke all on function public.update_subscription_filters(text, jsonb)     from public;
+
+grant execute on function public.get_subscription(text)                   to anon, authenticated;
+grant execute on function public.create_subscription(date, jsonb)         to anon, authenticated;
+grant execute on function public.update_subscription_filters(text, jsonb) to anon, authenticated;
+```
+
+`jsonb_populate_record` is doing the whitelisting: it casts the payload to a `subscriptions`
+row, so any key that isn't a column of that table is dropped before the `update` ever sees it,
+and the assignment list names the six preference columns explicitly. Absent keys arrive as null
+and `coalesce` leaves the stored value alone.
+
+Two deployment consequences, both required:
+
+1. **`core.db` must be on the RPC calls before this runs.** `create_subscription`,
+   `get_subscription` and `update_subscription_filters` in `src/core/db.py` call `client.rpc(...)`
+   rather than `client.table("subscriptions")`. Deploy that together with this SQL — the old code
+   against these policies means "Get notified" and "Save preferences" both fail silently.
+2. **The daily cron job needs the service-role key.** `fetch_all_subscriptions` reads the whole
+   table, which is exactly what Part B forbids for `anon`, and giving it an RPC would only
+   recreate the enumeration hole it closes. Set the `SUPABASE_KEY` **GitHub Actions secret** to
+   the service-role key; leave the Streamlit Cloud secret on the publishable key. The cron runs
+   on GitHub's servers with no untrusted caller, so a bypassing key is appropriate there and
+   nowhere else.
+
+### Checking it worked
+
+Supabase flags an unprotected table itself: Database -> Advisors -> Security shows an
+"RLS disabled in public" error per table, and that list should be empty afterwards. To confirm
+the lock from the outside, with the *publishable* key:
+
+```bash
+curl -s "$SUPABASE_URL/rest/v1/subscriptions?select=token" -H "apikey: $PUBLISHABLE_KEY" | head -c 200
+```
+
+Before Part B that returns every subscriber's token. After it, an empty array or a permission
+error — anything else means the policies didn't take.

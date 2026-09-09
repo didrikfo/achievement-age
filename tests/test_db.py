@@ -1,7 +1,12 @@
 from datetime import date
 from unittest.mock import MagicMock, patch
 
-from core.db import create_subscription, fetch_events, update_subscription_filters
+from core.db import (
+    create_subscription,
+    fetch_events,
+    get_subscription,
+    update_subscription_filters,
+)
 from core.preferences import (
     CATEGORY,
     SEQUENCE,
@@ -87,12 +92,13 @@ def test_fetch_events_gives_untagged_events_an_empty_list():
 
 def test_create_subscription_without_preferences_uses_the_defaults():
     mock_client = MagicMock()
-    mock_client.table.return_value.insert.return_value.execute.return_value.data = [{"token": "abc"}]
+    mock_client.rpc.return_value.execute.return_value.data = {"token": "abc"}
 
     with patch("core.db.get_client", return_value=mock_client):
         create_subscription(date(2000, 1, 1))
 
-    inserted = mock_client.table.return_value.insert.call_args.args[0]
+    assert mock_client.rpc.call_args.args[0] == "create_subscription"
+    inserted = mock_client.rpc.call_args.args[1]["p_preferences"]
     assert inserted["excluded_tags"] == []
     assert inserted["excluded_categories"] == []
     # Inclusions, not exclusions: empty means mathematical anniversaries are off.
@@ -103,7 +109,7 @@ def test_create_subscription_without_preferences_uses_the_defaults():
 
 def test_create_subscription_stores_all_six_preference_columns():
     mock_client = MagicMock()
-    mock_client.table.return_value.insert.return_value.execute.return_value.data = [{"token": "abc"}]
+    mock_client.rpc.return_value.execute.return_value.data = {"token": "abc"}
 
     preferences = toggle_notify(
         toggle_tag(toggle_calendar(default_preferences(), Row(CATEGORY, "Sport")), "military"),
@@ -113,7 +119,7 @@ def test_create_subscription_stores_all_six_preference_columns():
     with patch("core.db.get_client", return_value=mock_client):
         create_subscription(date(2000, 1, 1), preferences)
 
-    inserted = mock_client.table.return_value.insert.call_args.args[0]
+    inserted = mock_client.rpc.call_args.args[1]["p_preferences"]
     assert inserted["excluded_categories"] == ["Sport"]
     assert inserted["excluded_tags"] == ["military"]
     assert inserted["notify_mirrors_calendar"] is False
@@ -132,7 +138,44 @@ def test_update_subscription_filters_writes_all_six_columns_for_the_right_token(
     with patch("core.db.get_client", return_value=mock_client):
         update_subscription_filters("tok123", preferences)
 
-    mock_client.table.assert_called_with("subscriptions")
-    mock_client.table.return_value.update.assert_called_with(preferences_to_columns(preferences))
-    mock_client.table.return_value.update.return_value.eq.assert_called_with("token", "tok123")
-    mock_client.table.return_value.update.return_value.eq.return_value.execute.assert_called_once()
+    assert mock_client.rpc.call_args.args == (
+        "update_subscription_filters",
+        {"p_token": "tok123", "p_preferences": preferences_to_columns(preferences)},
+    )
+    mock_client.rpc.return_value.execute.assert_called_once()
+    # The table is closed to the anon role, so nothing may reach it directly.
+    mock_client.table.assert_not_called()
+
+
+def test_create_subscription_lets_the_database_mint_the_token():
+    """The token and topic are the function's to generate - see SUPABASE_SETUP.md 15."""
+    mock_client = MagicMock()
+    mock_client.rpc.return_value.execute.return_value.data = {"token": "abc", "ntfy_topic": "t"}
+
+    with patch("core.db.get_client", return_value=mock_client):
+        created = create_subscription(date(2000, 1, 1))
+
+    arguments = mock_client.rpc.call_args.args[1]
+    assert arguments["p_birthday"] == "2000-01-01"
+    assert "token" not in arguments["p_preferences"]
+    assert "ntfy_topic" not in arguments["p_preferences"]
+    # A composite-returning function gives one object back, not a list of them.
+    assert created == {"token": "abc", "ntfy_topic": "t"}
+
+
+def test_get_subscription_returns_none_when_the_token_matches_nothing():
+    mock_client = MagicMock()
+    mock_client.rpc.return_value.execute.return_value.data = []
+
+    with patch("core.db.get_client", return_value=mock_client):
+        assert get_subscription("nope") is None
+
+    assert mock_client.rpc.call_args.args == ("get_subscription", {"p_token": "nope"})
+
+
+def test_get_subscription_unwraps_the_single_matching_row():
+    mock_client = MagicMock()
+    mock_client.rpc.return_value.execute.return_value.data = [{"token": "tok123"}]
+
+    with patch("core.db.get_client", return_value=mock_client):
+        assert get_subscription("tok123") == {"token": "tok123"}
