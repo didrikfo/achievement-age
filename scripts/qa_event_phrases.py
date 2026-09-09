@@ -8,12 +8,22 @@ because a Claude Code subagent runs in between the two calls:
     python -c "from scripts.qa_event_phrases import merge_reviews; merge_reviews()"
 
 Read-only against Supabase: prepare_chunks only selects, and nothing here
-writes back. Applying an accepted correction is a separate, deliberate step
-(see apply_corrections.py output of merge_reviews).
+writes back. Applying an accepted correction is a separate, deliberate step.
+
+Where the running environment has no egress to Supabase (a sandbox whose
+network policy allows only infrastructure hosts, say), pass a dashboard
+export instead and no connection is opened at all:
+
+    prepare_chunks(export_path="data/tmp/events_export.csv")
+
+The SQL behind such an export is in EXPORT_SQL below; CSV and JSON exports
+are both accepted.
 """
 
 from __future__ import annotations
 
+import ast
+import csv
 import json
 import sys
 from collections import Counter
@@ -25,6 +35,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from core.config import DATA_DIR  # noqa: E402
 from core.db import get_client  # noqa: E402
 from ingest.enrichment import check_facts_preserved, check_phrase_format  # noqa: E402
+
+#: The query whose result `load_export` expects, for a dashboard CSV/JSON
+#: export. Mirrors SELECT below, with tags aggregated into one column.
+EXPORT_SQL = """
+select e.id, e.name, e.text, e.event_phrase, e.year, e.month, e.day,
+       e.age_days, e.event_type, e.source, e.reword_prompt_version,
+       e.detailed_description,
+       coalesce(array_agg(t.name) filter (where t.name is not null), '{}') as tags
+from events e
+left join event_tags et on et.event_id = e.id
+left join tags t on t.id = et.tag_id
+group by e.id
+order by e.id;
+"""
 
 CHUNK_SIZE = 50
 EVENTS_PAGE_SIZE = 1000
@@ -64,15 +88,67 @@ def fetch_all_events() -> List[Dict]:
     return events
 
 
-def prepare_chunks(chunk_size: int = CHUNK_SIZE) -> List[Path]:
+def _parse_tags(raw) -> List[str]:
+    """Normalize the `tags` column of an export into a list of names.
+
+    A CSV export renders the aggregated array as a Postgres array literal
+    ({military,politics}), a JSON export as a real list, and an empty
+    aggregate as {} or None - all four land here.
+    """
+    if raw is None or raw == "":
+        return []
+    if isinstance(raw, list):
+        return [str(tag) for tag in raw]
+    text = str(raw).strip()
+    if text.startswith("["):
+        try:
+            return [str(tag) for tag in ast.literal_eval(text)]
+        except (ValueError, SyntaxError):
+            return []
+    return [tag.strip().strip('"') for tag in text.strip("{}").split(",") if tag.strip()]
+
+
+def load_export(path: Path) -> List[Dict]:
+    """Load events from a dashboard CSV or JSON export of EXPORT_SQL.
+
+    Integer columns come back as strings from CSV, so they're coerced here;
+    a value that isn't an integer is left as-is rather than raising, since a
+    reviewer can still read the record.
+    """
+    path = Path(path)
+    if path.suffix.lower() == ".json":
+        rows = json.loads(path.read_text(encoding="utf-8"))
+    else:
+        with path.open(encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+
+    events: List[Dict] = []
+    for row in rows:
+        event = dict(row)
+        event["tags"] = _parse_tags(event.get("tags"))
+        for field in ("id", "year", "month", "day", "age_days", "reword_prompt_version"):
+            value = event.get(field)
+            if isinstance(value, str) and value.strip():
+                try:
+                    event[field] = int(value)
+                except ValueError:
+                    pass
+        events.append(event)
+    return events
+
+
+def prepare_chunks(chunk_size: int = CHUNK_SIZE, export_path: Path | str | None = None) -> List[Path]:
     """Write every event out in review-sized chunks, plus a heuristic pre-pass.
+
+    Reads from Supabase, or from a CSV/JSON export when `export_path` is
+    given (see EXPORT_SQL) - the two produce the same record shape.
 
     The two existing advisory validators (check_phrase_format,
     check_facts_preserved) are run here and their output attached to each
     record as `_hints`, so a reviewing subagent starts from the same triage
     signal the ingest pipeline already had rather than re-deriving it.
     """
-    events = fetch_all_events()
+    events = load_export(export_path) if export_path else fetch_all_events()
     CHUNK_DIR.mkdir(parents=True, exist_ok=True)
     for stale in CHUNK_DIR.glob("*.json"):
         stale.unlink()
