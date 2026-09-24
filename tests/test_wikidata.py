@@ -186,3 +186,37 @@ def test_save_cache_leaves_no_temp_file_behind(tmp_path):
     wikidata.save_cache({"marie curie": {"status": "resolved"}}, path)
 
     assert [item.name for item in tmp_path.iterdir()] == ["cache.json"]
+
+
+def test_lookup_candidate_filter_drops_rejected_candidates_before_fetching_claims(monkeypatch):
+    fetched = []
+    _fake_api(
+        monkeypatch,
+        search=[
+            {"id": "Q1", "label": "Prince", "description": "son of a monarch"},
+            {"id": "Q7542", "label": "Prince", "description": "American musician"},
+        ],
+        entities={},
+    )
+    monkeypatch.setattr(
+        wikidata,
+        "_fetch_birth_claims",
+        lambda qid: fetched.append(qid)
+        or [{"mainsnak": {"datavalue": {"value": {"time": "+1958-06-07T00:00:00Z", "precision": 11}}}}],
+    )
+
+    result = wikidata.lookup_birth_date(
+        "Prince", event_year=1984, cache={}, candidate_filter=lambda candidate: "musician" in candidate["description"]
+    )
+
+    assert fetched == ["Q7542"]
+    assert result["status"] == "resolved"
+    assert result["qid"] == "Q7542"
+
+
+def test_lookup_candidate_filter_rejecting_everything_is_not_found(monkeypatch):
+    _fake_api(monkeypatch, search=[{"id": "Q1", "label": "ABBA", "description": "Swedish pop group"}], entities={})
+
+    result = wikidata.lookup_birth_date("ABBA", event_year=1974, cache={}, candidate_filter=lambda candidate: False)
+
+    assert result["status"] == "not_found"

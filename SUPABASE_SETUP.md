@@ -481,3 +481,47 @@ migration that rewrites **both**.
 `core.preferences.preferences_from_subscription` reads every column defensively, so if the daily
 cron job runs before this SQL is applied it falls back to the calendar channel rather than failing
 the run.
+
+## 15. Music events (chart number ones, Eurovision winners)
+
+Adds about 1,100–1,400 music events: Billboard Hot 100 number-one singles, Billboard 200 number-one
+albums, and Eurovision Song Contest winners, each on the exact chart or final date. No SQL is needed.
+The `music` tag has existed since section 4. Design and source notes are in
+`docs/superpowers/specs/2026-09-24-music-events-ingestion-design.md`.
+
+```bash
+# 1. Download the pinned source files (~70 MB) into data/raw_data/music/
+./venv/Scripts/python.exe -c "from ingest.sources.music import fetch_sources; fetch_sources()"
+
+# 2. Resolve every credited person's birth date (births file, then Wikidata; cached, rerunnable)
+./venv/Scripts/python.exe -m ingest.resolve_music_persons
+
+# 3. Upsert persons and run the guards; writes data/music_displayable.json for review
+./venv/Scripts/python.exe -m ingest.migrate_music_to_supabase prepare
+
+# 4. Insert the events and their tags
+./venv/Scripts/python.exe -m ingest.migrate_music_to_supabase insert
+```
+
+Step 2 takes a while on its first run: one Wikidata search per name the births file can't resolve,
+plus one claims fetch per candidate. Every outcome is cached in `data/wikidata_musicians_cache.json`,
+so reruns are fast. This cache is deliberately separate from `data/wikidata_persons_cache.json`,
+because it holds musician-filtered lookups.
+
+Read the review files before step 4:
+
+- `data/tmp/music_resolution_review.json` lists the Hot 100 dates corrected against the chart
+  archive, names with no resolvable birth date, rejected birth dates (a date contradicted by one of
+  that person's records is dropped for all of them), and credits that name only a group. Groups get
+  no event.
+- `data/tmp/music_person_review.json` lists names that normalize like an existing person's, and names
+  whose resolved birth date disagrees with the birth date an existing person's events imply. A
+  namesake, e.g. the corpus's "Ray Charles", is born 1918 but the singer was born 1930. These are
+  skipped, not merged. Fix the existing person or the record by hand if one of them is wrong.
+- `data/tmp/music_duplicate_review.json` lists events skipped because the person already has an
+  event on that day.
+
+Safe to rerun: `insert` skips any event whose person already has an events row that day. Afterwards,
+section 12's `backfill_person_wikipedia` gives the new persons their Wikipedia links. Music rows are
+worded by templates rather than the LLM, and `backfill_event_enrichment` skips them (as it does Nobel
+rows) so a future generic re-phrasing pass leaves them alone.

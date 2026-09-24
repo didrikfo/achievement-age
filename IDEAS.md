@@ -22,3 +22,10 @@ Unstructured collection of ideas for this project. Meant as a place to record po
 - Let a subscriber track an arbitrary OEIS sequence by number, alongside the eight built-in ones.
   Needs its own design: an input and validation for the sequence id, a way to fetch and cache its
   terms, and per-subscriber sequence definitions rather than a fixed taxonomy.
+- More music events from Wikidata: premieres of symphonies/operas/musicals (P1191, date of first
+  performance), band formations (P571), Grammy and other award wins, and famous concerts. The chart
+  and Eurovision sources (`SUPABASE_SETUP.md` section 15) cover number ones only, because Wikidata
+  was unreachable when they were built. A SPARQL source would slot into the same
+  `resolve_music_persons` → `migrate_music_to_supabase` pipeline as more record kinds. A membership
+  lookup (P463/P527) could also attribute a band's number ones to its members, which the current
+  pipeline skips.

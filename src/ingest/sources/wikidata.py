@@ -15,7 +15,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import requests
 
@@ -125,18 +125,32 @@ def _plausible_for_event(birth_year: int, event_year: Optional[int]) -> bool:
     return birth_year <= event_year <= birth_year + MAX_LIFESPAN_YEARS
 
 
-def lookup_birth_date(name: str, event_year: Optional[int], cache: Dict) -> Dict:
+def lookup_birth_date(
+    name: str,
+    event_year: Optional[int],
+    cache: Dict,
+    candidate_filter: Optional[Callable[[Dict], bool]] = None,
+) -> Dict:
     """Resolve one name to a day-precision birth date, caching every outcome.
 
     Returns a dict whose "status" is one of "resolved", "ambiguous",
     "not_found", or "insufficient_precision". "resolved" also carries year,
     month, day and qid. Cache hits make no network request.
+
+    candidate_filter, when given, is called with each wbsearchentities result
+    (id, label, description, match) and keeps only those it accepts - e.g. only
+    musicians for a chart credit like "Prince" or "Madonna", where an
+    unfiltered search is full of plausible-age namesakes. Its outcomes differ
+    from an unfiltered lookup's for the same name, so a caller passing one must
+    also pass its own cache dict.
     """
     key = normalize_name(name)
     if key in cache:
         return cache[key]
 
     candidates = _search_candidates(name)
+    if candidate_filter is not None:
+        candidates = [candidate for candidate in candidates if candidate_filter(candidate)]
     if not candidates:
         return _remember(cache, key, {"status": "not_found", "name": name})
 
