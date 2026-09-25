@@ -117,14 +117,20 @@ selects on, so they need the same protection Nobel rows have (see the backfill s
 
 Candidate birth dates are tried per name, in order:
 
-1. **Births file, musicians only.** Only entries whose description reads as a musician's
+1. **Wikidata.** Uses `lookup_birth_date` with two new arguments. `candidate_filter`
+   (`musician_candidate_filter`) keeps only search results whose description reads as a musician's,
+   before any entity is fetched. `require_exact_name` then keeps a candidate only if the credit equals
+   its label, the alias the search matched, or any English alias. `wbsearchentities` matches prefixes,
+   so "ABBA" must not match a person whose name starts with it. It also reports only its best-matching
+   term, so checking that term alone misses Beyoncé (it matched "Beyoncé Giselle Knowles Carter") and
+   Brandy (label "Brandy Norwood", alias "Brandy"). The lookup uses its own cache,
+   `data/wikidata_musicians_cache.json`, because filtered outcomes differ from the unfiltered cache
+   the historical corpus shares.
+2. **Births file, musicians only.** Only entries whose description reads as a musician's
    (`MUSIC_DESCRIPTION`) are used, so the file's footballer "Michael Jackson" can never match.
-2. **Wikidata.** Uses `lookup_birth_date` with a new `candidate_filter` argument. The music filter
-   (`musician_candidate_filter`) keeps a candidate only if two things hold. First, its matched label
-   or alias equals the credit exactly: `wbsearchentities` matches prefixes, so "ABBA" must not match a
-   person whose name starts with it. Second, its description reads as a musician's. The lookup uses its
-   own cache, `data/wikidata_musicians_cache.json`, because filtered outcomes differ from the unfiltered
-   cache the historical corpus shares.
+
+Wikidata goes first because only it knows death dates (next subsection). A name resolved from the
+births file alone is listed as `death_date_unknown` for a manual posthumous check.
 
 A candidate is accepted only if it passes `check_resolved_record` for **every** record of that name:
 
@@ -132,8 +138,43 @@ A candidate is accepted only if it passes `check_resolved_record` for **every** 
 - for a solo Hot 100 act, the age is within 2 years of `front_person_age`.
 
 One failure proves the date belongs to someone else. A Billboard 200 album has no age to check against,
-so it must not quietly keep that date either. A rejected births-file date falls through to Wikidata.
-This is how the births file's 1918 "Ray Charles" is rejected for all four of the singer's records.
+so it must not quietly keep that date either. This is how the births file's 1918 "Ray Charles" would
+be rejected for all four of the singer's records. A rejected Wikidata date does *not* fall through to
+the births file. Wikidata found an exact-name musician, so a births-file date for the same name would
+only be a guess between two sources that disagree. Ernie K-Doe is the one case: Wikidata says 1936,
+the births file and `front_person_age` say 1933, and he is left out.
+
+An ambiguous Wikidata result (several exact-name musicians) goes through `settle_ambiguous`:
+
+1. Keep the candidates that pass every record's age check.
+2. Drop any candidate whose death would make every record posthumous. The 1914-born Ken Carson, who
+   died in 1994, had no 2020s number ones.
+3. If several remain, accept the most-linked candidate, but only if it has at least 10 Wikidata
+   sitelinks and at least 4× the runner-up's. A chart-topper is famous, and a namesake rarely is:
+   Chris Brown has 78 sitelinks to his namesake's 0, and John Mayer 61 to 7. Bobby Lewis, 9 to 3, is
+   not a clear winner and stays unresolved.
+
+`front_person_age` is plain wrong for two songs, found when the Wikidata run rejected the right person.
+George Harrison was 44 at "Got My Mind Set On You", not 47, and Carly Rae Jepsen was 26 at "Call Me
+Maybe", not 31. `FRONT_PERSON_AGE_ERRATA` in `billboard.py` skips the age check for those records.
+
+#### Posthumous records
+
+A chart can crown a record after its artist's death: Otis Redding's "Dock of the Bay", John Lennon's
+"(Just Like) Starting Over", Aaliyah's last album, and many rap albums. An age at such an event is
+meaningless ("Otis Redding was 26 years old when…" is false), so `lookup_birth_date` also returns the
+person's death date (P570). It comes from the same entity fetch, so it costs no extra request. Any
+record after the death is dropped and listed as `posthumous_record`. A year- or month-precision death
+date rules out any event that could have followed it. The TidyTuesday `posthumous` column can't do
+this job. It flags the song, not a person: "Slow Motion" is flagged for its featured guest Soulja Slim,
+not for Juvenile. It also covers only the Hot 100.
+
+#### One name per person
+
+The charts spell some acts differently: "Beyonce" on the Billboard 200 and "Beyoncé" on the Hot 100.
+`persons` is keyed by exact name, so names that resolve to the same QID are merged by
+`canonicalize_names`. The merged name is the spelling that equals the Wikidata label, or else the one
+with the most records.
 
 `--offline` skips Wikidata. Run offline in the sandbox, the births file alone resolves 115 people
 across 233 records.
@@ -171,8 +212,18 @@ collapse to 1,773 person-days, the upper bound. 1,130 of those belong to acts th
 hand-codes as solo or duo, which are real individuals whose birth dates Wikidata should resolve. Most of
 the rest are solo album artists without a Hot 100 number one (Bob Dylan, Bruce Springsteen, Garth
 Brooks), plus band names that will correctly fail to resolve. The realistic landing is about
-1,100–1,400 events. The exact figure depends on the Wikidata step, which could not be run from the
-sandbox.
+1,100–1,400 events.
+
+**Actual, with Wikidata reachable (2026-09-24):** 588 of 769 credited names resolve, covering 1,493
+person-records and 1,451 person-days. 1,488 records come from Wikidata and 5 from the births file.
+Excluded:
+- 28 posthumous records;
+- 1 name left ambiguous (Bobby Lewis);
+- 1 name whose sources contradict each other (Ernie K-Doe);
+- 334 names not found. Nearly all are band names; the few people among them are Monica, Nas,
+  "Weird Al" Yankovic via Wikidata, and malformed credits such as "Jay Z Kanye West".
+
+The duplicate-day and birth-date-conflict guards in `prepare` trim the final count a little further.
 
 ## Testing
 

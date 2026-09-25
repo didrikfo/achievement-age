@@ -105,6 +105,37 @@ def parse_birth_claim(claim: Dict) -> Tuple[str, Optional[Dict]]:
     return "resolved", {"year": year, "month": month, "day": day}
 
 
+def parse_death_claim(claim: Dict) -> Optional[Dict]:
+    """One P570 claim -> {year, month, day, precision}, or None if it carries no usable date.
+
+    Unlike a birth date, a coarse death date is still worth keeping: "died in
+    1970" is enough to know a 1971 event came after it. month and day are None
+    below day precision.
+    """
+    try:
+        value = claim["mainsnak"]["datavalue"]["value"]
+        precision = int(value["precision"])
+        time_string = value["time"]
+        year, month, day = (int(part) for part in time_string[1:].split("T", 1)[0].split("-"))
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not time_string.startswith("+") or precision < 9:
+        return None
+    return {
+        "year": year,
+        "month": month if precision >= 10 and month else None,
+        "day": day if precision >= DAY_PRECISION and day else None,
+        "precision": precision,
+    }
+
+
+def _english_names(entity: Dict) -> List[str]:
+    """The entity's English label and aliases."""
+    names = [entity.get("labels", {}).get("en", {}).get("value")]
+    names.extend(alias.get("value") for alias in entity.get("aliases", {}).get("en", []))
+    return [name for name in names if name]
+
+
 def _search_candidates(name: str) -> List[Dict]:
     response = _get_json(
         {"action": "wbsearchentities", "search": name, "language": "en", "type": "item", "limit": SEARCH_LIMIT}
@@ -112,10 +143,12 @@ def _search_candidates(name: str) -> List[Dict]:
     return response.get("search", [])
 
 
-def _fetch_birth_claims(qid: str) -> List[Dict]:
-    response = _get_json({"action": "wbgetentities", "ids": qid, "props": "claims"})
-    entity = response.get("entities", {}).get(qid, {})
-    return entity.get("claims", {}).get("P569", [])
+def _fetch_entity(qid: str) -> Dict:
+    """One entity's claims, English label and aliases, and sitelinks - a single request."""
+    response = _get_json(
+        {"action": "wbgetentities", "ids": qid, "props": "claims|labels|aliases|sitelinks", "languages": "en"}
+    )
+    return response.get("entities", {}).get(qid, {})
 
 
 def _plausible_for_event(birth_year: int, event_year: Optional[int]) -> bool:
@@ -130,6 +163,7 @@ def lookup_birth_date(
     event_year: Optional[int],
     cache: Dict,
     candidate_filter: Optional[Callable[[Dict], bool]] = None,
+    require_exact_name: bool = False,
 ) -> Dict:
     """Resolve one name to a day-precision birth date, caching every outcome.
 
@@ -143,6 +177,19 @@ def lookup_birth_date(
     unfiltered search is full of plausible-age namesakes. Its outcomes differ
     from an unfiltered lookup's for the same name, so a caller passing one must
     also pass its own cache dict.
+
+    require_exact_name keeps a candidate only if the name equals its label, the
+    alias the search matched, or any of its English aliases. wbsearchentities
+    matches prefixes, so a search for "ABBA" can surface a person whose name
+    merely starts with it - and it reports only the best-matching term, so a
+    stage name that is one alias among several ("Brandy" for Brandy Norwood)
+    needs the aliases fetched to be seen.
+
+    Every plausible candidate also carries "death" (parse_death_claim of its
+    first P570 claim, or None) and "sitelinks" (how many Wikimedia sites have
+    a page on it - a fame measure). A resolved result has them at the top
+    level, and an ambiguous one lists each candidate's, so a caller holding
+    more evidence (an age at the event) can pick between them.
     """
     key = normalize_name(name)
     if key in cache:
@@ -157,13 +204,28 @@ def lookup_birth_date(
     plausible: List[Dict] = []
     saw_coarse_precision = False
     for candidate in candidates:
-        for claim in _fetch_birth_claims(candidate["id"]):
+        entity = _fetch_entity(candidate["id"])
+        if require_exact_name:
+            names = [candidate.get("label"), (candidate.get("match") or {}).get("text"), *_english_names(entity)]
+            if key not in {normalize_name(other) for other in names if other}:
+                continue
+        claims = entity.get("claims", {})
+        for claim in claims.get("P569", []):
             status, parsed = parse_birth_claim(claim)
             if status != "resolved":
                 saw_coarse_precision = True
                 continue
             if _plausible_for_event(parsed["year"], event_year):
-                plausible.append({**parsed, "qid": candidate["id"], "label": candidate.get("label")})
+                deaths = [parse_death_claim(death) for death in claims.get("P570", [])]
+                plausible.append(
+                    {
+                        **parsed,
+                        "qid": candidate["id"],
+                        "label": candidate.get("label"),
+                        "death": next((death for death in deaths if death), None),
+                        "sitelinks": len(entity.get("sitelinks", {})),
+                    }
+                )
             break
 
     if len(plausible) == 1:
@@ -175,7 +237,7 @@ def lookup_birth_date(
             {
                 "status": "ambiguous",
                 "name": name,
-                "candidates": [{"qid": item["qid"], "label": item["label"]} for item in plausible],
+                "candidates": plausible,
             },
         )
     if saw_coarse_precision:

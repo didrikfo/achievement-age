@@ -164,3 +164,12 @@ def test_real_billboard200_has_thriller_first_at_number_one_on_1983_02_26():
     assert (thriller["year"], thriller["month"], thriller["day"]) == (1983, 2, 26)
     assert thriller["names"] == ["Michael Jackson"]
     assert len({record["record_key"] for record in records}) == len(records)
+
+
+@_real_files
+def test_real_front_person_age_errata_are_skipped():
+    records = {record["record_key"]: record for record in load_hot100_number_ones()}
+
+    assert records["hot100:Got My Mind Set On You:George Harrison"]["expected_age_years"] is None
+    assert records["hot100:Call Me Maybe:Carly Rae Jepsen"]["expected_age_years"] is None
+    assert records["hot100:Billie Jean:Michael Jackson"]["expected_age_years"] is not None

@@ -2,25 +2,26 @@
 
 Runs after the source parsers and before ingest.migrate_music_to_supabase:
 
-    python -m ingest.resolve_music_persons            # births file + Wikidata
+    python -m ingest.resolve_music_persons            # Wikidata + births file
     python -m ingest.resolve_music_persons --offline  # births file only
 
 Two sources, in order:
 
-1. The scraped births file (data/historical_births_cleaned.json), but only
+1. Wikidata (ingest.sources.wikidata.lookup_birth_date), restricted to
+   candidates described as musicians whose label or an English alias is
+   exactly the credited name, with its own cache so these filtered outcomes
+   never mix with the unfiltered cache the historical corpus uses. Wikidata
+   covers far more musicians than the births file does (Madonna, Mariah Carey
+   and Taylor Swift are all missing from it), and it alone knows death dates.
+2. The scraped births file (data/historical_births_cleaned.json), but only
    entries whose description reads as a musician's. The file has a single
    "Michael Jackson" - not the singer - so a bare name match is unsafe here.
-2. Wikidata (ingest.sources.wikidata.lookup_birth_date), restricted to
-   candidates described as musicians whose label or alias is exactly the
-   credited name, with its own cache so these filtered outcomes never mix with
-   the unfiltered cache the historical corpus uses. Wikidata covers far more
-   musicians than the births file does (Madonna, Mariah Carey and Taylor Swift
-   are all missing from it).
 
 A resolved birth date must then give a plausible age at the event, and for a
 Hot 100 solo act it must agree with the dataset's own hand-researched
-front_person_age to within a year - the check that catches a same-name wrong
-person that slipped through both filters above.
+front_person_age to within two years - the check that catches a same-name
+wrong person that slipped through both filters above. Records dated after
+the person's death are dropped: an age at a posthumous event means nothing.
 """
 
 from __future__ import annotations
@@ -62,10 +63,18 @@ MIN_AGE_DAYS = 5 * 365
 #: births file is 12 years older than the singer).
 EXPECTED_AGE_TOLERANCE_YEARS = 2.0
 
+#: An ambiguous name goes to its most-linked Wikidata candidate only when that
+#: one is this many times as linked as the runner-up and has at least
+#: MIN_FAME_SITELINKS. A chart-topper is famous: the singer Chris Brown has 78
+#: sitelinks to his namesake's 0, John Mayer 61 to 7. Bobby Lewis of "Tossin'
+#: and Turnin'" (9 to 3) is not a clear enough winner and stays unresolved.
+FAME_DOMINANCE_RATIO = 4
+MIN_FAME_SITELINKS = 10
+
 MUSIC_DESCRIPTION = re.compile(
     r"singer|musician|rapper|songwriter|composer|guitarist|pianist|drummer|bassist|vocalist|"
     r"keyboardist|saxophonist|trumpeter|violinist|conductor|bandleader|band leader|disc jockey|\bDJ\b|"
-    r"record producer|music|recording artist|entertainer|crooner|chansonnier|yodel",
+    r"record producer|music|recording artist|entertainer|crooner|chansonnier|yodel|R&B|hip[ -]hop",
     re.IGNORECASE,
 )
 
@@ -74,21 +83,14 @@ def is_music_description(text: Optional[str]) -> bool:
     return bool(text) and bool(MUSIC_DESCRIPTION.search(text))
 
 
-def musician_candidate_filter(name: str):
-    """A wikidata.lookup_birth_date candidate_filter for one credited name.
+def musician_candidate_filter(candidate: Dict) -> bool:
+    """A wikidata.lookup_birth_date candidate_filter: only people described as musicians.
 
-    wbsearchentities matches prefixes, so a search for a band's name ("ABBA",
-    "Lordi") can surface a person whose label merely starts with it. Requiring
-    the matched label/alias to equal the credit - and the description to read
-    as a musician's - leaves only people actually known by that name.
+    Checked before any entity is fetched, so the towns, spirits and albums a
+    search for "Brandy" or "Future" returns cost nothing. The exact-name check
+    (require_exact_name) runs after the fetch, since it needs the aliases.
     """
-    wanted = normalize_name(name)
-
-    def accept(candidate: Dict) -> bool:
-        matched = (candidate.get("match") or {}).get("text") or candidate.get("label") or ""
-        return normalize_name(matched) == wanted and is_music_description(candidate.get("description"))
-
-    return accept
+    return is_music_description(candidate.get("description"))
 
 
 # --- pure functions ---
@@ -163,7 +165,97 @@ def _birth_fields(result: Dict, source: str) -> Dict:
     return {
         "birth_year": result["year"], "birth_month": result["month"], "birth_day": result["day"],
         "birth_source": source, "wikidata_qid": result.get("qid"),
+        "wikidata_label": result.get("label"), "death": result.get("death"),
     }
+
+
+def _check_all(records: List[Dict], birth: Dict) -> Tuple[List[Dict], Optional[Tuple[Dict, str]]]:
+    """(records with age_days, None) if birth passes for every record, else ([], first failure)."""
+    accepted: List[Dict] = []
+    for record in records:
+        age_days, reason = check_resolved_record({**record, **birth})
+        if reason:
+            return [], (record, reason)
+        accepted.append({**record, **birth, "age_days": age_days})
+    return accepted, None
+
+
+def is_posthumous(record: Dict, death: Optional[Dict]) -> bool:
+    """Whether the record's event came after the person's death.
+
+    A coarse death date counts against an event that could have followed it:
+    died "1970" rules out any 1970 or later event, died "October 1970" any
+    event from October 1970 on. An age at a posthumous event means nothing.
+    """
+    if not death:
+        return False
+    event = (record["year"], record["month"], record["day"])
+    if death.get("day") is not None:
+        return event > (death["year"], death["month"], death["day"])
+    if death.get("month") is not None:
+        return event[:2] >= (death["year"], death["month"])
+    return event[0] >= death["year"]
+
+
+def settle_ambiguous(records: List[Dict], candidates: List[Dict], source: str) -> Optional[Dict]:
+    """The one candidate an ambiguous name belongs to, or None if the evidence doesn't settle it.
+
+    Candidates are narrowed to those passing every record's age check, then
+    to those alive for at least one record (a 1914-born Ken Carson who died in
+    1994 had no 2020s number ones). If several remain, a clear fame winner is
+    taken - see FAME_DOMINANCE_RATIO.
+    """
+    passing = []
+    for candidate in candidates:
+        checked, _ = _check_all(records, _birth_fields(candidate, source))
+        if checked and not all(is_posthumous(record, candidate.get("death")) for record in checked):
+            passing.append(candidate)
+    if len(passing) == 1:
+        return passing[0]
+    if len(passing) > 1:
+        ranked = sorted(passing, key=lambda candidate: candidate.get("sitelinks") or 0, reverse=True)
+        top, runner_up = ranked[0].get("sitelinks") or 0, ranked[1].get("sitelinks") or 0
+        if top >= MIN_FAME_SITELINKS and top >= FAME_DOMINANCE_RATIO * runner_up:
+            return ranked[0]
+    return None
+
+
+def _format_death(death: Dict) -> str:
+    return "-".join(f"{part:02d}" for part in (death["year"], death.get("month"), death.get("day")) if part)
+
+
+def canonicalize_names(resolved: List[Dict]) -> List[Dict]:
+    """One name per Wikidata person, so one persons row per person.
+
+    The charts spell the same act differently ("Beyonce" on the Billboard 200,
+    "Beyoncé" on the Hot 100). Names that resolved to the same QID take the
+    spelling that equals the Wikidata label, else the one with most records.
+    """
+    names_by_qid: Dict[str, Dict[str, int]] = {}
+    labels: Dict[str, str] = {}
+    for record in resolved:
+        qid = record.get("wikidata_qid")
+        if qid:
+            counts = names_by_qid.setdefault(qid, {})
+            counts[record["name"]] = counts.get(record["name"], 0) + 1
+            labels[qid] = record.get("wikidata_label") or ""
+
+    renames: Dict[str, str] = {}
+    for qid, counts in names_by_qid.items():
+        if len(counts) < 2:
+            continue
+        by_count = max(sorted(counts), key=lambda name: counts[name])
+        canonical = labels[qid] if labels[qid] in counts else by_count
+        renames.update({name: canonical for name in counts if name != canonical})
+
+    return [
+        {
+            **record,
+            "name": renames.get(record["name"], record["name"]),
+            "names": [renames.get(name, name) for name in record["names"]],
+        }
+        for record in resolved
+    ]
 
 
 def resolve_people(
@@ -173,13 +265,23 @@ def resolve_people(
 ) -> Tuple[List[Dict], List[Dict]]:
     """Attach a birth date and age_days to each person record; (resolved, review).
 
-    Candidate birth dates are tried per name, births file first, then
-    lookup_wikidata(name, earliest_event_year) - None skips Wikidata entirely.
+    Candidate birth dates are tried per name: Wikidata first -
+    lookup_wikidata(name, earliest_event_year), None skips it - because only
+    Wikidata also knows when someone died; then the births file.
+
     A candidate is accepted only if it passes check_resolved_record for every
     one of that name's records: one failure proves it's someone else's birth
     date, and the other records (a Billboard 200 album has no front_person_age
-    to check against) must not quietly keep it. A rejected births-file date
-    falls through to Wikidata.
+    to check against) must not quietly keep it. An ambiguous Wikidata result
+    is settled by settle_ambiguous when the evidence allows.
+    A rejected births-file date falls through to nothing; a rejected Wikidata
+    date does not fall through to the births file either, since the two
+    sources would then disagree about one person.
+
+    Records dated after the person's death (Otis Redding's "Dock of the Bay",
+    Aaliyah's last album) are dropped and reported. A births-file date carries
+    no death date, so with Wikidata on, those names are reported for a manual
+    posthumous check.
     """
     records_by_name: Dict[str, List[Dict]] = {}
     for person in people:
@@ -189,24 +291,28 @@ def resolve_people(
     review: List[Dict] = []
     for name in sorted(records_by_name):
         records = records_by_name[name]
-        lookups = [("births_file", lambda: resolve_from_births(name, births_lookup))]
+        lookups = []
         if lookup_wikidata is not None:
             earliest_year = min(record["year"] for record in records)
             lookups.append(("wikidata", lambda: lookup_wikidata(name, earliest_year)))
+        lookups.append(("births_file", lambda: resolve_from_births(name, births_lookup)))
 
-        accepted: Optional[List[Dict]] = None
+        accepted: List[Dict] = []
         for source, lookup in lookups:
             result = lookup()
+            if result["status"] == "ambiguous" and result.get("candidates"):
+                chosen = settle_ambiguous(records, result["candidates"], source)
+                if chosen is not None:
+                    result = {"status": "resolved", "name": name, **chosen}
             if result["status"] != "resolved":
                 review.append(
                     {"stage": "music_birth_date", "issue_type": result["status"], "name": name, "detail": f"via {source}"}
                 )
                 continue
             birth = _birth_fields(result, source)
-            checked = [({**record, **birth}, check_resolved_record({**record, **birth})) for record in records]
-            failures = [(record, reason) for record, (_, reason) in checked if reason]
-            if failures:
-                record, reason = failures[0]
+            accepted, failure = _check_all(records, birth)
+            if failure:
+                record, reason = failure
                 review.append(
                     {
                         "stage": "music_age_check",
@@ -219,13 +325,39 @@ def resolve_people(
                         ),
                     }
                 )
+                if source == "wikidata":
+                    # Wikidata found this exact-name musician, but the dataset contradicts
+                    # it - a births-file date for the same name would only be a guess
+                    # between two disagreeing sources (Ernie K-Doe: 1936 vs. 1933).
+                    break
                 continue
-            accepted = [{**record, "age_days": age_days} for record, (age_days, _) in checked]
+            if source == "births_file" and lookup_wikidata is not None:
+                review.append(
+                    {
+                        "stage": "music_death_date",
+                        "issue_type": "death_date_unknown",
+                        "name": name,
+                        "detail": "resolved from the births file only - check by hand for posthumous records",
+                    }
+                )
             break
 
-        if accepted:
-            resolved.extend(accepted)
-    return resolved, review
+        for record in accepted:
+            if is_posthumous(record, record["death"]):
+                review.append(
+                    {
+                        "stage": "music_death_date",
+                        "issue_type": "posthumous_record",
+                        "name": name,
+                        "detail": (
+                            f"{record['record_key']} on {record['year']}-{record['month']:02d}-{record['day']:02d} "
+                            f"is after the death on {_format_death(record['death'])}"
+                        ),
+                    }
+                )
+            else:
+                resolved.append(record)
+    return canonicalize_names(resolved), review
 
 
 # --- orchestration (impure) ---
@@ -246,6 +378,8 @@ def run(
     cache_path: Path = MUSIC_WIKIDATA_CACHE_PATH,
 ) -> Dict[str, int]:
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    # write_review_entries appends; this run is the file's only writer, so start it fresh.
+    review_path.unlink(missing_ok=True)
 
     records, date_review = load_music_records()
     people, groups = expand_to_people(records)
@@ -257,7 +391,9 @@ def run(
         cache = wikidata.load_cache(cache_path)
 
         def lookup(name: str, event_year: int) -> Dict:
-            return wikidata.lookup_birth_date(name, event_year, cache, candidate_filter=musician_candidate_filter(name))
+            return wikidata.lookup_birth_date(
+                name, event_year, cache, candidate_filter=musician_candidate_filter, require_exact_name=True
+            )
 
     try:
         resolved, review = resolve_people(people, births_lookup, lookup)

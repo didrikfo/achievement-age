@@ -1,4 +1,7 @@
 from ingest.resolve_music_persons import (
+    settle_ambiguous,
+    canonicalize_names,
+    is_posthumous,
     build_music_births_lookup,
     check_resolved_record,
     expand_to_people,
@@ -46,19 +49,13 @@ def test_births_lookup_reports_two_different_musicians_of_one_name_as_ambiguous(
 # --- Wikidata candidate filter ---
 
 
-def test_musician_candidate_filter_needs_an_exact_name_match_and_a_musician_description():
-    accept = musician_candidate_filter("Prince")
-
-    assert accept({"label": "Prince", "description": "American singer-songwriter (1958-2016)",
-                   "match": {"type": "label", "text": "Prince"}})
-    assert not accept({"label": "Prince", "description": "son of a monarch", "match": {"text": "Prince"}})
-    # wbsearchentities matches prefixes: "Prince Buster" is not "Prince".
-    assert not accept({"label": "Prince Buster", "description": "Jamaican singer", "match": {"text": "Prince Buster"}})
-
-
-def test_musician_candidate_filter_accepts_an_alias_match():
-    accept = musician_candidate_filter("2Pac")
-    assert accept({"label": "Tupac Shakur", "description": "American rapper", "match": {"type": "alias", "text": "2Pac"}})
+def test_musician_candidate_filter_needs_a_musician_description():
+    # The exact-name half of the check is wikidata.lookup_birth_date(require_exact_name=True).
+    assert musician_candidate_filter({"label": "Prince", "description": "American singer-songwriter (1958-2016)"})
+    assert musician_candidate_filter({"label": "Sisqó", "description": "American R&B artist"})
+    assert not musician_candidate_filter({"label": "Prince", "description": "son of a monarch"})
+    assert not musician_candidate_filter({"label": "Brandy", "description": "spirit produced by distilling wine"})
+    assert not musician_candidate_filter({"label": "Nobody", "description": None})
 
 
 # --- per-record checks ---
@@ -148,5 +145,137 @@ def test_resolve_people_reports_a_name_nobody_can_resolve():
 
     assert resolved == []
     assert [(entry["issue_type"], entry["detail"]) for entry in review] == [
-        ("not_found", "via births_file"), ("not_found", "via wikidata"),
+        ("not_found", "via wikidata"), ("not_found", "via births_file"),
     ]
+
+
+def test_resolve_people_asks_wikidata_before_the_births_file():
+    # Only Wikidata knows death dates, so it goes first even when the births file has the name.
+    births = {"ray charles": [{"year": 1930, "month": 9, "day": 23}]}
+    wikidata = _wikidata({"Ray Charles": {"status": "resolved", "year": 1930, "month": 9, "day": 23, "qid": "Q544387",
+                                          "death": {"year": 2004, "month": 6, "day": 10, "precision": 11}}})
+
+    resolved, review = resolve_people([_person(expected=30.0)], births, lookup_wikidata=wikidata)
+
+    assert resolved[0]["birth_source"] == "wikidata"
+    assert review == []
+
+
+def test_resolve_people_flags_a_births_file_fallback_for_a_posthumous_check():
+    births = {"ray charles": [{"year": 1930, "month": 9, "day": 23}]}
+
+    resolved, review = resolve_people([_person(expected=30.0)], births, lookup_wikidata=_wikidata({}))
+
+    assert resolved[0]["birth_source"] == "births_file"
+    assert [entry["issue_type"] for entry in review] == ["not_found", "death_date_unknown"]
+
+
+def test_resolve_people_settles_an_ambiguous_wikidata_result_by_the_age_check():
+    # Two musicians named Chris Brown; only the one born 1989 was 18 at "Kiss Kiss".
+    record = _person(name="Chris Brown", title="Kiss Kiss", year=2007, month=12, day=15, expected=18.0)
+    wikidata = _wikidata({"Chris Brown": {"status": "ambiguous", "name": "Chris Brown", "candidates": [
+        {"qid": "Q155700", "label": "Chris Brown", "year": 1989, "month": 5, "day": 5, "death": None},
+        {"qid": "Q115390006", "label": "Chris Brown", "year": 1960, "month": 1, "day": 1, "death": None},
+    ]}})
+
+    resolved, _ = resolve_people([record], {}, lookup_wikidata=wikidata)
+
+    assert [(r["wikidata_qid"], r["birth_year"]) for r in resolved] == [("Q155700", 1989)]
+
+
+def test_resolve_people_leaves_ambiguous_a_result_nothing_settles():
+    # "Tossin' and Turnin'" carries no usable age here, and neither Bobby Lewis is clearly the famous one.
+    single = _person(name="Bobby Lewis", title="Tossin' and Turnin'", year=1961, month=7, day=10)
+    wikidata = _wikidata({"Bobby Lewis": {"status": "ambiguous", "name": "Bobby Lewis", "candidates": [
+        {"qid": "Q888609", "label": "Bobby Lewis", "year": 1925, "month": 2, "day": 9, "death": None, "sitelinks": 9},
+        {"qid": "Q4935287", "label": "Bobby Lewis", "year": 1942, "month": 5, "day": 9, "death": None, "sitelinks": 3},
+    ]}})
+
+    resolved, review = resolve_people([single], {}, lookup_wikidata=wikidata)
+
+    assert resolved == []
+    assert review[0]["issue_type"] == "ambiguous"
+
+
+def _mayer(qid, year, sitelinks, death=None):
+    return {"qid": qid, "label": "John Mayer", "year": year, "month": 10, "day": 16, "death": death,
+            "sitelinks": sitelinks}
+
+
+def test_settle_ambiguous_takes_a_clear_fame_winner():
+    # An album carries no front_person_age, so both John Mayers pass the age check.
+    album = _person(name="John Mayer", title="Continuum", year=2006, month=10, day=7, kind="billboard200_number_one")
+
+    chosen = settle_ambiguous([album], [_mayer("Q1785163", 1930, 7), _mayer("Q215215", 1977, 61)], "wikidata")
+
+    assert chosen["qid"] == "Q215215"
+
+
+def test_settle_ambiguous_needs_a_clear_margin_and_real_fame():
+    album = _person(name="John Mayer", title="Continuum", year=2006, month=10, day=7, kind="billboard200_number_one")
+
+    assert settle_ambiguous([album], [_mayer("Q1", 1930, 12), _mayer("Q2", 1977, 40)], "wikidata") is None
+    assert settle_ambiguous([album], [_mayer("Q1", 1930, 1), _mayer("Q2", 1977, 8)], "wikidata") is None
+
+
+def test_settle_ambiguous_drops_a_candidate_dead_before_every_record():
+    album = _person(name="Ken Carson", title="More Chaos", year=2025, month=5, day=3, kind="billboard200_number_one")
+    old = {"qid": "Q19667992", "label": "Ken Carson", "year": 1914, "month": 11, "day": 14, "sitelinks": 40,
+           "death": {"year": 1994, "month": 1, "day": 1, "precision": 11}}
+    rapper = {"qid": "Q114050700", "label": "Ken Carson", "year": 2000, "month": 4, "day": 11, "sitelinks": 24,
+              "death": None}
+
+    assert settle_ambiguous([album], [old, rapper], "wikidata")["qid"] == "Q114050700"
+
+
+def test_resolve_people_drops_records_after_the_death_but_keeps_the_rest():
+    # "(Just Like) Starting Over" reached number one 19 days after John Lennon was killed.
+    imagine = _person(name="John Lennon", title="Imagine", year=1971, month=10, day=30, kind="billboard200_number_one")
+    starting_over = _person(name="John Lennon", title="(Just Like) Starting Over", year=1980, month=12, day=27,
+                            expected=40.0)
+    wikidata = _wikidata({"John Lennon": {"status": "resolved", "year": 1940, "month": 10, "day": 9, "qid": "Q1203",
+                                          "death": {"year": 1980, "month": 12, "day": 8, "precision": 11}}})
+
+    resolved, review = resolve_people([imagine, starting_over], {}, lookup_wikidata=wikidata)
+
+    assert [r["title"] for r in resolved] == ["Imagine"]
+    assert review[0]["issue_type"] == "posthumous_record"
+    assert "after the death on 1980-12-08" in review[0]["detail"]
+
+
+def test_is_posthumous_handles_coarse_death_dates():
+    event = {"year": 1970, "month": 11, "day": 1}
+    assert is_posthumous(event, {"year": 1970, "month": 10, "day": 4})
+    assert not is_posthumous(event, {"year": 1970, "month": 11, "day": 1})  # the day of death itself
+    assert is_posthumous(event, {"year": 1970, "month": 11, "day": None})
+    assert not is_posthumous(event, {"year": 1970, "month": 12, "day": None})
+    assert is_posthumous(event, {"year": 1970, "month": None, "day": None})
+    assert not is_posthumous(event, None)
+
+
+def test_canonicalize_names_merges_spellings_of_one_person_under_the_wikidata_label():
+    records = [
+        {"name": "Beyonce", "names": ["Beyonce"], "wikidata_qid": "Q36153", "wikidata_label": "Beyoncé"},
+        {"name": "Beyonce", "names": ["Beyonce"], "wikidata_qid": "Q36153", "wikidata_label": "Beyoncé"},
+        {"name": "Beyoncé", "names": ["Beyoncé", "Jay-Z"], "wikidata_qid": "Q36153", "wikidata_label": "Beyoncé"},
+        {"name": "Adele", "names": ["Adele"], "wikidata_qid": "Q23215", "wikidata_label": "Adele"},
+        {"name": "Ray Charles", "names": ["Ray Charles"], "wikidata_qid": None},
+    ]
+
+    renamed = canonicalize_names(records)
+
+    assert [r["name"] for r in renamed] == ["Beyoncé"] * 3 + ["Adele", "Ray Charles"]
+    assert renamed[0]["names"] == ["Beyoncé"]
+    assert renamed[2]["names"] == ["Beyoncé", "Jay-Z"]
+
+
+def test_resolve_people_does_not_fall_back_to_the_births_file_after_a_contradicted_wikidata_date():
+    # Wikidata has Ernie K-Doe born 1936, the births file 1933: disagreeing sources, so no guess.
+    single = _person(name="Ernie K-Doe", title="Mother-in-Law", year=1961, month=5, day=22, expected=28.0)
+    births = {"ernie k-doe": [{"year": 1933, "month": 2, "day": 22}]}
+    wikidata = _wikidata({"Ernie K-Doe": {"status": "resolved", "year": 1936, "month": 2, "day": 22, "qid": "Q1"}})
+
+    resolved, review = resolve_people([single], births, lookup_wikidata=wikidata)
+
+    assert resolved == []
+    assert [entry["issue_type"] for entry in review] == ["rejected_birth_date"]

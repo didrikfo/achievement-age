@@ -36,6 +36,17 @@ BILLBOARD_200_PATH = MUSIC_RAW_DIR / "billboard200.csv"
 _NON_ARTIST_MARKERS = ("soundtrack", "various artists", "original cast", "cast recording", "motion picture")
 
 
+#: Hot 100 records whose front_person_age is simply wrong, checked by hand
+#: against the artist's documented birth date. Their age check is skipped - it
+#: would otherwise reject the right person's birth date for all their records.
+FRONT_PERSON_AGE_ERRATA = {
+    # George Harrison (born 1943-02-25) was 44 on 1988-01-16, not 47.
+    "hot100:Got My Mind Set On You:George Harrison",
+    # Carly Rae Jepsen (born 1985-11-21) was 26 on 2012-06-23, not 31.
+    "hot100:Call Me Maybe:Carly Rae Jepsen",
+}
+
+
 def _parse_iso_date(value: str) -> Tuple[int, int, int]:
     """"1958-08-04" or "1958-08-04T00:00:00Z" -> (1958, 8, 4)."""
     year, month, day = value[:10].split("-")
@@ -63,11 +74,14 @@ def load_hot100_number_ones(path: Path = HOT_100_PATH) -> List[Dict]:
             # front_person_age averages everyone credited - a duo's two leads,
             # or a solo lead and their featured guest ("1.5") - so it only pins
             # down one specific person's age for a plain solo credit.
-            expected_age = _optional_float(row["front_person_age"]) if structure == "1" else None
+            record_key = f"hot100:{row['song']}:{row['artist']}"
+            expected_age = None
+            if structure == "1" and record_key not in FRONT_PERSON_AGE_ERRATA:
+                expected_age = _optional_float(row["front_person_age"])
             records.append(
                 {
                     "kind": "hot100_number_one",
-                    "record_key": f"hot100:{row['song']}:{row['artist']}",
+                    "record_key": record_key,
                     "title": row["song"],
                     "credit": row["artist"],
                     "artist_structure": structure,

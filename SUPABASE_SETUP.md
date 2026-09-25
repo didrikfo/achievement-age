@@ -493,7 +493,7 @@ The `music` tag has existed since section 4. Design and source notes are in
 # 1. Download the pinned source files (~70 MB) into data/raw_data/music/
 ./venv/Scripts/python.exe -c "from ingest.sources.music import fetch_sources; fetch_sources()"
 
-# 2. Resolve every credited person's birth date (births file, then Wikidata; cached, rerunnable)
+# 2. Resolve every credited person's birth and death dates (Wikidata, then the births file; cached, rerunnable)
 ./venv/Scripts/python.exe -m ingest.resolve_music_persons
 
 # 3. Upsert persons and run the guards; writes data/music_displayable.json for review
@@ -513,7 +513,10 @@ Read the review files before step 4:
 - `data/tmp/music_resolution_review.json` lists the Hot 100 dates corrected against the chart
   archive, names with no resolvable birth date, rejected birth dates (a date contradicted by one of
   that person's records is dropped for all of them), and credits that name only a group. Groups get
-  no event.
+  no event. It also lists `posthumous_record`s: number ones dated after the artist's Wikidata death
+  date, such as "(Sittin' On) The Dock of the Bay". These are dropped, because an age at them means
+  nothing. It lists `death_date_unknown` names too: resolved from the births file alone, with no
+  death date to check. Look those over by hand.
 - `data/tmp/music_person_review.json` lists names that normalize like an existing person's, and names
   whose resolved birth date disagrees with the birth date an existing person's events imply. A
   namesake, e.g. the corpus's "Ray Charles", is born 1918 but the singer was born 1930. These are
