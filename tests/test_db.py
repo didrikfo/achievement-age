@@ -1,7 +1,15 @@
 from datetime import date
 from unittest.mock import MagicMock, patch
 
-from core.db import create_subscription, fetch_events, update_subscription_filters
+from postgrest import ReturnMethod
+
+from core.db import (
+    create_subscription,
+    fetch_events,
+    get_client,
+    get_subscription,
+    update_subscription_filters,
+)
 from core.preferences import (
     CATEGORY,
     SEQUENCE,
@@ -125,6 +133,41 @@ def test_create_subscription_stores_all_six_preference_columns():
     assert inserted["notify_excluded_categories"] == ["Science & Technology"]
 
 
+def test_create_subscription_does_not_ask_to_read_the_row_back():
+    # Under RLS the publishable key can insert a subscription but not select
+    # it, so a representation return would make every signup fail.
+    mock_client = MagicMock()
+
+    with patch("core.db.get_client", return_value=mock_client):
+        created = create_subscription(date(2000, 1, 1))
+
+    insert = mock_client.table.return_value.insert
+    assert insert.call_args.kwargs["returning"] == ReturnMethod.minimal
+    assert created == insert.call_args.args[0]
+    assert created["token"] and created["ntfy_topic"].startswith("achage-")
+    assert created["birthday"] == "2000-01-01"
+
+
+def test_get_subscription_looks_up_the_token_through_the_sql_function():
+    mock_client = MagicMock()
+    mock_client.rpc.return_value.execute.return_value.data = [{"token": "tok123"}]
+
+    with patch("core.db.get_client", return_value=mock_client):
+        result = get_subscription("tok123")
+
+    mock_client.rpc.assert_called_with("get_subscription", {"p_token": "tok123"})
+    mock_client.table.assert_not_called()
+    assert result == {"token": "tok123"}
+
+
+def test_get_subscription_returns_none_for_an_unknown_token():
+    mock_client = MagicMock()
+    mock_client.rpc.return_value.execute.return_value.data = []
+
+    with patch("core.db.get_client", return_value=mock_client):
+        assert get_subscription("nope") is None
+
+
 def test_update_subscription_filters_writes_all_six_columns_for_the_right_token():
     mock_client = MagicMock()
     preferences = toggle_calendar(default_preferences(), Row(SEQUENCE, "Primes"))
@@ -132,7 +175,45 @@ def test_update_subscription_filters_writes_all_six_columns_for_the_right_token(
     with patch("core.db.get_client", return_value=mock_client):
         update_subscription_filters("tok123", preferences)
 
-    mock_client.table.assert_called_with("subscriptions")
-    mock_client.table.return_value.update.assert_called_with(preferences_to_columns(preferences))
-    mock_client.table.return_value.update.return_value.eq.assert_called_with("token", "tok123")
-    mock_client.table.return_value.update.return_value.eq.return_value.execute.assert_called_once()
+    mock_client.rpc.assert_called_with(
+        "update_subscription_preferences",
+        {"p_token": "tok123", "p_preferences": preferences_to_columns(preferences)},
+    )
+    mock_client.rpc.return_value.execute.assert_called_once()
+    mock_client.table.assert_not_called()
+
+
+def test_preference_columns_match_the_update_sql_function():
+    # update_subscription_preferences (SUPABASE_SETUP.md section 16) names each
+    # column explicitly. A key added here but not there is silently never saved,
+    # so changing this set means changing that function too.
+    assert set(preferences_to_columns(default_preferences())) == {
+        "excluded_categories",
+        "excluded_tags",
+        "included_sequences",
+        "notify_mirrors_calendar",
+        "notify_excluded_categories",
+        "notify_excluded_sequences",
+    }
+
+
+def test_get_client_prefers_the_secret_key_when_one_is_configured(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_KEY", "sb_publishable_x")
+    monkeypatch.setenv("SUPABASE_SECRET_KEY", "sb_secret_x")
+
+    with patch("core.db.create_client") as create:
+        get_client()
+
+    create.assert_called_with("https://example.supabase.co", "sb_secret_x")
+
+
+def test_get_client_falls_back_to_the_publishable_key(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_KEY", "sb_publishable_x")
+    monkeypatch.delenv("SUPABASE_SECRET_KEY", raising=False)
+
+    with patch("core.db.create_client") as create:
+        get_client()
+
+    create.assert_called_with("https://example.supabase.co", "sb_publishable_x")

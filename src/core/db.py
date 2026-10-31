@@ -17,6 +17,7 @@ from datetime import date
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
+from postgrest import ReturnMethod
 from supabase import Client, create_client
 
 from core.preferences import Preferences, default_preferences, preferences_to_columns
@@ -50,8 +51,18 @@ def get_config_value(key: str, default: str | None = None) -> str:
 
 
 def get_client() -> Client:
+    """A Supabase client, privileged only where a secret key has been configured.
+
+    Row-level security (SUPABASE_SETUP.md section 16) lets the publishable key
+    in SUPABASE_KEY read the public tables and create a subscription, nothing
+    more. Writes to events/persons/tags and reading every subscription need the
+    secret key, which bypasses RLS. Only privileged contexts set
+    SUPABASE_SECRET_KEY: the cron job, a local .env used for ingest, and the
+    Claude cloud write environment. The deployed Streamlit app never does, so
+    it always runs as the publishable key.
+    """
     url = get_config_value("SUPABASE_URL")
-    key = get_config_value("SUPABASE_KEY")
+    key = get_config_value("SUPABASE_SECRET_KEY", default="") or get_config_value("SUPABASE_KEY")
     return create_client(url, key)
 
 
@@ -114,22 +125,37 @@ def create_subscription(birthday: date, preferences: Optional[Preferences] = Non
         "birthday": birthday.isoformat(),
         **preferences_to_columns(preferences or default_preferences()),
     }
-    response = client.table("subscriptions").insert(row).execute()
-    return response.data[0]
+    # Minimal return: the publishable key may insert a subscription but not read
+    # one back, so asking PostgREST for the inserted row would fail under RLS.
+    client.table("subscriptions").insert(row, returning=ReturnMethod.minimal).execute()
+    return row
 
 
 def get_subscription(token: str) -> Optional[Dict]:
-    """Look up a subscription by its magic-link token, or None if it doesn't exist."""
+    """Look up a subscription by its magic-link token, or None if it doesn't exist.
+
+    Goes through the get_subscription SQL function rather than a table select:
+    RLS gives the publishable key no read access to subscriptions at all, so
+    nobody can list every token. The function returns only the row whose token
+    the caller already knows.
+    """
     client = get_client()
-    response = client.table("subscriptions").select("*").eq("token", token).execute()
+    response = client.rpc("get_subscription", {"p_token": token}).execute()
     return response.data[0] if response.data else None
 
 
 def update_subscription_filters(token: str, preferences: Preferences) -> None:
-    """Overwrite a subscription's stored calendar and notification preferences in one write."""
+    """Overwrite a subscription's stored calendar and notification preferences in one write.
+
+    Goes through the update_subscription_preferences SQL function, for the same
+    reason as get_subscription. That function names each preference column
+    explicitly, so a column added to preferences_to_columns must be added to it
+    too (SUPABASE_SETUP.md section 16), or the new column is silently never saved.
+    """
     client = get_client()
-    client.table("subscriptions").update(preferences_to_columns(preferences)).eq(
-        "token", token
+    client.rpc(
+        "update_subscription_preferences",
+        {"p_token": token, "p_preferences": preferences_to_columns(preferences)},
     ).execute()
 
 
