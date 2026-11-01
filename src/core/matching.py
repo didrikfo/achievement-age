@@ -98,35 +98,70 @@ def events_by_age_days(events: Iterable[Dict]) -> Dict[int, List[Dict]]:
 LEGACY_PHRASE_PREFIX = "The same age that "
 PHRASE_HINGE = " was when "
 
+#: The hinge as it actually occurs in stored phrases: any whitespace between
+#: the words, and any punctuation after "when". Matching the literal
+#: PHRASE_HINGE (trailing space required) missed "Louis XIV was when, in
+#: Dover, ..." and sent it down the suffix-only fallback, which prepended a
+#: second "{name} was when" in front of an already name-onward phrase.
+PHRASE_HINGE_PATTERN = re.compile(r"\bwas\s+when\b", re.IGNORECASE)
+
+#: Longest subject span (in words) still read as "the person, maybe with a
+#: title" - "Field Marshal Arthur Wellesley, 1st Duke of Wellington" is 8.
+#: A hinge further in than this is part of a suffix-only phrase's own text.
+MAX_SUBJECT_WORDS = 12
+
 TENSE_OPENERS = {"past": "You were", "today": "You're", "future": "You'll be"}
+
+
+def find_phrase_hinge(phrase: str) -> Optional[re.Match]:
+    """The first "was when" in phrase that ends a plausible subject span, or None.
+
+    Shared by display (_phrase_body) and the ingest-time format check
+    (ingest.enrichment.check_phrase_format) so the two can never disagree
+    about whether a phrase is name-onward.
+    """
+    match = PHRASE_HINGE_PATTERN.search(phrase)
+    if match is None or len(phrase[: match.start()].split()) > MAX_SUBJECT_WORDS:
+        return None
+    return match
 
 
 def _phrase_body(event: Dict) -> str:
     """Return event_phrase normalized to its name-onward clause, no tensed opening.
 
-    Three shapes of event_phrase coexist in the database while the reprocessing
-    pass (docs/superpowers/specs/2026-08-22-tense-aware-display-text-design.md)
-    is still running manually:
+    Three shapes of event_phrase coexist in the database:
 
-    1. New format, already name-onward ("Sir Richard Owen was when ..."): used
-       as-is.
-    2. Current full-sentence format, opening with LEGACY_PHRASE_PREFIX ("The
-       same age that Sir Richard Owen was when ..."): the fixed prefix is
-       stripped off.
-    3. Oldest suffix-only format (predates both prompts, no recognizable
-       opening): reconstructed as "{name} was when {phrase}", the same
-       fallback this module has always used for pre-2026-08-08 rows.
+    1. Name-onward ("Sir Richard Owen was when ..."): used as-is. Recognised
+       by a "was when" hinge after a short subject span - deliberately *not*
+       also requiring the subject span to contain `name`. A phrase that names
+       the person differently ("King Louis of France" for "Louis XIV") reads
+       fine as written; rebuilding it would print the hinge twice. Such rows
+       are caught by check_phrase_format at ingest and by
+       scripts/audit_event_phrases.py instead.
+    2. Full-sentence format, opening with LEGACY_PHRASE_PREFIX ("The same age
+       that Sir Richard Owen was when ..."): the fixed prefix is stripped off.
+    3. Oldest suffix-only format (no hinge, e.g. "he hoisted the flag"):
+       reconstructed as "{name} was when {phrase}".
     """
-    phrase = event["event_phrase"]
-    stripped = phrase.lstrip()
+    stripped = event["event_phrase"].strip()
     if stripped.lower().startswith(LEGACY_PHRASE_PREFIX.lower()):
         return stripped[len(LEGACY_PHRASE_PREFIX):]
 
-    hinge_at = stripped.lower().find(PHRASE_HINGE)
-    if hinge_at != -1 and normalize_name(event["name"]) in normalize_name(stripped[:hinge_at]):
+    if find_phrase_hinge(stripped) is not None:
         return stripped
 
     return f"{event['name']}{PHRASE_HINGE}{stripped}"
+
+
+def phrase_shape(event: Dict) -> str:
+    """Which of _phrase_body's three shapes an event_phrase is: "name_onward",
+    "legacy_prefix" or "suffix_only". Used by the phrase audit."""
+    stripped = (event.get("event_phrase") or "").strip()
+    if stripped.lower().startswith(LEGACY_PHRASE_PREFIX.lower()):
+        return "legacy_prefix"
+    if find_phrase_hinge(stripped) is not None:
+        return "name_onward"
+    return "suffix_only"
 
 
 def full_sentence(event: Dict, tense: Tense) -> str:

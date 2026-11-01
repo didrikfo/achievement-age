@@ -26,6 +26,9 @@ For each record, return a JSON object with these fields only:
   "You're the same age", "You'll be the same age") - that part is computed by the
   app, not written by you. Begin your output directly with the person.
 
+  - Write `was when` once, right after the person, followed by a single space and
+    the event clause - never a comma, dash, or colon after it. The app splits the
+    phrase there.
   - Default to `name` exactly as given. After first naming the person, use a
     pronoun rather than repeating the name - infer pronouns from the name only when
     genuinely unambiguous, otherwise use a short form of their name instead.

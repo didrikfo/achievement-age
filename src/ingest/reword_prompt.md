@@ -24,6 +24,15 @@ For each record, return a JSON object with these fields:
   after today) — that part is computed by the app, not written by you. Begin your output directly
   with the person.
 
+  The app splits your phrase at `was when`, so the hinge must be exact:
+  - Write `was when` once, right after the person, followed by a single space and the start of the
+    event clause — never a comma, dash, or colon. If the event opens with a setting ("in Dover"),
+    fold it into the clause: "Louis XIV was when he and Charles II of England signed the Secret
+    Treaty of Dover in Dover, England", not "Louis XIV was when, in Dover, England, he ...".
+  - The words before `was when` must contain `name` exactly as given, plus at most a title or
+    epithet from `text` in front of or after it. Don't swap in a different form of the name
+    ("King Louis of France" for "Louis XIV", "Frederick II" for "Frederick the Great").
+
   **Naming the person**
   - Default to `name` exactly as given.
   - If `text` attaches a title, rank, honorific, or established epithet to that person, include it

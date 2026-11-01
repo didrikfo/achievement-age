@@ -306,7 +306,8 @@ def test_resolve_event_update_phrasing_mode_flags_a_malformed_phrase():
 
     update, _tags, review_entries = resolve_event_update(event, result, births_lookup={}, mode="phrasing")
 
-    assert update["event_phrase"] == "she published her notes"
+    # A phrasing pass never overwrites an existing phrase with a malformed one.
+    assert update is None
     assert [entry["issue_type"] for entry in review_entries] == ["format"]
 
 
@@ -357,3 +358,16 @@ def test_merge_chunk_phrasing_mode_skips_tags_and_persons(tmp_path):
 
     review = json.loads(review_path.read_text(encoding="utf-8"))
     assert [entry["issue_type"] for entry in review] == ["subject"]
+
+
+def test_resolve_event_update_phrasing_mode_keeps_the_old_phrase_when_the_new_one_fails_the_format():
+    event = {"id": 6, "name": "Louis XIV", "text": "Louis XIV signed a treaty.", "year": 1670, "month": 6, "day": 1}
+    result = {"event_phrase": "King Louis XIV of France was when, in Dover, he signed a treaty."}
+
+    update, tags, review_entries = resolve_event_update(event, result, births_lookup={}, mode="phrasing")
+
+    # Nothing written, and the row stays below REWORD_PROMPT_VERSION so it's retried.
+    assert update is None
+    assert tags == []
+    assert [entry["issue_type"] for entry in review_entries] == ["format"]
+    assert review_entries[0]["detail"].startswith("not written:")

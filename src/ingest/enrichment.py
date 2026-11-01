@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Tuple
 
 from core.config import DATA_DIR, TAG_TAXONOMY
 from core.io import load_json, save_to_json
-from core.matching import name_matches_text, normalize_name
+from core.matching import PHRASE_HINGE, find_phrase_hinge, name_matches_text, normalize_name
 from ingest.pipeline import calculate_age
 
 PROMPT_TEMPLATE_PATH = Path(__file__).parent / "reword_prompt.md"
@@ -24,7 +24,13 @@ PROMPT_TEMPLATE_PATH = Path(__file__).parent / "reword_prompt.md"
 #: results. Rows in Supabase carry the version they were written under
 #: (events.reword_prompt_version, default 0 for everything predating this), so a
 #: prompt revision makes the affected rows re-queueable instead of one-shot.
-REWORD_PROMPT_VERSION = 2
+REWORD_PROMPT_VERSION = 3
+
+#: Agent-tool model alias for the phrasing subagents (reword_prompt.md and
+#: nobel_reword_prompt.md). "opus" resolves to Claude Opus 5.5. Version 3 is
+#: the first prompt written for it; everything below that was phrased by Haiku
+#: and is re-queued by backfill_event_enrichment.prepare_chunks(mode="phrasing").
+PHRASING_MODEL = "opus"
 
 
 def build_prompt() -> str:
@@ -55,34 +61,39 @@ def validate_tags(raw_tags: List[str]) -> Tuple[List[str], Optional[str]]:
     return valid, None
 
 
-PHRASE_HINGE = " was when "
-
 _PARENTHESISED = re.compile(r"\([^)]*\)")
 _PROPER_NOUN = re.compile(r"\b[A-Z][^\W\d_]*\b")
 _NUMERAL = re.compile(r"\b\d[\d,]*\b")
+_PUNCTUATION_AFTER_HINGE = re.compile(r"\s*[,;:\u2013\u2014-]")
 
 
 def check_phrase_format(event_phrase: str, name: str) -> Optional[str]:
-    """Structural check on an event_phrase. Advisory - never blocks a write.
+    """Structural check on an event_phrase.
 
     Returns a rejection reason, or None when the phrase is well formed:
-    contains PHRASE_HINGE, doesn't echo a display-time opening ("the same
-    age ...", covering both the legacy full-sentence prefix and all three
-    tensed openers) before the hinge, names `name` before it (so a title
-    prefix passes but a substituted person doesn't), and ends with terminal
-    punctuation. There's no fixed opening the phrase itself should start
-    with - it starts directly with the person, whatever their name or title.
+    contains the "was when" hinge after a short subject span (the same
+    core.matching.find_phrase_hinge display uses), has the event clause
+    straight after the hinge rather than a comma or dash ("was when, in
+    Dover, ..."), doesn't echo a display-time opening ("the same age ...") before the
+    hinge, names `name` before it (so a title prefix passes but a different
+    form of the name or a substituted person doesn't), and ends with terminal
+    punctuation.
+
+    Callers don't block on it, but they don't stamp the prompt version on a
+    phrase that fails it either, so the next phrasing pass retries the row.
     """
     phrase = (event_phrase or "").strip()
     if not phrase:
         return "phrase is empty"
 
-    lowered = phrase.lower()
-    hinge_at = lowered.find(PHRASE_HINGE.lower())
-    if hinge_at == -1:
-        return f"phrase does not contain {PHRASE_HINGE.strip()!r}"
+    hinge = find_phrase_hinge(phrase)
+    if hinge is None:
+        return f"phrase does not contain {PHRASE_HINGE.strip()!r} after the person's name"
 
-    subject_span = phrase[:hinge_at]
+    if _PUNCTUATION_AFTER_HINGE.match(phrase, hinge.end()):
+        return f"{PHRASE_HINGE.strip()!r} is followed by punctuation: {phrase[hinge.start():hinge.end() + 12]!r}"
+
+    subject_span = phrase[: hinge.start()]
     if "the same age" in subject_span.lower():
         return f"phrase includes a display opening: {subject_span!r}"
 

@@ -186,9 +186,11 @@ def test_merge_reworded_chunk_flags_a_malformed_phrase(tmp_path):
 
     review = json.loads(review_path.read_text(encoding="utf-8"))
     assert [entry["issue_type"] for entry in review] == ["format"]
-    # Advisory only - the phrase is still written through unchanged.
+    # Not blocking - the phrase is still written through unchanged - but left
+    # unstamped so the next phrasing pass re-queues it.
     merged = json.loads(displayable_path.read_text(encoding="utf-8"))
     assert merged[0]["event_phrase"] == "she published her notes"
+    assert "reword_prompt_version" not in merged[0]
 
 
 def test_merge_reworded_chunk_stamps_the_prompt_version_only_on_subagent_output(tmp_path):

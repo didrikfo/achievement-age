@@ -53,8 +53,8 @@ to share an age with someone from history.
 - **Streamlit** app backed by **Supabase** (Postgres) for events, people, and subscriptions.
 - A **GitHub Actions** workflow runs daily, checks every subscriber's age-in-days against the event
   database, and pushes matches via **ntfy.sh** — no server to keep running for the notification side.
-- Event descriptions were reworded for display using Claude Haiku subagents run from within Claude
-  Code, not a metered LLM API.
+- Event descriptions are reworded for display using Claude Opus subagents run from within Claude
+  Code, not a metered LLM API (earlier rows were phrased by Haiku; see SUPABASE_SETUP.md section 18).
 
 Full technical setup (Supabase schema, secrets, local dev) is in [SUPABASE_SETUP.md](SUPABASE_SETUP.md).
 

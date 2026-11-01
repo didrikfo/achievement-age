@@ -146,8 +146,8 @@ Then run the one-off backfill (same environment/credentials as the earlier migra
 python -c "from ingest.backfill_event_enrichment import prepare_chunks; print(prepare_chunks())"
 ```
 
-This writes chunk files under `data/tmp/enrichment_chunks/`. Dispatch a Claude Haiku subagent per
-chunk file, using `ingest.enrichment.build_prompt()` for instructions, and save each subagent's
+This writes chunk files under `data/tmp/enrichment_chunks/`. Dispatch a Claude Opus subagent
+(Agent tool `model: "opus"`, i.e. `ingest.enrichment.PHRASING_MODEL`) per chunk file, using `ingest.enrichment.build_prompt()` for instructions, and save each subagent's
 JSON response next to its chunk as `<chunk>_result.json`. Then merge each chunk:
 
 ```bash
@@ -255,8 +255,8 @@ venv\Scripts\python.exe -c "from ingest.llm_utils import prepare_reword_chunks; 
 ```
 
 This splits whatever in `data/events_with_age.json` isn't already in
-`data/displayable_events.json` into chunk files under `data/tmp/reword_chunks/`. Dispatch a
-Haiku subagent per chunk using `ingest.enrichment.build_prompt()` for instructions, then
+`data/displayable_events.json` into chunk files under `data/tmp/reword_chunks/`. Dispatch an
+Opus subagent (`model: "opus"`) per chunk using `ingest.enrichment.build_prompt()` for instructions, then
 merge each chunk:
 
 ```bash
@@ -318,7 +318,7 @@ Finally, re-phrase every event that predates the current prompt:
 ./venv/Scripts/python.exe -c "from ingest.backfill_event_enrichment import prepare_chunks; print(len(prepare_chunks(mode='phrasing')))"
 ```
 
-Dispatch a Claude Haiku subagent per chunk file under `data/tmp/enrichment_chunks/`, using
+Dispatch a Claude Opus subagent (`model: "opus"`) per chunk file under `data/tmp/enrichment_chunks/`, using
 `ingest.enrichment.build_prompt()` for instructions, and save each response next to its chunk as
 `<chunk>_result.json`. Then merge each one:
 
@@ -693,3 +693,62 @@ revoke `claude-cloud` in Supabase at any time.
 The secret key bypasses RLS, so a write session can also delete data or read subscriptions. The
 free plan has no point-in-time restore, so take a backup before a large ingest run:
 Database → Backups, or `pg_dump` with the connection string from Project Settings → Database.
+
+## 18. Opus re-phrasing backpass (prompt version 3)
+
+Phrasing moved from Claude Haiku to Claude Opus 5.5 subagents (`ingest.enrichment.PHRASING_MODEL`,
+Agent tool `model: "opus"`). `REWORD_PROMPT_VERSION` is now 3, which also adds explicit hinge rules
+to `src/ingest/reword_prompt.md`. Every generic (non-Nobel, non-music) row below version 3 was
+phrased by Haiku and is queued for the backpass.
+
+Why: Haiku sometimes broke the `{person} was when {event}` template. It wrote "was when," (a comma
+after the hinge) or a different form of the name ("King Louis of France" for "Louis XIV"). The old
+display normalizer read those rows as the oldest suffix-only shape and prepended
+"{name} was when", so the hinge appeared twice:
+
+> You'll be the same age Louis XIV was when King Louis XIV of France was when, in Dover, ...
+
+`core.matching` now finds the hinge with a punctuation- and whitespace-tolerant pattern and no
+longer rebuilds a phrase that already has one, so these rows display correctly now. The backpass
+rewrites them properly.
+
+**1. Audit (read-only, any session):**
+
+```bash
+python scripts/audit_event_phrases.py
+```
+
+This prints how many rows the backpass will pick up, how many rendered with a doubled hinge under
+the old display, and format-check failures grouped by reason. The full list goes to
+`data/tmp/phrase_audit.json` (event data only, nothing private).
+
+**2. Back up** (Database → Backups). The pass overwrites `event_phrase` on roughly every
+generic row.
+
+**3. Run it in a write session** (section 17), using the same commands as section 9:
+
+```bash
+python -c "from ingest.backfill_event_enrichment import prepare_chunks; print(len(prepare_chunks(mode='phrasing')))"
+```
+
+Dispatch one Opus subagent (`model: "opus"`) per `data/tmp/enrichment_chunks/chunk_NNNN.json`. Its
+prompt is `ingest.enrichment.build_prompt()` plus the chunk's JSON, and it writes
+`chunk_NNNN_result.json`. Then run `merge_chunk(..., mode='phrasing')` on each chunk. Opus costs
+more per token than Haiku. A test chunk first (`prepare_chunks(chunk_size=20, mode='phrasing')`,
+merge one chunk, then spot-check it in the app) is cheap insurance.
+
+The format check now gates this pass. If a new phrase fails `check_phrase_format`, the pass doesn't
+write it: the row keeps its current phrase, stays below version 3, and gets a
+`format` / `not written: ...` entry in `data/tmp/enrichment_review.json`. Rerunning `prepare_chunks`
+picks up only those rows. New-event merges (`ingest.llm_utils`, `ingest.nobel_llm_utils`) still
+write a phrase that fails the check, because there is nothing better to fall back on, but leave it
+unstamped so the next pass retries it.
+
+**4. Re-audit.** Rerun the audit script. "Doubled hinge" and format failures should be near zero.
+Whatever is left is in the review file.
+
+**Not covered:** the phrasing backpass skips Nobel rows (`STRUCTURED_SOURCES`), and no
+Supabase backfill path exists for them yet. `NOBEL_REWORD_PROMPT_VERSION` is now 2, so future
+Nobel ingests use the updated prompt, but existing Nobel rows keep their Haiku phrasing until a
+Nobel backfill mode is built. Music rows come from templates, not an LLM. Subject extraction
+(section 8, Stage 2) still uses Haiku, because it classifies rather than writes display text.

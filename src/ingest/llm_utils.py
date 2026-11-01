@@ -1,7 +1,8 @@
 """LLM helpers used during data preparation.
 
 Rewording (adding event_phrase, tags, and subject corrections to matched events)
-is done by spawning Claude Haiku subagents from within a Claude Code session -
+is done by spawning Claude Opus subagents (ingest.enrichment.PHRASING_MODEL)
+from within a Claude Code session -
 see prepare_reword_chunks and merge_reworded_chunk. This module has no
 network/API-calling code itself; it only prepares chunk files for a subagent
 to process (using ingest.enrichment.build_prompt for instructions) and merges
@@ -202,6 +203,9 @@ def merge_reworded_chunk(
         # disagree with the phrase's subject too.
         format_reason = check_phrase_format(merged_event["event_phrase"], merged_event.get("name") or "")
         if format_reason:
+            # Kept (display copes with most format slips) but unstamped, so the
+            # next phrasing pass re-queues it rather than treating it as done.
+            del merged_event["reword_prompt_version"]
             review_entries.append(
                 {"name": merged_event.get("name"), "text": event.get("text"), "issue_type": "format", "detail": format_reason}
             )

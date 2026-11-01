@@ -30,7 +30,7 @@ PROMPT_PATH = Path(__file__).parent / "nobel_reword_prompt.md"
 #: historical corpus's REWORD_PROMPT_VERSION - safe because
 #: ingest.backfill_event_enrichment.pending_phrasing_events excludes
 #: Nobel-sourced rows from that counter's selection entirely (Task 3).
-NOBEL_REWORD_PROMPT_VERSION = 1
+NOBEL_REWORD_PROMPT_VERSION = 2
 
 
 def build_nobel_prompt() -> str:
@@ -124,6 +124,8 @@ def merge_nobel_chunk(
 
         format_reason = check_phrase_format(event_phrase, record["name"])
         if format_reason:
+            # Kept but unstamped, so a rerun re-queues it - same as ingest.llm_utils.
+            del merged_record["reword_prompt_version"]
             review_entries.append(
                 {"name": record["name"], "category": record["category"], "issue_type": "format", "detail": format_reason}
             )

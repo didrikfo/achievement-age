@@ -222,10 +222,46 @@ def test_check_facts_preserved_deduplicates_repeated_tokens():
     assert check_facts_preserved(text, phrase) == ["Prussia", "Austria"]
 
 
-def test_reword_prompt_version_is_two():
+def test_reword_prompt_version_is_three():
     from ingest.enrichment import REWORD_PROMPT_VERSION
 
-    assert REWORD_PROMPT_VERSION == 2
+    assert REWORD_PROMPT_VERSION == 3
+
+
+def test_phrasing_model_is_opus():
+    from ingest.enrichment import PHRASING_MODEL
+
+    assert PHRASING_MODEL == "opus"
+
+
+def test_check_phrase_format_rejects_punctuation_straight_after_the_hinge():
+    # The live "Secret Treaty of Dover" row: the hinge was followed by a comma.
+    phrase = "King Louis XIV of France was when, in Dover, England, he and Charles II signed a treaty."
+    reason = check_phrase_format(phrase, "Louis XIV")
+    assert reason is not None
+    assert "followed by punctuation" in reason
+
+
+def test_check_phrase_format_accepts_a_quote_straight_after_the_hinge():
+    # Music templates: 'Rod Stewart was when "Maggie May" reached number one.'
+    assert check_phrase_format('Rod Stewart was when "Maggie May" reached number one.', "Rod Stewart") is None
+
+
+def test_check_phrase_format_accepts_a_hinge_across_irregular_whitespace():
+    assert check_phrase_format("Louis XIV was  when he signed a treaty.", "Louis XIV") is None
+    assert check_phrase_format("King Louis XIV of France was when he signed a treaty.", "Louis XIV") is None
+
+
+def test_check_phrase_format_rejects_a_different_form_of_the_name():
+    reason = check_phrase_format("King Louis of France was when he signed a treaty.", "Louis XIV")
+    assert reason is not None
+    assert "Louis XIV" in reason
+
+
+def test_build_prompt_spells_out_the_hinge_rules():
+    prompt = build_prompt()
+    assert "never a comma" in prompt
+    assert "different form of the name" in prompt
 
 
 def test_build_prompt_asks_for_a_name_onward_phrase_with_titles():

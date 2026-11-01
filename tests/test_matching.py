@@ -5,7 +5,9 @@ from core.matching import (
     events_by_age_days,
     excluded_from_included,
     filter_events,
+    find_phrase_hinge,
     full_sentence,
+    phrase_shape,
     included_from_excluded,
     name_matches_text,
     normalize_name,
@@ -241,3 +243,44 @@ def test_primary_category_ignores_tags_outside_the_taxonomy():
     # Only reachable by a hand edit in the Supabase table editor - must not raise.
     assert primary_category(_tagged(["not-a-real-tag"])) is None
     assert primary_category(_tagged(["not-a-real-tag", "sports"])) == "Sport"
+
+
+def test_full_sentence_does_not_double_the_hinge_when_punctuation_follows_it():
+    # Reproduces the live "Secret Treaty of Dover" row.
+    event = {
+        "name": "Louis XIV",
+        "event_phrase": (
+            "King Louis XIV of France was when, in Dover, England, he and Charles II of England "
+            "signed the Secret Treaty of Dover."
+        ),
+    }
+    assert full_sentence(event, "future") == (
+        "You'll be the same age King Louis XIV of France was when, in Dover, England, he and "
+        "Charles II of England signed the Secret Treaty of Dover."
+    )
+
+
+def test_full_sentence_does_not_double_the_hinge_when_the_name_is_written_differently():
+    event = {"name": "Louis XIV", "event_phrase": "King Louis of France was when he signed a treaty."}
+    assert full_sentence(event, "today") == "You're the same age King Louis of France was when he signed a treaty."
+
+
+def test_full_sentence_tolerates_a_line_break_inside_the_hinge():
+    event = {"name": "Ada Lovelace", "event_phrase": "Ada Lovelace was\nwhen she published her notes."}
+    assert full_sentence(event, "today").count("was") == 1
+
+
+def test_full_sentence_still_reconstructs_a_suffix_only_phrase_with_a_late_was_when():
+    phrase = "the fleet sailed for weeks across the open ocean before the coast was sighted, which was when he landed"
+    event = {"name": "Christopher Columbus", "event_phrase": phrase}
+    assert full_sentence(event, "today") == f"You're the same age Christopher Columbus was when {phrase}"
+
+
+def test_find_phrase_hinge_ignores_was_inside_other_words():
+    assert find_phrase_hinge("Ada Lovelace swas whence she wrote.") is None
+
+
+def test_phrase_shape_classifies_all_three_shapes():
+    assert phrase_shape({"event_phrase": "Ada Lovelace was when she wrote."}) == "name_onward"
+    assert phrase_shape({"event_phrase": "The same age that Ada Lovelace was when she wrote."}) == "legacy_prefix"
+    assert phrase_shape({"event_phrase": "she wrote"}) == "suffix_only"

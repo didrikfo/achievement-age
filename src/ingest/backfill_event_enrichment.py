@@ -6,7 +6,7 @@ Two-phase, like ingest.llm_utils, because a Claude Code subagent has to run in
 between the two calls - see SUPABASE_SETUP.md section 4 for the full sequence:
 
     python -c "from ingest.backfill_event_enrichment import prepare_chunks; prepare_chunks()"
-    # ... dispatch a Haiku subagent per chunk file, using ingest.enrichment.build_prompt() ...
+    # ... dispatch an Opus subagent (ingest.enrichment.PHRASING_MODEL) per chunk file, using ingest.enrichment.build_prompt() ...
     python -c "from ingest.backfill_event_enrichment import merge_chunk; merge_chunk('data/tmp/enrichment_chunks/chunk_0000.json', 'data/tmp/enrichment_chunks/chunk_0000_result.json')"
 """
 
@@ -20,6 +20,7 @@ from core.config import DATA_DIR
 from core.db import get_client
 from core.io import load_json, save_to_json
 from ingest.enrichment import (
+    PHRASING_MODEL,
     REWORD_PROMPT_VERSION,
     build_tag_rows,
     check_facts_preserved,
@@ -153,17 +154,10 @@ def prepare_chunks(chunk_size: int = CHUNK_SIZE, mode: str = "tags") -> List[Pat
     return paths
 
 
-def _phrase_review_entries(event: Dict, event_phrase: str, name: str) -> List[Dict]:
-    """Advisory format/fact review entries for one phrase. Never blocks the write.
-
-    `name` is the event's name as given - its only caller is the mode="phrasing"
-    branch of resolve_event_update, which never applies a subject correction.
-    """
+def _phrase_review_entries(event: Dict, event_phrase: str) -> List[Dict]:
+    """Advisory fact-check review entries for one phrase. Never blocks the write
+    (the format check, which does, runs in resolve_event_update)."""
     entries: List[Dict] = []
-
-    format_reason = check_phrase_format(event_phrase, name)
-    if format_reason:
-        entries.append({"event_id": event["id"], "issue_type": "format", "detail": format_reason})
 
     missing = check_facts_preserved(event.get("text", ""), event_phrase)
     if missing:
@@ -205,6 +199,15 @@ def resolve_event_update(
     event_phrase = result["event_phrase"]
 
     if mode == "phrasing":
+        format_reason = check_phrase_format(event_phrase, event.get("name") or "")
+        if format_reason:
+            # Every row this pass touches already has a phrase. Keep it rather than
+            # overwrite it with one that fails the template, and leave the row below
+            # REWORD_PROMPT_VERSION so the next pass retries it.
+            review_entries.append(
+                {"event_id": event["id"], "issue_type": "format", "detail": f"not written: {format_reason}"}
+            )
+            return None, [], review_entries
         update: Dict = {"event_phrase": event_phrase, "reword_prompt_version": REWORD_PROMPT_VERSION}
         suggested = result.get("suggested_subject")
         if suggested:
@@ -215,7 +218,7 @@ def resolve_event_update(
                     "detail": f"suggested subject {suggested!r} recorded but not applied (phrasing pass)",
                 }
             )
-        review_entries.extend(_phrase_review_entries(event, event_phrase, event.get("name") or ""))
+        review_entries.extend(_phrase_review_entries(event, event_phrase))
         return update, [], review_entries
 
     tags, tag_reason = validate_tags(result.get("tags") or [])
@@ -308,5 +311,5 @@ def merge_chunk(chunk_path, result_path, review_path: Path = REVIEW_PATH, mode: 
 if __name__ == "__main__":  # pragma: no cover - manual, requires a subagent in between
     paths = prepare_chunks()
     print(f"Wrote {len(paths)} chunk file(s) to {CHUNK_DIR}.")
-    print("Dispatch a Haiku subagent per chunk (prompt: ingest.enrichment.build_prompt()),")
+    print(f"Dispatch a {PHRASING_MODEL!r} subagent per chunk (prompt: ingest.enrichment.build_prompt()),")
     print("write each result to <chunk>_result.json, then call merge_chunk() per chunk.")
