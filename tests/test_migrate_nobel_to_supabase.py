@@ -367,7 +367,7 @@ def test_pending_record_shape_is_consumable_by_the_phrasing_and_insert_stages(tm
     pending = json.loads(pending_path.read_text(encoding="utf-8"))
     chunk_dir = tmp_path / "chunks"
     with patch("ingest.nobel_llm_utils.CHUNK_DIR", chunk_dir):
-        chunk_paths = prepare_nobel_chunks(pending, chunk_size=100)
+        chunk_paths = prepare_nobel_chunks(pending, chunk_size=100, displayable_path=tmp_path / "nobel_displayable.json")
 
     displayable_path = tmp_path / "nobel_displayable.json"
     merge_nobel_chunk(
@@ -375,6 +375,7 @@ def test_pending_record_shape_is_consumable_by_the_phrasing_and_insert_stages(tm
         tmp_path / "no_result_file.json",  # forces the fallback phrase - no subagent needed for this check
         displayable_path=displayable_path,
         review_path=tmp_path / "phrasing_review.json",
+        fallback_missing=True,
     )
 
     phrased = json.loads(displayable_path.read_text(encoding="utf-8"))

@@ -10,3 +10,9 @@ Live data: `SUPABASE_SETUP.md` is the runbook for every schema change and ingest
 - **Writes go through the ingest scripts** (`python -m ingest.<module>`), which dedupe and are safe to rerun. Before an ad-hoc write, show the user the exact rows and get a yes.
 - **Subscriptions are subscribers' private data** (magic-link tokens, ntfy topics). Report counts or aggregates, never the rows themselves.
 - **Schema changes are SQL the user runs** in the Supabase SQL editor: add it as a new numbered section of `SUPABASE_SETUP.md`, and give every new table `enable row level security` plus its policies (section 16).
+
+## Subagent batches (phrasing, subject extraction)
+
+- Dispatch these subagents with `model: "opus"` (`ingest.agent_batches.SUBAGENT_MODEL`), never Haiku.
+- Before any batch work, run `python -m ingest.agent_batches status` and resume what's there. Don't re-prepare over an unmerged batch.
+- Merge after every wave of subagents (`python -m ingest.agent_batches merge`), so a session or usage limit only loses chunks still in flight. `SUPABASE_SETUP.md` section 19 has the full protocol.

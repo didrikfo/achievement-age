@@ -228,10 +228,10 @@ def test_reword_prompt_version_is_three():
     assert REWORD_PROMPT_VERSION == 3
 
 
-def test_phrasing_model_is_opus():
-    from ingest.enrichment import PHRASING_MODEL
+def test_subagent_model_is_opus():
+    from ingest.agent_batches import SUBAGENT_MODEL
 
-    assert PHRASING_MODEL == "opus"
+    assert SUBAGENT_MODEL == "opus"
 
 
 def test_check_phrase_format_rejects_punctuation_straight_after_the_hinge():

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 from typing import Dict, List
 
 
@@ -23,9 +25,16 @@ def load_json(filename: str, sort_by_field: str | None = None) -> List[Dict]:
 
 
 def save_to_json(filepath: str, data: List[Dict]) -> None:
-    """Persist a list of dictionaries to filepath using UTF-8 encoding."""
-    with open(filepath, "w", encoding="utf-8") as handle:
+    """Persist a list of dictionaries to filepath using UTF-8 encoding.
+
+    Atomic (temp file + os.replace): a process killed mid-write - a session
+    ending during a merge - leaves the previous file intact, never half of one.
+    """
+    path = Path(filepath)
+    temp_path = path.with_name(path.name + ".tmp")
+    with open(temp_path, "w", encoding="utf-8") as handle:
         json.dump(data, handle, ensure_ascii=False, indent=2)
+    os.replace(temp_path, path)
 
 
 def parse_llm_output(llm_output_string: str) -> List[Dict]:

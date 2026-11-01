@@ -1,7 +1,7 @@
 """LLM helpers used during data preparation.
 
 Rewording (adding event_phrase, tags, and subject corrections to matched events)
-is done by spawning Claude Opus subagents (ingest.enrichment.PHRASING_MODEL)
+is done by spawning Claude Opus subagents (ingest.agent_batches.SUBAGENT_MODEL)
 from within a Claude Code session -
 see prepare_reword_chunks and merge_reworded_chunk. This module has no
 network/API-calling code itself; it only prepares chunk files for a subagent
@@ -11,12 +11,12 @@ the result back in.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 from core.config import DATA_DIR
 from core.io import load_json, save_to_json
+from ingest.agent_batches import check_manifest, load_results, mark_merged, write_chunks
 from ingest.enrichment import (
     REWORD_PROMPT_VERSION,
     check_facts_preserved,
@@ -101,25 +101,23 @@ def get_pending_events(
     return processed, pending
 
 
-def prepare_reword_chunks(chunk_size: int = CHUNK_SIZE, max_events: int | None = None) -> List[Path]:
+def prepare_reword_chunks(
+    chunk_size: int = CHUNK_SIZE, max_events: int | None = None, fresh: bool = False
+) -> List[Path]:
     """Split pending events into numbered chunk files for a subagent to process.
 
     Returns the chunk file paths. Each is a JSON array of event records still
     missing event_phrase. Dispatch instructions for the subagent should come
     from ingest.enrichment.build_prompt(), not be crafted ad hoc.
+
+    Resumes an unmerged batch instead of re-chunking (see ingest.agent_batches);
+    fresh=True discards it.
     """
     _, pending = get_pending_events()
     if max_events is not None:
         pending = pending[:max_events]
-
-    CHUNK_DIR.mkdir(parents=True, exist_ok=True)
-    paths: List[Path] = []
-    for index, start in enumerate(range(0, len(pending), chunk_size)):
-        chunk = pending[start : start + chunk_size]
-        path = CHUNK_DIR / f"chunk_{index:04d}.json"
-        save_to_json(path, chunk)
-        paths.append(path)
-    return paths
+    manifest = {"kind": "reword", "prompt_version": REWORD_PROMPT_VERSION}
+    return write_chunks(CHUNK_DIR, pending, chunk_size, manifest, fresh=fresh)
 
 
 def merge_reworded_chunk(
@@ -128,18 +126,23 @@ def merge_reworded_chunk(
     displayable_path=DATA_DIR / "displayable_events.json",
     births_path=DATA_DIR / "top_1000_births.json",
     review_path=REVIEW_PATH,
+    fallback_missing: bool = False,
 ) -> int:
     """Merge a subagent's reworded chunk into displayable_path (default data/displayable_events.json).
+
+    Resumable (see ingest.agent_batches): a missing or truncated result file
+    merges nothing and leaves the chunk waiting for another dispatch, and a
+    record left out of a valid result is not merged, so get_pending_events
+    picks it up again next time. fallback_missing=True instead gives such
+    records the deterministic fallback phrase - for a last pass over records
+    a subagent keeps failing on, never for an interrupted run.
 
     Records are matched back to the original chunk by (name, text), not by
     list order/position, so a subagent that drops or reorders a record is
     still handled correctly - and two co-subject records sharing a text stay
     distinct instead of collapsing onto one another's event_phrase. Both the
     chunk and the subagent's response carry `name` per record (reword_prompt.md
-    asks for it back unchanged). Any record that doesn't come back with a usable
-    event_phrase (missing result file, invalid JSON, or a blank field) gets
-    the deterministic fallback template instead, with no tags and no subject
-    correction attempted.
+    asks for it back unchanged).
 
     Records that do come back get their tags validated against
     ingest.enrichment.TAG_TAXONOMY and any suggested_subject validated against
@@ -147,14 +150,13 @@ def merge_reworded_chunk(
     fails either check is recorded in review_path instead of applied. Returns
     how many records were merged.
     """
+    check_manifest(chunk_path, "reword", REWORD_PROMPT_VERSION)
     chunk = load_json(chunk_path)
 
-    reworded_by_key: Dict[object, Dict] = {}
-    try:
-        reworded = load_json(result_path)
-        reworded_by_key = {_event_key(event): event for event in reworded}
-    except (FileNotFoundError, json.JSONDecodeError):
-        pass
+    reworded = load_results(result_path)
+    if reworded is None and not fallback_missing:
+        return 0
+    reworded_by_key = {_event_key(event): event for event in reworded or []}
 
     births_lookup = load_births_lookup(births_path)
     review_entries: List[Dict] = []
@@ -163,9 +165,10 @@ def merge_reworded_chunk(
     for event in chunk:
         result = reworded_by_key.get(_event_key(event))
         if not result or not result.get("event_phrase"):
-            # Deliberately unstamped: a fallback record isn't subagent output, so
-            # the phrasing backfill should re-queue it later.
-            merged.append({**event, "event_phrase": _fallback_event_phrase(event), "tags": []})
+            if fallback_missing:
+                # Deliberately unstamped: a fallback record isn't subagent output, so
+                # the phrasing backfill should re-queue it later.
+                merged.append({**event, "event_phrase": _fallback_event_phrase(event), "tags": []})
             continue
 
         merged_event = {
@@ -229,7 +232,10 @@ def merge_reworded_chunk(
         existing = load_json(displayable_path)
     except FileNotFoundError:
         existing = []
-    existing.extend(merged)
+    # Dedupe so re-merging a chunk (a crash before mark_merged) adds nothing twice.
+    existing_keys = {_event_key(event) for event in existing}
+    existing.extend(event for event in merged if _event_key(event) not in existing_keys)
     save_to_json(displayable_path, existing)
+    mark_merged(chunk_path, result_path)
 
     return len(merged)

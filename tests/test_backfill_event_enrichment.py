@@ -133,7 +133,9 @@ def test_merge_chunk_falls_back_to_name_text_match_when_result_has_no_id(tmp_pat
     assert merged_count == 1
     mock_client._table_mocks["events"].update.assert_called_once_with({"event_phrase": "she did X"})
     mock_client._table_mocks["events"].update.return_value.eq.assert_called_once_with("id", 5)
-    mock_client._table_mocks["event_tags"].insert.assert_called_once_with([{"event_id": 5, "tag_id": 1}])
+    mock_client._table_mocks["event_tags"].upsert.assert_called_once_with(
+        [{"event_id": 5, "tag_id": 1}], on_conflict="event_id,tag_id", ignore_duplicates=True
+    )
     assert not review_path.exists()
 
 
@@ -353,7 +355,7 @@ def test_merge_chunk_phrasing_mode_skips_tags_and_persons(tmp_path):
             "reword_prompt_version": REWORD_PROMPT_VERSION,
         }
     )
-    mock_client._table_mocks["event_tags"].insert.assert_not_called()
+    mock_client._table_mocks["event_tags"].upsert.assert_not_called()
     mock_client._table_mocks["persons"].upsert.assert_not_called()
 
     review = json.loads(review_path.read_text(encoding="utf-8"))

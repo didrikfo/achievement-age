@@ -26,11 +26,6 @@ PROMPT_TEMPLATE_PATH = Path(__file__).parent / "reword_prompt.md"
 #: prompt revision makes the affected rows re-queueable instead of one-shot.
 REWORD_PROMPT_VERSION = 3
 
-#: Agent-tool model alias for the phrasing subagents (reword_prompt.md and
-#: nobel_reword_prompt.md). "opus" resolves to Claude Opus 5.5. Version 3 is
-#: the first prompt written for it; everything below that was phrased by Haiku
-#: and is re-queued by backfill_event_enrichment.prepare_chunks(mode="phrasing").
-PHRASING_MODEL = "opus"
 
 
 def build_prompt() -> str:

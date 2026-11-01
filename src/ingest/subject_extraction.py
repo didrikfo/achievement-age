@@ -1,10 +1,11 @@
-"""Stage 2: ask a Claude Haiku subagent which person an event is actually about.
+"""Stage 2: ask a Claude Opus subagent (ingest.agent_batches.SUBAGENT_MODEL)
+which person an event is actually about.
 
 Two-phase like ingest.llm_utils, because a Claude Code subagent runs between
 the two calls:
 
     python -c "from ingest.subject_extraction import prepare_subject_chunks; prepare_subject_chunks()"
-    # ... dispatch a Haiku subagent per chunk file, using build_prompt() ...
+    # ... dispatch an Opus subagent per chunk file, using build_prompt() ...
     python -c "from ingest.subject_extraction import merge_subject_chunk; merge_subject_chunk('data/tmp/subject_chunks/chunk_0000.json', 'data/tmp/subject_chunks/chunk_0000_result.json')"
 
 The subagent is never asked for a birth date - only for a name it can read in
@@ -21,6 +22,7 @@ from typing import Dict, List, Optional, Tuple
 from core.config import DATA_DIR
 from core.io import load_json, save_to_json
 from core.matching import name_matches_text, normalize_name
+from ingest.agent_batches import check_manifest, load_results, mark_merged, write_chunks
 from ingest.enrichment import resolve_subject, write_review_entries
 from ingest.match_events import (
     EVENTS_WITH_AGE_PATH,
@@ -75,6 +77,7 @@ def prepare_subject_chunks(
     chunk_size: int = CHUNK_SIZE,
     chunk_dir: Path = SUBJECT_CHUNK_DIR,
     cache_path: Path = NO_SUBJECT_CACHE_PATH,
+    fresh: bool = False,
 ) -> List[Path]:
     """Split the Stage 2 queue into numbered chunk files for a subagent to process.
 
@@ -82,18 +85,15 @@ def prepare_subject_chunks(
     PROMPT_VERSION are skipped - Stage 1 requeues everything unmatched on
     every run, with no memory of what Stage 2 already checked, so this
     filtering has to happen here.
+
+    Resumes an unmerged batch instead of re-chunking (see ingest.agent_batches);
+    fresh=True discards it.
     """
     pending = load_json(pending_path)
     cache = load_no_subject_cache(cache_path)
     pending = [event for event in pending if cache.get(event.get("text")) != PROMPT_VERSION]
-
-    chunk_dir.mkdir(parents=True, exist_ok=True)
-    paths: List[Path] = []
-    for index, start in enumerate(range(0, len(pending), chunk_size)):
-        path = chunk_dir / f"chunk_{index:04d}.json"
-        save_to_json(path, pending[start : start + chunk_size])
-        paths.append(path)
-    return paths
+    manifest = {"kind": "subject", "prompt_version": PROMPT_VERSION}
+    return write_chunks(chunk_dir, pending, chunk_size, manifest, fresh=fresh)
 
 
 WIKIDATA_PENDING_PATH = DATA_DIR / "tmp" / "wikidata_pending.json"
@@ -140,28 +140,25 @@ def merge_subject_chunk(
     """Validate one chunk's subagent output and route each event to its next step.
 
     Records are matched back to the chunk by `text`, not list position, so a
-    subagent that reorders or drops records is still handled. A result file
-    that is missing, unparseable, or not the expected list-of-objects shape
-    (a bare object, or a list with junk entries in it), and any record the
-    subagent simply dropped, leaves the affected event(s) as "no_subject" for
-    this run - but only a genuine `subject: null` response is cached
-    (no_subject_cache_path) as a confirmed verdict, so a technical failure
-    doesn't get mistaken for an LLM having actually looked and found nobody.
+    subagent that reorders or drops records is still handled.
+
+    Resumable (see ingest.agent_batches): a result file that is missing,
+    truncated or not a list merges nothing and leaves the chunk waiting for
+    another dispatch (counts["awaiting_result"] says how many events). A
+    record the subagent dropped from a valid result is skipped - not cached,
+    not reviewed - so Stage 1 requeues it. Only a genuine `subject: null`
+    response is cached (no_subject_cache_path) as a confirmed verdict.
     """
+    check_manifest(chunk_path, "subject", PROMPT_VERSION)
     chunk = load_json(chunk_path)
-    try:
-        results = load_json(result_path)
-        # isinstance guard: valid JSON of the wrong shape is not a JSONDecodeError,
-        # and .get() on a str/int entry would blow up mid-comprehension.
-        results_by_text = {
-            result.get("text"): result for result in results if isinstance(result, dict)
-        }
-    except (FileNotFoundError, json.JSONDecodeError, TypeError):
-        results_by_text = {}
+    results = load_results(result_path)
+    counts = {"matched": 0, "wikidata_candidate": 0, "no_subject": 0, "rejected": 0, "missing": 0}
+    if results is None:
+        return {**counts, "appended": 0, "awaiting_result": len(chunk)}
+    results_by_text = {result.get("text"): result for result in results}
 
     births_lookup = load_widened_births_lookup(births_path)
 
-    counts = {"matched": 0, "wikidata_candidate": 0, "no_subject": 0, "rejected": 0}
     matched: List[Dict] = []
     wikidata_pending: List[Dict] = []
     review: List[Dict] = []
@@ -169,6 +166,9 @@ def merge_subject_chunk(
 
     for event in chunk:
         result = results_by_text.get(event.get("text"))
+        if result is None:
+            counts["missing"] += 1
+            continue
         status, payload = route_subject(event, (result or {}).get("subject"), births_lookup)
         counts[status] += 1
 
@@ -177,7 +177,7 @@ def merge_subject_chunk(
         elif status == "wikidata_candidate":
             wikidata_pending.append({**event, "subject": payload})
         else:
-            if status == "no_subject" and result is not None:
+            if status == "no_subject":
                 no_subject_texts.append(event.get("text"))
             review.append(
                 {
@@ -186,7 +186,7 @@ def merge_subject_chunk(
                     # The name the subagent proposed, so the report has the same
                     # {stage, issue_type, name, text, detail} shape as Stage 1
                     # and 3. None when it found nobody at all.
-                    "name": result.get("subject") if result else None,
+                    "name": result.get("subject"),
                     "text": event.get("text"),
                     "detail": payload if status == "rejected" else "no subject identified in the text",
                 }
@@ -202,6 +202,7 @@ def merge_subject_chunk(
             cache[text] = PROMPT_VERSION
         save_no_subject_cache(cache, no_subject_cache_path)
 
+    mark_merged(chunk_path, result_path)
     return counts
 
 

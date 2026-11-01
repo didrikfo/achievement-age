@@ -185,7 +185,9 @@ def test_merging_the_same_chunk_twice_does_not_duplicate_the_queues(tmp_path):
     )
 
     merge_subject_chunk(chunk_path, result_path, **kwargs)
-    merge_subject_chunk(chunk_path, result_path, **kwargs)
+    # A crash after writing but before the chunk moved to merged/ re-merges it.
+    merged_dir = tmp_path / "merged"
+    merge_subject_chunk(merged_dir / "chunk_0000.json", merged_dir / "chunk_0000_result.json", **kwargs)
 
     assert len(json.loads(wikidata_path.read_text(encoding="utf-8"))) == 1
     assert len(json.loads(review_path.read_text(encoding="utf-8"))) == 1
@@ -206,8 +208,12 @@ def test_merge_subject_chunk_survives_a_missing_result_file(tmp_path):
         review_path=tmp_path / "matching_review.json",
     )
 
-    assert counts["no_subject"] == 1
+    # An interrupted subagent: nothing routed, chunk left for another dispatch.
+    assert counts["awaiting_result"] == 1
+    assert counts["no_subject"] == 0
     assert counts["matched"] == 0
+    assert chunk_path.exists()
+    assert not (tmp_path / "matching_review.json").exists()
 
 
 def test_merge_subject_chunk_survives_a_wrong_shaped_result_file(tmp_path):
@@ -231,8 +237,9 @@ def test_merge_subject_chunk_survives_a_wrong_shaped_result_file(tmp_path):
         no_subject_cache_path=cache_path,
     )
 
-    assert counts["no_subject"] == 1
+    assert counts["awaiting_result"] == 1
     assert counts["matched"] == 0
+    assert chunk_path.exists()
     # A technical failure is not a confirmed "nobody in this text" verdict.
     assert load_no_subject_cache(cache_path) == {}
 
@@ -256,8 +263,35 @@ def test_merge_subject_chunk_survives_a_result_file_that_is_not_a_list(tmp_path)
         no_subject_cache_path=cache_path,
     )
 
-    assert counts["no_subject"] == 1
+    assert counts["awaiting_result"] == 1
+    assert chunk_path.exists()
     assert load_no_subject_cache(cache_path) == {}
+
+
+def test_merge_subject_chunk_skips_a_record_the_subagent_dropped(tmp_path):
+    other = {"year": 1919, "month": 6, "day": 28, "text": "A treaty was signed at Versailles."}
+    chunk_path = tmp_path / "chunk_0000.json"
+    chunk_path.write_text(json.dumps([EVENT, other]), encoding="utf-8")
+    result_path = tmp_path / "chunk_0000_result.json"
+    result_path.write_text(json.dumps([{"text": other["text"], "subject": None}]), encoding="utf-8")
+    births_path = tmp_path / "births.json"
+    births_path.write_text(json.dumps([EINSTEIN]), encoding="utf-8")
+    cache_path = tmp_path / "no_subject_cache.json"
+
+    counts = merge_subject_chunk(
+        chunk_path,
+        result_path,
+        births_path=births_path,
+        matched_path=tmp_path / "events_with_age.json",
+        wikidata_pending_path=tmp_path / "wikidata_pending.json",
+        review_path=tmp_path / "matching_review.json",
+        no_subject_cache_path=cache_path,
+    )
+
+    assert counts["missing"] == 1
+    assert counts["no_subject"] == 1
+    # Only the record the subagent actually answered is cached as a verdict.
+    assert load_no_subject_cache(cache_path) == {other["text"]: 2}
 
 
 def test_load_no_subject_cache_returns_empty_for_valid_json_that_is_not_a_dict(tmp_path):

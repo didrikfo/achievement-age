@@ -66,7 +66,25 @@ def test_merge_nobel_chunk_uses_result_and_assigns_the_deterministic_tag(tmp_pat
     assert merged[0]["age_days"] == 16103
 
 
-def test_merge_nobel_chunk_falls_back_on_missing_result_file(tmp_path):
+def test_merge_nobel_chunk_merges_nothing_without_a_result_file(tmp_path):
+    chunk = [_record()]
+    chunk_path = tmp_path / "chunk_0000.json"
+    chunk_path.write_text(json.dumps(chunk), encoding="utf-8")
+
+    displayable_path = tmp_path / "nobel_displayable.json"
+    merged_count = merge_nobel_chunk(
+        chunk_path,
+        tmp_path / "chunk_0000_result.json",
+        displayable_path=displayable_path,
+        review_path=tmp_path / "review.json",
+    )
+
+    assert merged_count == 0
+    assert not displayable_path.exists()
+    assert chunk_path.exists()
+
+
+def test_merge_nobel_chunk_falls_back_on_missing_result_file_only_when_asked(tmp_path):
     chunk = [_record()]
     chunk_path = tmp_path / "chunk_0000.json"
     chunk_path.write_text(json.dumps(chunk), encoding="utf-8")
@@ -77,6 +95,7 @@ def test_merge_nobel_chunk_falls_back_on_missing_result_file(tmp_path):
         tmp_path / "does_not_exist.json",
         displayable_path=displayable_path,
         review_path=tmp_path / "review.json",
+        fallback_missing=True,
     )
 
     assert merged_count == 1
@@ -144,10 +163,29 @@ def test_merge_nobel_chunk_appends_to_existing_displayable_file(tmp_path):
     chunk_path = tmp_path / "chunk_0000.json"
     chunk_path.write_text(json.dumps(chunk), encoding="utf-8")
 
-    merge_nobel_chunk(
-        chunk_path, tmp_path / "does_not_exist.json", displayable_path=displayable_path, review_path=tmp_path / "review.json"
+    result_path = tmp_path / "chunk_0000_result.json"
+    result_path.write_text(
+        json.dumps([{**chunk[0], "event_phrase": "Marie Curie was when she won the Nobel Prize in Chemistry."}]),
+        encoding="utf-8",
     )
+    merge_nobel_chunk(chunk_path, result_path, displayable_path=displayable_path, review_path=tmp_path / "review.json")
 
     merged = json.loads(displayable_path.read_text(encoding="utf-8"))
     assert len(merged) == 2
     assert {m["name"] for m in merged} == {"Existing Laureate", "Marie Curie"}
+
+
+def test_prepare_nobel_chunks_skips_records_already_merged(tmp_path, monkeypatch):
+    from ingest import nobel_llm_utils
+
+    monkeypatch.setattr(nobel_llm_utils, "CHUNK_DIR", tmp_path / "chunks")
+    displayable_path = tmp_path / "nobel_displayable.json"
+    displayable_path.write_text(json.dumps([_record(laureate_id="6", award_year=1911)]), encoding="utf-8")
+
+    paths = prepare_nobel_chunks(
+        [_record(laureate_id="6", award_year=1911), _record(laureate_id="7", award_year=1912)],
+        displayable_path=displayable_path,
+    )
+
+    records = json.loads(paths[0].read_text(encoding="utf-8"))
+    assert [record["laureate_id"] for record in records] == ["7"]

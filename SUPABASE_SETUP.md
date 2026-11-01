@@ -147,7 +147,7 @@ python -c "from ingest.backfill_event_enrichment import prepare_chunks; print(pr
 ```
 
 This writes chunk files under `data/tmp/enrichment_chunks/`. Dispatch a Claude Opus subagent
-(Agent tool `model: "opus"`, i.e. `ingest.enrichment.PHRASING_MODEL`) per chunk file, using `ingest.enrichment.build_prompt()` for instructions, and save each subagent's
+(Agent tool `model: "opus"`, i.e. `ingest.agent_batches.SUBAGENT_MODEL`) per chunk file, using `ingest.enrichment.build_prompt()` for instructions, and save each subagent's
 JSON response next to its chunk as `<chunk>_result.json`. Then merge each chunk:
 
 ```bash
@@ -222,7 +222,7 @@ venv\Scripts\python.exe -c "from ingest.subject_extraction import prepare_subjec
 ```
 
 This splits `data/tmp/subject_pending.json` into chunk files under
-`data/tmp/subject_chunks/`. Dispatch one Haiku subagent per chunk file using
+`data/tmp/subject_chunks/`. Dispatch one Opus subagent (`model: "opus"`) per chunk file using
 `ingest.subject_extraction.build_prompt()` as the instructions, write each subagent's
 JSON array to `<chunk>_result.json` next to it, then merge each chunk:
 
@@ -696,7 +696,7 @@ Database → Backups, or `pg_dump` with the connection string from Project Setti
 
 ## 18. Opus re-phrasing backpass (prompt version 3)
 
-Phrasing moved from Claude Haiku to Claude Opus 5.5 subagents (`ingest.enrichment.PHRASING_MODEL`,
+Phrasing moved from Claude Haiku to Claude Opus 5.5 subagents (`ingest.agent_batches.SUBAGENT_MODEL`,
 Agent tool `model: "opus"`). `REWORD_PROMPT_VERSION` is now 3, which also adds explicit hinge rules
 to `src/ingest/reword_prompt.md`. Every generic (non-Nobel, non-music) row below version 3 was
 phrased by Haiku and is queued for the backpass.
@@ -733,7 +733,9 @@ python -c "from ingest.backfill_event_enrichment import prepare_chunks; print(le
 
 Dispatch one Opus subagent (`model: "opus"`) per `data/tmp/enrichment_chunks/chunk_NNNN.json`. Its
 prompt is `ingest.enrichment.build_prompt()` plus the chunk's JSON, and it writes
-`chunk_NNNN_result.json`. Then run `merge_chunk(..., mode='phrasing')` on each chunk. Opus costs
+`chunk_NNNN_result.json`. Merge as you go with `python -m ingest.agent_batches merge enrichment`,
+which runs `merge_chunk` with the batch's mode on every finished chunk. If the session stops partway,
+see section 19. Opus costs
 more per token than Haiku. A test chunk first (`prepare_chunks(chunk_size=20, mode='phrasing')`,
 merge one chunk, then spot-check it in the app) is cheap insurance.
 
@@ -750,5 +752,59 @@ Whatever is left is in the review file.
 **Not covered:** the phrasing backpass skips Nobel rows (`STRUCTURED_SOURCES`), and no
 Supabase backfill path exists for them yet. `NOBEL_REWORD_PROMPT_VERSION` is now 2, so future
 Nobel ingests use the updated prompt, but existing Nobel rows keep their Haiku phrasing until a
-Nobel backfill mode is built. Music rows come from templates, not an LLM. Subject extraction
-(section 8, Stage 2) still uses Haiku, because it classifies rather than writes display text.
+Nobel backfill mode is built. Music rows come from templates, not an LLM.
+
+Subject extraction (section 8, Stage 2) also runs on Opus now. Its no-subject cache
+(`data/no_subject_cache.json`) still holds Haiku verdicts, so texts Haiku found no person in aren't
+re-checked. To re-check them with Opus, bump `PROMPT_VERSION` in `src/ingest/subject_extraction.py`.
+
+## 19. Subagent batches: stopping and resuming
+
+All four subagent steps share `src/ingest/agent_batches.py`: new-event phrasing
+(`ingest.llm_utils`), the enrichment/phrasing backfill, subject extraction and Nobel phrasing. A
+session can stop at any point (usage or session limit, closed laptop, crash) without losing merged
+work or corrupting anything. The next session continues where the last one stopped.
+
+**Start every session with:**
+
+```bash
+python -m ingest.agent_batches status
+```
+
+For each batch, it shows how many chunks are merged, how many are ready to merge, and which still
+need a subagent. For each of those it prints the chunk path, the result file name, and the prompt
+function. Then:
+
+1. `python -m ingest.agent_batches merge` merges every chunk that has a valid result.
+2. Dispatch Opus subagents for the chunks still awaiting one, a few at a time. Each writes its
+   whole JSON array to `chunk_NNNN_result.json` in a single Write.
+3. After each wave, run `merge` again so finished work is saved before the next wave starts.
+   Merging is per chunk, so a stop costs at most the chunks in flight.
+
+**What makes stopping safe:**
+
+- **Resume, not re-chunk.** While unmerged chunks exist, `prepare_*` returns them unchanged.
+  Pass `fresh=True` to discard them. Starting a new batch clears old chunks, stale result files
+  and `merged/`, so an old result can never be paired with a new chunk.
+- **No partial results.** A missing, truncated or misshapen result file merges nothing, and the
+  chunk is redispatched. Fallback text is never written in its place. That used to put raw scraped
+  text into `displayable_events.json` for every unfinished chunk.
+- **Dropped records stay pending.** A record a subagent left out of a valid result isn't merged,
+  and the next `prepare_*` picks it up. For records a subagent keeps failing on,
+  `merge_reworded_chunk(..., fallback_missing=True)` (and the same option on `merge_nobel_chunk`)
+  writes the deterministic fallback on purpose.
+- **Prompt-version guard.** Each chunk directory's `batch.json` records the prompt version.
+  Merging output from an older prompt is refused, so it can't be stamped with the new version.
+- **Idempotent merges.** Appends dedupe, `event_tags` is upserted, data files are written
+  atomically, and a chunk moves to `merged/` only after its output is saved. A crash between those
+  two steps just re-merges harmlessly.
+
+**Cloud sessions:** `data/` is gitignored, and a cloud container is reclaimed after inactivity,
+which can easily happen while waiting out a usage limit. What survives depends on the step:
+
+- **Enrichment / phrasing backfill:** progress lives in Supabase, so it survives. A lost chunk
+  directory only costs the chunks that were dispatched but not merged, and the next
+  `prepare_chunks(mode=...)` re-derives the rest from the database.
+- **Subject extraction, new-event phrasing and Nobel phrasing:** these read and write local files
+  under `data/`, so run them on a machine where `data/` persists (your local checkout). In a cloud
+  session, finish them through migration before the session ends.

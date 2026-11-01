@@ -10,7 +10,7 @@ def _empty_births_path(tmp_path):
     return path
 
 
-def test_merge_reworded_chunk_uses_result_and_falls_back(tmp_path):
+def _two_record_chunk(tmp_path):
     chunk = [
         {"name": "George Washington", "text": "hoisted the flag", "year": "1776", "month": 1, "day": 1, "age": 100},
         {"name": "Anton Chekhov", "text": "wrote a play", "year": "1904", "month": 1, "day": 17, "age": 200},
@@ -24,33 +24,11 @@ def test_merge_reworded_chunk_uses_result_and_falls_back(tmp_path):
     ]
     result_path = tmp_path / "chunk_0000_result.json"
     result_path.write_text(json.dumps(result), encoding="utf-8")
-
-    displayable_path = tmp_path / "displayable_events.json"
-
-    merged_count = merge_reworded_chunk(
-        chunk_path,
-        result_path,
-        displayable_path=displayable_path,
-        births_path=_empty_births_path(tmp_path),
-        review_path=tmp_path / "review.json",
-    )
-
-    assert merged_count == 2
-    merged = json.loads(displayable_path.read_text(encoding="utf-8"))
-    by_name = {event["name"]: event for event in merged}
-
-    assert by_name["George Washington"]["event_phrase"] == "he hoisted the flag over Prospect Hill"
-    assert by_name["George Washington"]["tags"] == ["military"]
-    assert by_name["Anton Chekhov"]["event_phrase"] == "Anton Chekhov was when wrote a play"
-    assert by_name["Anton Chekhov"]["tags"] == []
+    return chunk_path, result_path
 
 
-def test_merge_reworded_chunk_falls_back_on_missing_result_file(tmp_path):
-    chunk = [{"name": "Ada Lovelace", "text": "published notes", "year": "1843", "month": 1, "day": 1, "age": 50}]
-    chunk_path = tmp_path / "chunk_0000.json"
-    chunk_path.write_text(json.dumps(chunk), encoding="utf-8")
-
-    result_path = tmp_path / "does_not_exist.json"
+def test_merge_reworded_chunk_leaves_a_dropped_record_pending(tmp_path):
+    chunk_path, result_path = _two_record_chunk(tmp_path)
     displayable_path = tmp_path / "displayable_events.json"
 
     merged_count = merge_reworded_chunk(
@@ -63,11 +41,73 @@ def test_merge_reworded_chunk_falls_back_on_missing_result_file(tmp_path):
 
     assert merged_count == 1
     merged = json.loads(displayable_path.read_text(encoding="utf-8"))
-    assert merged[0]["event_phrase"] == "Ada Lovelace was when published notes"
-    assert merged[0]["tags"] == []
+    assert [event["name"] for event in merged] == ["George Washington"]
+    assert merged[0]["event_phrase"] == "he hoisted the flag over Prospect Hill"
+    assert merged[0]["tags"] == ["military"]
+    # The chunk is done; Chekhov comes back through get_pending_events next time.
+    assert not chunk_path.exists()
+    assert (tmp_path / "merged" / "chunk_0000.json").exists()
 
 
-def test_merge_reworded_chunk_appends_to_existing_file(tmp_path):
+def test_merge_reworded_chunk_falls_back_for_a_dropped_record_only_when_asked(tmp_path):
+    chunk_path, result_path = _two_record_chunk(tmp_path)
+    displayable_path = tmp_path / "displayable_events.json"
+
+    merged_count = merge_reworded_chunk(
+        chunk_path,
+        result_path,
+        displayable_path=displayable_path,
+        births_path=_empty_births_path(tmp_path),
+        review_path=tmp_path / "review.json",
+        fallback_missing=True,
+    )
+
+    assert merged_count == 2
+    by_name = {event["name"]: event for event in json.loads(displayable_path.read_text(encoding="utf-8"))}
+    assert by_name["Anton Chekhov"]["event_phrase"] == "Anton Chekhov was when wrote a play"
+    assert by_name["Anton Chekhov"]["tags"] == []
+
+
+def test_merge_reworded_chunk_merges_nothing_without_a_result_file(tmp_path):
+    chunk = [{"name": "Ada Lovelace", "text": "published notes", "year": "1843", "month": 1, "day": 1, "age": 50}]
+    chunk_path = tmp_path / "chunk_0000.json"
+    chunk_path.write_text(json.dumps(chunk), encoding="utf-8")
+    displayable_path = tmp_path / "displayable_events.json"
+
+    merged_count = merge_reworded_chunk(
+        chunk_path,
+        tmp_path / "chunk_0000_result.json",
+        displayable_path=displayable_path,
+        births_path=_empty_births_path(tmp_path),
+        review_path=tmp_path / "review.json",
+    )
+
+    # An interrupted subagent: nothing written, chunk left for another dispatch.
+    assert merged_count == 0
+    assert not displayable_path.exists()
+    assert chunk_path.exists()
+
+
+def test_merge_reworded_chunk_merges_nothing_from_a_truncated_result_file(tmp_path):
+    chunk = [{"name": "Ada Lovelace", "text": "published notes", "year": "1843", "month": 1, "day": 1, "age": 50}]
+    chunk_path = tmp_path / "chunk_0000.json"
+    chunk_path.write_text(json.dumps(chunk), encoding="utf-8")
+    result_path = tmp_path / "chunk_0000_result.json"
+    result_path.write_text('[{"name": "Ada Lovelace", "text": "published no', encoding="utf-8")
+
+    merged_count = merge_reworded_chunk(
+        chunk_path,
+        result_path,
+        displayable_path=tmp_path / "displayable_events.json",
+        births_path=_empty_births_path(tmp_path),
+        review_path=tmp_path / "review.json",
+    )
+
+    assert merged_count == 0
+    assert chunk_path.exists()
+
+
+def test_merge_reworded_chunk_appends_to_existing_file_without_duplicates(tmp_path):
     displayable_path = tmp_path / "displayable_events.json"
     displayable_path.write_text(
         json.dumps([{"name": "Existing Person", "text": "did something", "event_phrase": "already here", "tags": []}]),
@@ -77,19 +117,24 @@ def test_merge_reworded_chunk_appends_to_existing_file(tmp_path):
     chunk = [{"name": "New Person", "text": "did something else", "year": "2000", "month": 1, "day": 1, "age": 10}]
     chunk_path = tmp_path / "chunk_0000.json"
     chunk_path.write_text(json.dumps(chunk), encoding="utf-8")
-    result_path = tmp_path / "does_not_exist.json"
-
-    merge_reworded_chunk(
-        chunk_path,
-        result_path,
+    result_path = tmp_path / "chunk_0000_result.json"
+    result_path.write_text(
+        json.dumps([{**chunk[0], "event_phrase": "New Person was when they did something else.", "tags": ["science"]}]),
+        encoding="utf-8",
+    )
+    kwargs = dict(
         displayable_path=displayable_path,
         births_path=_empty_births_path(tmp_path),
         review_path=tmp_path / "review.json",
     )
 
+    merge_reworded_chunk(chunk_path, result_path, **kwargs)
+    # A crash after writing but before the chunk moved to merged/ means the
+    # same chunk gets merged again. That must not duplicate anything.
+    merge_reworded_chunk(tmp_path / "merged" / "chunk_0000.json", tmp_path / "merged" / "chunk_0000_result.json", **kwargs)
+
     merged = json.loads(displayable_path.read_text(encoding="utf-8"))
-    assert len(merged) == 2
-    assert {event["name"] for event in merged} == {"Existing Person", "New Person"}
+    assert [event["name"] for event in merged] == ["Existing Person", "New Person"]
 
 
 def test_merge_reworded_chunk_applies_valid_subject_correction(tmp_path):
@@ -221,6 +266,7 @@ def test_merge_reworded_chunk_stamps_the_prompt_version_only_on_subagent_output(
         displayable_path=displayable_path,
         births_path=_empty_births_path(tmp_path),
         review_path=tmp_path / "review.json",
+        fallback_missing=True,
     )
 
     merged = json.loads(displayable_path.read_text(encoding="utf-8"))

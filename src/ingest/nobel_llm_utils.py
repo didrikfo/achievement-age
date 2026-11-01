@@ -16,6 +16,7 @@ from typing import Dict, List, Tuple
 
 from core.config import DATA_DIR
 from core.io import load_json, save_to_json
+from ingest.agent_batches import check_manifest, load_results, mark_merged, write_chunks
 from ingest.enrichment import check_facts_preserved, check_phrase_format, write_review_entries
 from ingest.sources.nobel import NOBEL_CATEGORY_TAGS, build_event_text, category_display_name
 
@@ -58,24 +59,32 @@ def _fallback_event_phrase(record: Dict) -> str:
     return f'{record["name"]} was when they won {category_display_name(record["category"])}.'
 
 
-def prepare_nobel_chunks(records: List[Dict], chunk_size: int = CHUNK_SIZE) -> List[Path]:
+def prepare_nobel_chunks(
+    records: List[Dict],
+    chunk_size: int = CHUNK_SIZE,
+    fresh: bool = False,
+    displayable_path: Path = DISPLAYABLE_PATH,
+) -> List[Path]:
     """Split pending Nobel records into numbered chunk files for a subagent to process.
 
     Each chunk record carries every field the input record had, plus
     category_display (computed here so the prompt never has to reconstruct
-    the Economic Sciences special case itself).
+    the Economic Sciences special case itself). Records already in
+    displayable_path (merged in an earlier, interrupted run) are skipped, and
+    an unmerged batch is resumed rather than re-chunked (see
+    ingest.agent_batches); fresh=True discards it.
     """
-    CHUNK_DIR.mkdir(parents=True, exist_ok=True)
-    paths: List[Path] = []
-    for index, start in enumerate(range(0, len(records), chunk_size)):
-        chunk = [
-            {**record, "category_display": category_display_name(record["category"])}
-            for record in records[start : start + chunk_size]
-        ]
-        path = CHUNK_DIR / f"chunk_{index:04d}.json"
-        save_to_json(path, chunk)
-        paths.append(path)
-    return paths
+    try:
+        done = {_record_key(record) for record in load_json(displayable_path)}
+    except (FileNotFoundError, json.JSONDecodeError):
+        done = set()
+    pending = [
+        {**record, "category_display": category_display_name(record["category"])}
+        for record in records
+        if _record_key(record) not in done
+    ]
+    manifest = {"kind": "nobel", "prompt_version": NOBEL_REWORD_PROMPT_VERSION}
+    return write_chunks(CHUNK_DIR, pending, chunk_size, manifest, fresh=fresh)
 
 
 def merge_nobel_chunk(
@@ -83,24 +92,26 @@ def merge_nobel_chunk(
     result_path: Path,
     displayable_path: Path = DISPLAYABLE_PATH,
     review_path: Path = REVIEW_PATH,
+    fallback_missing: bool = False,
 ) -> int:
     """Merge one subagent's reworded chunk into displayable_path.
 
+    Resumable, like ingest.llm_utils.merge_reworded_chunk: a missing or
+    truncated result file merges nothing (the chunk waits for another
+    dispatch), and a record the subagent left out is not merged unless
+    fallback_missing=True, so the next prepare_nobel_chunks picks it up.
+
     Records are matched back to the chunk by (laureate_id, award_year), not
     list order, so a subagent that drops or reorders a record is still
-    handled correctly. A record with no usable event_phrase gets the
-    deterministic fallback rather than being dropped. Returns how many
-    records were merged (always len(chunk) - every input record produces an
-    output record, real or fallback).
+    handled correctly. Returns how many records were merged.
     """
+    check_manifest(chunk_path, "nobel", NOBEL_REWORD_PROMPT_VERSION)
     chunk = load_json(chunk_path)
 
-    reworded_by_key: Dict[Tuple, Dict] = {}
-    try:
-        reworded = load_json(result_path)
-        reworded_by_key = {_record_key(r): r for r in reworded}
-    except (FileNotFoundError, json.JSONDecodeError):
-        pass
+    reworded = load_results(result_path)
+    if reworded is None and not fallback_missing:
+        return 0
+    reworded_by_key: Dict[Tuple, Dict] = {_record_key(r): r for r in reworded or []}
 
     review_entries: List[Dict] = []
     merged: List[Dict] = []
@@ -111,7 +122,8 @@ def merge_nobel_chunk(
         tag = NOBEL_CATEGORY_TAGS[record["category"]]
 
         if not result or not result.get("event_phrase"):
-            merged.append({**record, "event_phrase": _fallback_event_phrase(record), "tags": [tag]})
+            if fallback_missing:
+                merged.append({**record, "event_phrase": _fallback_event_phrase(record), "tags": [tag]})
             continue
 
         event_phrase = result["event_phrase"]
@@ -149,7 +161,9 @@ def merge_nobel_chunk(
         existing = load_json(displayable_path)
     except FileNotFoundError:
         existing = []
-    existing.extend(merged)
+    existing_keys = {_record_key(record) for record in existing}
+    existing.extend(record for record in merged if _record_key(record) not in existing_keys)
     save_to_json(displayable_path, existing)
+    mark_merged(chunk_path, result_path)
 
     return len(merged)

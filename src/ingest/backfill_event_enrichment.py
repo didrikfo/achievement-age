@@ -6,21 +6,20 @@ Two-phase, like ingest.llm_utils, because a Claude Code subagent has to run in
 between the two calls - see SUPABASE_SETUP.md section 4 for the full sequence:
 
     python -c "from ingest.backfill_event_enrichment import prepare_chunks; prepare_chunks()"
-    # ... dispatch an Opus subagent (ingest.enrichment.PHRASING_MODEL) per chunk file, using ingest.enrichment.build_prompt() ...
+    # ... dispatch an Opus subagent (ingest.agent_batches.SUBAGENT_MODEL) per chunk file, using ingest.enrichment.build_prompt() ...
     python -c "from ingest.backfill_event_enrichment import merge_chunk; merge_chunk('data/tmp/enrichment_chunks/chunk_0000.json', 'data/tmp/enrichment_chunks/chunk_0000_result.json')"
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
 from core.config import DATA_DIR
 from core.db import get_client
-from core.io import load_json, save_to_json
+from core.io import load_json
+from ingest.agent_batches import SUBAGENT_MODEL, check_manifest, load_results, mark_merged, write_chunks
 from ingest.enrichment import (
-    PHRASING_MODEL,
     REWORD_PROMPT_VERSION,
     build_tag_rows,
     check_facts_preserved,
@@ -126,16 +125,28 @@ def pending_phrasing_events(all_events: List[Dict], version: int) -> List[Dict]:
     ]
 
 
-def prepare_chunks(chunk_size: int = CHUNK_SIZE, mode: str = "tags") -> List[Path]:
+def prepare_chunks(chunk_size: int = CHUNK_SIZE, mode: str = "tags", fresh: bool = False) -> List[Path]:
     """Fetch pending events from Supabase and split them into numbered chunk files.
 
     mode="tags" (default) selects events with no event_tags rows yet - the
     original enrichment backfill. mode="phrasing" selects events not yet written
     under the current reword prompt, for a re-phrasing pass over rows that
     already have tags.
+
+    Resumes an unmerged batch instead of re-chunking (see ingest.agent_batches),
+    without touching Supabase; fresh=True discards it. Progress is durable
+    regardless: every merged chunk is already written to Supabase, so even a
+    lost chunk directory (a reclaimed cloud container) only costs the chunks
+    that were dispatched but not yet merged.
     """
     if mode not in ("tags", "phrasing"):
         raise ValueError(f"unknown mode {mode!r}, expected 'tags' or 'phrasing'")
+
+    manifest = {"kind": "enrichment", "mode": mode, "prompt_version": REWORD_PROMPT_VERSION}
+    if not fresh:
+        resumed = write_chunks(CHUNK_DIR, [], chunk_size, manifest)
+        if resumed:
+            return resumed
 
     client = get_client()
     all_events = _fetch_all_events(client)
@@ -143,15 +154,7 @@ def prepare_chunks(chunk_size: int = CHUNK_SIZE, mode: str = "tags") -> List[Pat
         pending = pending_phrasing_events(all_events, REWORD_PROMPT_VERSION)
     else:
         pending = pending_events(all_events, _fetch_tagged_event_ids(client))
-
-    CHUNK_DIR.mkdir(parents=True, exist_ok=True)
-    paths: List[Path] = []
-    for index, start in enumerate(range(0, len(pending), chunk_size)):
-        chunk = pending[start : start + chunk_size]
-        path = CHUNK_DIR / f"chunk_{index:04d}.json"
-        save_to_json(path, chunk)
-        paths.append(path)
-    return paths
+    return write_chunks(CHUNK_DIR, pending, chunk_size, manifest, fresh=True)
 
 
 def _phrase_review_entries(event: Dict, event_phrase: str) -> List[Dict]:
@@ -256,13 +259,17 @@ def _find_result(
 def merge_chunk(chunk_path, result_path, review_path: Path = REVIEW_PATH, mode: str = "tags") -> int:
     """Validate one chunk's subagent output and write event/event_tags updates to Supabase.
 
-    Returns how many events in the chunk were processed (written or flagged for review).
+    Returns how many events in the chunk were processed (written or flagged for
+    review) - 0, with nothing written, when the result file is missing or
+    truncated: the chunk stays in place for another dispatch (see
+    ingest.agent_batches). Events a valid result left out stay below
+    REWORD_PROMPT_VERSION / untagged, so the next prepare_chunks picks them up.
     """
+    check_manifest(chunk_path, "enrichment", REWORD_PROMPT_VERSION)
     chunk = load_json(chunk_path)
-    try:
-        reworded = load_json(result_path)
-    except (FileNotFoundError, json.JSONDecodeError):
-        reworded = []
+    reworded = load_results(result_path)
+    if reworded is None:
+        return 0
     reworded_by_id = {event["id"]: event for event in reworded if "id" in event}
     reworded_by_name_text = {(event.get("name"), event.get("text")): event for event in reworded}
 
@@ -297,7 +304,10 @@ def merge_chunk(chunk_path, result_path, review_path: Path = REVIEW_PATH, mode: 
 
                 tag_rows = build_tag_rows(event["id"], tags, tag_name_to_id)
                 if tag_rows:
-                    client.table("event_tags").insert(tag_rows).execute()
+                    # Upsert, so re-merging a chunk (a crash before mark_merged) is harmless.
+                    client.table("event_tags").upsert(
+                        tag_rows, on_conflict="event_id,tag_id", ignore_duplicates=True
+                    ).execute()
             except Exception as exc:  # noqa: BLE001 - one event's failure shouldn't sink the whole chunk
                 all_review_entries.append(
                     {"event_id": event["id"], "issue_type": "error", "detail": str(exc)}
@@ -305,11 +315,12 @@ def merge_chunk(chunk_path, result_path, review_path: Path = REVIEW_PATH, mode: 
     finally:
         write_review_entries(all_review_entries, review_path)
 
+    mark_merged(chunk_path, result_path)
     return len(chunk)
 
 
 if __name__ == "__main__":  # pragma: no cover - manual, requires a subagent in between
     paths = prepare_chunks()
     print(f"Wrote {len(paths)} chunk file(s) to {CHUNK_DIR}.")
-    print(f"Dispatch a {PHRASING_MODEL!r} subagent per chunk (prompt: ingest.enrichment.build_prompt()),")
+    print(f"Dispatch a {SUBAGENT_MODEL!r} subagent per chunk (prompt: ingest.enrichment.build_prompt()),")
     print("write each result to <chunk>_result.json, then call merge_chunk() per chunk.")
