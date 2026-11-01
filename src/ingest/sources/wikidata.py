@@ -26,6 +26,7 @@ API_URL = "https://www.wikidata.org/w/api.php"
 USER_AGENT = "achievement-age/0.1 (https://github.com/didrikfo/achievement-age) ingest script"
 REQUEST_DELAY_SECONDS = 0.2
 SEARCH_LIMIT = 10
+ENTITY_BATCH_SIZE = 50
 MAX_LIFESPAN_YEARS = 120
 DAY_PRECISION = 11
 
@@ -103,6 +104,25 @@ def parse_birth_claim(claim: Dict) -> Tuple[str, Optional[Dict]]:
     if month == 0 or day == 0:
         return "insufficient_precision", None
     return "resolved", {"year": year, "month": month, "day": day}
+
+
+def fetch_enwiki_urls(qids: List[str]) -> Dict[str, str]:
+    """QID -> English Wikipedia article URL, for each item that has one."""
+    urls: Dict[str, str] = {}
+    for start in range(0, len(qids), ENTITY_BATCH_SIZE):
+        response = _get_json(
+            {
+                "action": "wbgetentities",
+                "ids": "|".join(qids[start : start + ENTITY_BATCH_SIZE]),
+                "props": "sitelinks/urls",
+                "sitefilter": "enwiki",
+            }
+        )
+        for qid, entity in response.get("entities", {}).items():
+            url = entity.get("sitelinks", {}).get("enwiki", {}).get("url")
+            if url:
+                urls[qid] = url
+    return urls
 
 
 def parse_death_claim(claim: Dict) -> Optional[Dict]:

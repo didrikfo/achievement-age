@@ -169,6 +169,14 @@ date rules out any event that could have followed it. The TidyTuesday `posthumou
 this job. It flags the song, not a person: "Slow Motion" is flagged for its featured guest Soulja Slim,
 not for Juvenile. It also covers only the Hot 100.
 
+#### Aliases and bands
+
+Alias matching lets a band through when Wikidata lists the band's name as an alias on one member.
+"Stone Temple Pilots" reached Jeff Gutt, "Il Divo" Sébastien Izambard and "Big Tymers" Birdman. Sade
+and Daughtry are bands named after their singers. No check catches these, because a Billboard 200
+album has no age to compare, so `KNOWN_GROUPS` in `music.py` lists them. They were found by comparing
+every credit to the Wikidata label it resolved to.
+
 #### One name per person
 
 The charts spell some acts differently: "Beyonce" on the Billboard 200 and "Beyoncé" on the Hot 100.
@@ -193,6 +201,13 @@ across 233 records.
   `age_days`). This is the same inference `backfill_person_wikipedia` already relies on. If our
   resolved date isn't among them, the name is flagged in `data/tmp/music_person_review.json` and
   skipped (detect-don't-guess). The existing corpus's "Ray Charles" is the expected first hit.
+  The first real run flagged four names, for two different reasons. Michael Jackson and Ray Charles
+  were the singers all along, with existing `age_days` computed from the wrong births-file namesake, so
+  those three rows were corrected. Jack Johnson and Machine Gun Kelly are real namesakes of the boxer
+  and the gangster, so they are listed in `MUSICIAN_NAMESAKES` and stored as `persons` rows named
+  "Jack Johnson (musician)". `events.name` stays plain: `_phrase_body` looks for it in the phrase, and
+  `person_id` already says who is meant. The list is by hand because a conflict can't tell these two
+  reasons apart, and auto-suffixing would have created "Michael Jackson (musician)".
 - **Duplicate-day guard.** An events row already present for the person that day blocks the new one,
   logged to `data/tmp/music_duplicate_review.json`. The "on this day" corpus already covers a few of
   these, such as ABBA's Eurovision win.
@@ -251,6 +266,9 @@ The duplicate-day and birth-date-conflict guards in `prepare` trim the final cou
 4. `python -m ingest.migrate_music_to_supabase insert`.
 5. Optionally, `python -m ingest.backfill_person_wikipedia` gives the new persons their links. No change
    is needed: it already verifies against event-implied birth years.
+6. `python -m ingest.backfill_music_wikipedia` links the stage names that step 5 can't, such as "Prince"
+   and "Usher", whose plain title is another article. It uses the English sitelink of the Wikidata item
+   the resolver already verified, so it needs no title guess.
 
 ## Follow-ups
 

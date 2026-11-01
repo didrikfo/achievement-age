@@ -520,11 +520,15 @@ Read the review files before step 4:
 - `data/tmp/music_person_review.json` lists names that normalize like an existing person's, and names
   whose resolved birth date disagrees with the birth date an existing person's events imply. A
   namesake, e.g. the corpus's "Ray Charles", is born 1918 but the singer was born 1930. These are
-  skipped, not merged. Fix the existing person or the record by hand if one of them is wrong.
+  skipped, not merged. Fix the existing person or the record by hand if one of them is wrong. A
+  musician who really does share a name with someone else goes in `MUSICIAN_NAMESAKES`, which stores
+  them as a separate "Name (musician)" person.
 - `data/tmp/music_duplicate_review.json` lists events skipped because the person already has an
   event on that day.
 
 Safe to rerun: `insert` skips any event whose person already has an events row that day. Afterwards,
-section 12's `backfill_person_wikipedia` gives the new persons their Wikipedia links. Music rows are
+section 12's `backfill_person_wikipedia` gives the new persons their Wikipedia links, and
+`python -m ingest.backfill_music_wikipedia` then links stage names like "Prince", whose plain title is
+another article, through their Wikidata item. Music rows are
 worded by templates rather than the LLM, and `backfill_event_enrichment` skips them (as it does Nobel
 rows) so a future generic re-phrasing pass leaves them alone.

@@ -87,6 +87,11 @@ def fetch_sources(raw_dir: Path = MUSIC_RAW_DIR, force: bool = False) -> List[Pa
 _FEATURING = re.compile(r"\s+(?:ft\.|feat\.|featuring|with)\s+", re.IGNORECASE)
 _DUO_SEPARATOR = re.compile(r"\s+(?:&|and)\s+", re.IGNORECASE)
 _ANY_SEPARATOR = re.compile(r"\s+(?:&|and|x|/)\s+|,\s+", re.IGNORECASE)
+#: Bands a Wikidata alias ties to one person: "Stone Temple Pilots" is an alias
+#: on its later singer's item, and Sade and Daughtry are bands named after their
+#: singers. Only Billboard 200 credits need this - the Hot 100 data hand-codes
+#: groups - and the age of a band's member is not the age of the band.
+KNOWN_GROUPS = {"Big Tymers", "Daughtry", "Il Divo", "Sade", "Stone Temple Pilots"}
 #: First words that mark a split-off part as a backing band, not a person.
 _BAND_PART_OPENERS = {"the", "his", "her", "their"}
 
@@ -130,7 +135,7 @@ def split_credit(credit: str, structure: Optional[str] = None) -> List[str]:
             return _multi_word([part.strip() for part in _DUO_SEPARATOR.split(lead) if part.strip()])
         return []
 
-    if lead.lower().startswith("the "):
+    if lead.lower().startswith("the ") or lead in KNOWN_GROUPS:
         return []
     parts = [part.strip() for part in _ANY_SEPARATOR.split(lead) if part.strip()]
     if len(parts) == 1:

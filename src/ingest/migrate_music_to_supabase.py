@@ -37,8 +37,25 @@ MUSIC_DUPLICATE_REVIEW_PATH = DATA_DIR / "tmp" / "music_duplicate_review.json"
 
 EventKey = Tuple[int, int, int, int]
 
+#: Musicians who share a name with someone already in the calendar, checked by
+#: hand: Jack Johnson the boxer and Machine Gun Kelly the gangster. persons is
+#: unique on name, so each gets a suffixed row of their own. This is a list, not
+#: a reaction to every birth-date conflict, because a conflict can also mean the
+#: existing person's age is wrong (Michael Jackson's were), and that needs fixing.
+MUSICIAN_NAMESAKES = {"Jack Johnson", "Machine Gun Kelly"}
+
 
 # --- pure functions ---
+
+
+def person_name(name: str) -> str:
+    """The persons.name a credited name is stored under.
+
+    Only the persons row carries the suffix, where it also happens to be the
+    Wikipedia article title. events.name stays the plain name: core.matching
+    expects it inside the phrase, and a reader only ever needs "Jack Johnson".
+    """
+    return f"{name} (musician)" if name in MUSICIAN_NAMESAKES else name
 
 
 def merge_same_day(records: List[Dict]) -> List[Dict]:
@@ -59,7 +76,8 @@ def merge_same_day(records: List[Dict]) -> List[Dict]:
         first = group[0]
         events.append(
             {
-                "name": name,
+                "name": person_name(name),
+                "display_name": name,
                 "year": year,
                 "month": month,
                 "day": day,
@@ -151,7 +169,7 @@ def split_duplicate_days(
 def to_event_row(event: Dict) -> Dict:
     """A prepared music event -> an events insert row."""
     return {
-        "name": event["name"],
+        "name": event["display_name"],
         "person_id": event["person_id"],
         "text": event["text"],
         "event_phrase": event["event_phrase"],

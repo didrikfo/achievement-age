@@ -153,3 +153,10 @@ def test_fetch_sources_downloads_missing_files_and_skips_existing_ones(tmp_path,
     assert existing.read_text() == "already here"
     assert get.call_count == len(music.SOURCE_FILES) - 1
     assert all("raw.githubusercontent.com" in call.args[0] for call in get.call_args_list)
+
+
+def test_split_credit_treats_a_known_band_as_a_group():
+    # Each of these resolves to one member through a Wikidata alias if it reaches the lookup.
+    assert split_credit("Stone Temple Pilots") == []
+    assert split_credit("Sade") == []
+    assert split_credit("Madonna") == ["Madonna"]

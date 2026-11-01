@@ -323,3 +323,21 @@ def test_lookup_ambiguous_result_lists_each_candidates_dates(monkeypatch):
     assert [(c["qid"], c["year"], c["death"], c["sitelinks"]) for c in result["candidates"]] == [
         ("Q155700", 1989, None, 2), ("Q115390006", 1960, None, 0),
     ]
+
+
+def test_fetch_enwiki_urls_batches_and_skips_items_without_an_article(monkeypatch):
+    requests = []
+
+    def fake_get_json(params):
+        requests.append(params["ids"].split("|"))
+        return {"entities": {
+            "Q7542": {"sitelinks": {"enwiki": {"url": "https://en.wikipedia.org/wiki/Prince_(musician)"}}},
+            "Q1": {"sitelinks": {}},
+        }}
+
+    monkeypatch.setattr(wikidata, "_get_json", fake_get_json)
+
+    urls = wikidata.fetch_enwiki_urls(["Q7542", "Q1"] + [f"Q{n}" for n in range(100, 150)])
+
+    assert urls == {"Q7542": "https://en.wikipedia.org/wiki/Prince_(musician)"}
+    assert [len(batch) for batch in requests] == [50, 2]

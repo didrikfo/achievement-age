@@ -2,6 +2,7 @@ import json
 from datetime import date
 from unittest.mock import MagicMock, patch
 
+from core.matching import _phrase_body
 from ingest.enrichment import check_phrase_format
 from ingest.migrate_music_to_supabase import (
     find_birth_date_conflicts,
@@ -44,6 +45,26 @@ def test_merge_same_day_joins_a_single_and_an_album_topping_the_charts_the_same_
     assert event["source"] == HOT_100_SOURCE
     assert event["record_keys"] == ["hot100_number_one:Anti-Hero", "billboard200_number_one:Midnights"]
     assert event["tags"] == [MUSIC_TAG]
+
+
+def test_a_namesake_gets_a_suffixed_person_but_keeps_the_plain_name_in_the_event():
+    # Jack Johnson the boxer is already in the calendar; persons.name is unique.
+    [event] = merge_same_day([_resolved(name="Jack Johnson", names=["Jack Johnson"], credit="Jack Johnson")])
+
+    assert event["name"] == "Jack Johnson (musician)"
+    row = to_event_row({**event, "person_id": 7})
+    assert row["name"] == "Jack Johnson"
+    assert row["event_phrase"].startswith("Jack Johnson was when ")
+    assert check_phrase_format(row["event_phrase"], row["name"]) is None
+    # What core.matching._phrase_body needs: the phrase isn't rebuilt around the name.
+    assert _phrase_body(row) == row["event_phrase"]
+
+
+def test_a_namesake_no_longer_conflicts_with_the_person_who_has_the_plain_name():
+    event = merge_same_day([_resolved(name="Jack Johnson", names=["Jack Johnson"], credit="Jack Johnson")])[0]
+    boxer = [{"id": 931, "name": "Jack Johnson"}]
+
+    assert find_birth_date_conflicts([event], boxer, {931: {date(1878, 3, 31)}}) == []
 
 
 def test_merge_same_day_keeps_different_days_and_people_apart():
