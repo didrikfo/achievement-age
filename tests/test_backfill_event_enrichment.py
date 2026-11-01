@@ -28,6 +28,15 @@ def test_pending_events_excludes_nobel_sourced_rows():
     assert [event["id"] for event in result] == [1, 3]
 
 
+def test_pending_events_excludes_music_sourced_rows():
+    from ingest.sources.music import MUSIC_SOURCES
+
+    events = [{"id": index, "source": source} for index, source in enumerate(MUSIC_SOURCES)]
+    events.append({"id": 99, "source": "initial_migration"})
+    result = pending_events(events, tagged_event_ids=set())
+    assert [event["id"] for event in result] == [99]
+
+
 def test_resolve_event_update_flags_missing_event_phrase():
     event = {"id": 1, "text": "did a thing", "year": 2000, "month": 1, "day": 1}
     update, tags, review_entries = resolve_event_update(event, result=None, births_lookup={})
@@ -223,6 +232,16 @@ def test_pending_phrasing_events_selects_rows_below_the_current_version():
     ]
     result = pending_phrasing_events(events, REWORD_PROMPT_VERSION)
     assert [event["id"] for event in result] == [1, 3]
+
+
+def test_pending_phrasing_events_excludes_music_sourced_rows():
+    from ingest.backfill_event_enrichment import pending_phrasing_events
+    from ingest.sources.music import MUSIC_SOURCES
+
+    # Music rows keep the column default (0), so a version check alone would sweep them in.
+    events = [{"id": index, "reword_prompt_version": 0, "source": source} for index, source in enumerate(MUSIC_SOURCES)]
+    events.append({"id": 99, "reword_prompt_version": 0, "source": "initial_migration"})
+    assert [event["id"] for event in pending_phrasing_events(events, version=2)] == [99]
 
 
 def test_pending_phrasing_events_excludes_nobel_sourced_rows():

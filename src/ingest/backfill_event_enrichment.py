@@ -29,7 +29,14 @@ from ingest.enrichment import (
     validate_tags,
     write_review_entries,
 )
+from ingest.sources.music import MUSIC_SOURCES
 from ingest.sources.nobel import NOBEL_SOURCE
+
+#: Sources whose rows carry deterministic tags and a phrase written by their
+#: own pipeline (Nobel's dedicated prompt, the music sources' templates). The
+#: generic sweeps below must never re-tag or re-word them with the historical
+#: corpus's prompt.
+STRUCTURED_SOURCES = frozenset({NOBEL_SOURCE, *MUSIC_SOURCES})
 
 CHUNK_SIZE = 100
 CHUNK_DIR = DATA_DIR / "tmp" / "enrichment_chunks"
@@ -84,17 +91,17 @@ def _fetch_tagged_event_ids(client) -> Set[int]:
 def pending_events(all_events: List[Dict], tagged_event_ids: Set[int]) -> List[Dict]:
     """Events with no event_tags rows yet - safe to call repeatedly (resumable backfill).
 
-    Nobel-sourced rows are excluded regardless of tag status, the same as
-    pending_phrasing_events: they already carry deterministic tags from
-    NOBEL_CATEGORY_TAGS, so a Nobel event with no event_tags rows (e.g. from a
-    partial insert) must go through the Nobel-specific merge path, not this
-    generic mode="tags" sweep, which would assign a non-deterministic LLM
-    tag and overwrite the phrase.
+    Rows from STRUCTURED_SOURCES (Nobel, music) are excluded regardless of
+    tag status, the same as pending_phrasing_events: they already carry
+    deterministic tags (NOBEL_CATEGORY_TAGS, MUSIC_TAG), so such an event with
+    no event_tags rows (e.g. from a partial insert) must go back through its
+    own source's insert path, not this generic mode="tags" sweep, which would
+    assign a non-deterministic LLM tag and overwrite the phrase.
     """
     return [
         event
         for event in all_events
-        if event["id"] not in tagged_event_ids and event.get("source") != NOBEL_SOURCE
+        if event["id"] not in tagged_event_ids and event.get("source") not in STRUCTURED_SOURCES
     ]
 
 
@@ -102,17 +109,19 @@ def pending_phrasing_events(all_events: List[Dict], version: int) -> List[Dict]:
     """Events not yet written under the current reword prompt.
 
     A missing reword_prompt_version key counts as 0 (the column default), so
-    rows predating the column are always pending. Nobel-sourced rows are
-    excluded regardless of version: they are written under their own prompt
-    (ingest.nobel_reword_prompt.md) and their own version counter sharing this
-    same column, so sweeping them into this generic pass would re-word them
-    with the wrong prompt and re-derive tags by free LLM choice instead of the
-    deterministic NOBEL_CATEGORY_TAGS mapping.
+    rows predating the column are always pending. Rows from
+    STRUCTURED_SOURCES are excluded regardless of version: Nobel rows are
+    written under their own prompt (ingest.nobel_reword_prompt.md) and their
+    own version counter sharing this same column, and music rows are worded
+    by ingest.sources.music's templates with no prompt at all (so they keep
+    the column default, 0) - sweeping either into this generic pass would
+    re-word them with the wrong prompt and re-derive tags by free LLM choice
+    instead of their deterministic mapping.
     """
     return [
         event
         for event in all_events
-        if event.get("source") != NOBEL_SOURCE and (event.get("reword_prompt_version") or 0) < version
+        if event.get("source") not in STRUCTURED_SOURCES and (event.get("reword_prompt_version") or 0) < version
     ]
 
 

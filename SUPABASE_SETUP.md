@@ -41,7 +41,10 @@ create table subscriptions (
 );
 ```
 
-3. In Project Settings -> API, note the **Project URL** and the **anon public key** (or a service-role key if you'd rather bypass row-level security entirely for this low-stakes hobby project — anon key is fine as long as you don't add RLS policies that block reads/writes).
+3. In Project Settings -> API Keys, note the **Project URL** and the **publishable key**
+   (`sb_publishable_...`), which goes in `SUPABASE_KEY`. Create named **secret keys**
+   (`sb_secret_...`) for the privileged consumers listed in section 16. Each one goes in
+   `SUPABASE_SECRET_KEY` for that consumer only.
 
 ## 2. Run the one-off data migration
 
@@ -173,7 +176,9 @@ APP_BASE_URL = "https://your-app-name.streamlit.app"
 
 (`APP_BASE_URL` can only be filled in *after* the first deploy, once you know the app's URL — redeploy/update the secret once you have it.)
 
-**GitHub repo secrets** (Settings -> Secrets and variables -> Actions), same three: `SUPABASE_URL`, `SUPABASE_KEY`, `APP_BASE_URL`.
+**GitHub repo secrets** (Settings -> Secrets and variables -> Actions): the same three, plus
+`SUPABASE_SECRET_KEY` (the `github-actions` secret key from section 16). The Streamlit secrets
+leave `SUPABASE_SECRET_KEY` out on purpose, so the public app only ever runs as the publishable key.
 
 Local development uses the `.env` file from step 2 (gitignored) for all three keys — no separate
 `.streamlit/secrets.toml` needed. `APP_BASE_URL` can be left blank locally; it's only used to
@@ -481,3 +486,210 @@ migration that rewrites **both**.
 `core.preferences.preferences_from_subscription` reads every column defensively, so if the daily
 cron job runs before this SQL is applied it falls back to the calendar channel rather than failing
 the run.
+
+## 15. Music events (chart number ones, Eurovision winners)
+
+Adds about 1,100–1,400 music events: Billboard Hot 100 number-one singles, Billboard 200 number-one
+albums, and Eurovision Song Contest winners, each on the exact chart or final date. No SQL is needed.
+The `music` tag has existed since section 4. Design and source notes are in
+`docs/superpowers/specs/2026-09-24-music-events-ingestion-design.md`.
+
+```bash
+# 1. Download the pinned source files (~70 MB) into data/raw_data/music/
+./venv/Scripts/python.exe -c "from ingest.sources.music import fetch_sources; fetch_sources()"
+
+# 2. Resolve every credited person's birth and death dates (Wikidata, then the births file; cached, rerunnable)
+./venv/Scripts/python.exe -m ingest.resolve_music_persons
+
+# 3. Upsert persons and run the guards; writes data/music_displayable.json for review
+./venv/Scripts/python.exe -m ingest.migrate_music_to_supabase prepare
+
+# 4. Insert the events and their tags
+./venv/Scripts/python.exe -m ingest.migrate_music_to_supabase insert
+```
+
+Step 2 takes a while on its first run: one Wikidata search per name the births file can't resolve,
+plus one claims fetch per candidate. Every outcome is cached in `data/wikidata_musicians_cache.json`,
+so reruns are fast. This cache is deliberately separate from `data/wikidata_persons_cache.json`,
+because it holds musician-filtered lookups.
+
+Read the review files before step 4:
+
+- `data/tmp/music_resolution_review.json` lists the Hot 100 dates corrected against the chart
+  archive, names with no resolvable birth date, rejected birth dates (a date contradicted by one of
+  that person's records is dropped for all of them), and credits that name only a group. Groups get
+  no event. It also lists `posthumous_record`s: number ones dated after the artist's Wikidata death
+  date, such as "(Sittin' On) The Dock of the Bay". These are dropped, because an age at them means
+  nothing. It lists `death_date_unknown` names too: resolved from the births file alone, with no
+  death date to check. Look those over by hand.
+- `data/tmp/music_person_review.json` lists names that normalize like an existing person's, and names
+  whose resolved birth date disagrees with the birth date an existing person's events imply. A
+  namesake, e.g. the corpus's "Ray Charles", is born 1918 but the singer was born 1930. These are
+  skipped, not merged. Fix the existing person or the record by hand if one of them is wrong. A
+  musician who really does share a name with someone else goes in `MUSICIAN_NAMESAKES`, which stores
+  them as a separate "Name (musician)" person.
+- `data/tmp/music_duplicate_review.json` lists events skipped because the person already has an
+  event on that day.
+
+Safe to rerun: `insert` skips any event whose person already has an events row that day. Afterwards,
+section 12's `backfill_person_wikipedia` gives the new persons their Wikipedia links, and
+`python -m ingest.backfill_music_wikipedia` then links stage names like "Prince", whose plain title is
+another article, through their Wikidata item. Music rows are
+worded by templates rather than the LLM, and `backfill_event_enrichment` skips them (as it does Nobel
+rows) so a future generic re-phrasing pass leaves them alone.
+
+## 16. Row-level security
+
+Without RLS, anyone holding the publishable key can read every row of `subscriptions`. That is
+every magic-link token and ntfy topic. They can also edit or delete any table. With RLS on:
+
+| Who | Key | Can do |
+| - | - | - |
+| Streamlit app, Claude cloud **read** environment | publishable | read `events`, `persons`, `tags`, `event_tags`; insert a subscription; read/update one subscription **by its token** via two SQL functions |
+| Cron job, local ingest, Claude cloud **write** environment | secret (bypasses RLS) | everything |
+
+`core.db.get_client()` uses `SUPABASE_SECRET_KEY` when it is set and falls back to
+`SUPABASE_KEY`. The ingest scripts therefore need no changes. They just need the secret key in
+the environment they run in.
+
+### Keys
+
+In Project Settings -> API Keys -> Secret keys, create one named secret key per consumer. Each
+can then be revoked alone if it leaks:
+
+- `github-actions` → GitHub repo secret `SUPABASE_SECRET_KEY`
+- `local-dev` → `SUPABASE_SECRET_KEY=` in your local `.env` (needed for every ingest script from now on)
+- `claude-cloud` → the Claude cloud write environment (section 17)
+
+### Step A: functions and policies
+
+Run this first. It is harmless while RLS is still off, and the new app code needs the two
+functions to exist:
+
+```sql
+-- One subscription by its magic-link token. Security definer, so it works
+-- although the publishable key has no read access to the table itself.
+create or replace function public.get_subscription(p_token text)
+returns setof public.subscriptions
+language sql stable security definer set search_path = ''
+as $$
+    select * from public.subscriptions where token = p_token;
+$$;
+
+-- Must name every column core.preferences.preferences_to_columns returns
+-- (pinned by tests/test_db.py). A column added there but not here is
+-- silently never saved.
+create or replace function public.update_subscription_preferences(p_token text, p_preferences jsonb)
+returns void
+language sql security definer set search_path = ''
+as $$
+    update public.subscriptions set
+        excluded_categories        = array(select jsonb_array_elements_text(p_preferences -> 'excluded_categories')),
+        excluded_tags              = array(select jsonb_array_elements_text(p_preferences -> 'excluded_tags')),
+        included_sequences         = array(select jsonb_array_elements_text(p_preferences -> 'included_sequences')),
+        notify_mirrors_calendar    = (p_preferences ->> 'notify_mirrors_calendar')::boolean,
+        notify_excluded_categories = array(select jsonb_array_elements_text(p_preferences -> 'notify_excluded_categories')),
+        notify_excluded_sequences  = array(select jsonb_array_elements_text(p_preferences -> 'notify_excluded_sequences'))
+    where token = p_token;
+$$;
+
+grant execute on function public.get_subscription(text) to anon, authenticated;
+grant execute on function public.update_subscription_preferences(text, jsonb) to anon, authenticated;
+
+drop policy if exists "public read" on public.events;
+drop policy if exists "public read" on public.persons;
+drop policy if exists "public read" on public.tags;
+drop policy if exists "public read" on public.event_tags;
+drop policy if exists "anyone can subscribe" on public.subscriptions;
+
+create policy "public read" on public.events     for select to anon, authenticated using (true);
+create policy "public read" on public.persons    for select to anon, authenticated using (true);
+create policy "public read" on public.tags       for select to anon, authenticated using (true);
+create policy "public read" on public.event_tags for select to anon, authenticated using (true);
+create policy "anyone can subscribe" on public.subscriptions for insert to anon, authenticated with check (true);
+```
+
+### Step B: deploy, then switch RLS on
+
+The order matters. Under RLS, the old app code's direct `select` on `subscriptions` returns
+nothing, so every returning subscriber's link would stop recognising them.
+
+1. Add the `SUPABASE_SECRET_KEY` GitHub secret and the local `.env` entry.
+2. Merge and deploy the app code that calls the two functions above.
+3. Then run:
+
+```sql
+alter table public.events        enable row level security;
+alter table public.persons       enable row level security;
+alter table public.tags          enable row level security;
+alter table public.event_tags    enable row level security;
+alter table public.subscriptions enable row level security;
+
+-- Belt and braces: RLS does not govern TRUNCATE, and the publishable key
+-- should not hold write privileges it has no policy for anyway.
+revoke insert, update, delete, truncate on public.events, public.persons, public.tags, public.event_tags from anon, authenticated;
+revoke select, update, delete, truncate on public.subscriptions from anon, authenticated;
+```
+
+### Verify
+
+```bash
+./venv/Scripts/python scripts/check_supabase_access.py
+SUPABASE_SECRET_KEY= ./venv/Scripts/python scripts/check_supabase_access.py
+```
+
+The first run (secret key) reports subscriptions readable, `PRIVILEGED`. The second forces the
+publishable key and must report `READ-ONLY`. If it says `RLS IS NOT ENABLED`, step B hasn't run.
+Then open a saved magic link in the deployed app and save preferences to confirm the function
+path works end to end.
+
+**Any table added later starts with RLS off and full publishable-key access.** Give each new table
+`enable row level security` and its policies in the same SQL that creates it. The Supabase
+dashboard's Security Advisor flags tables that are missing it.
+
+## 17. Claude Code cloud sessions (phone / claude.ai/code)
+
+Two cloud environments, one per trust level. Pick one per session in the environment selector of
+the Claude app's Code tab. Configure both at claude.ai/code → environment selector → edit.
+
+`.claude/settings.json` runs `scripts/cloud_session_setup.sh` on session start, which `pip install`s
+the project. No setup script is needed on the environment.
+
+### `achievement-age read` (default for everyday development)
+
+- **Network access**: Custom. Allowed domains: `izysgsejftrzrikzctuj.supabase.co`. Tick "Also
+  include default list of common package managers" (pip needs PyPI).
+- **Environment variables**:
+  ```text
+  SUPABASE_URL=https://izysgsejftrzrikzctuj.supabase.co
+  SUPABASE_KEY=<publishable key>
+  ```
+
+The publishable key is safe here even though anyone using the environment can read it. That is
+what it was designed for, and RLS caps it at reading public event data.
+
+### `achievement-age write` (inserts and ingest runs)
+
+Same network access and variables as the read environment, plus:
+
+- **Environment variable** `SUPABASE_SECRET_KEY=sb_secret_injected_by_proxy`. This placeholder
+  only switches `get_client()` to its secret-key path. The real key never enters the VM.
+- **Network secret**: Name `Supabase claude-cloud`, Allowed websites
+  `izysgsejftrzrikzctuj.supabase.co`, Secret type Bearer, two custom header rows, both with the
+  `claude-cloud` secret key as the value:
+  - Name `apikey`, prefix cleared
+  - Name `Authorization`, prefix `Bearer`
+
+Anthropic's proxy attaches the key after each request leaves the VM. Claude can use the key but
+can never print it or leak it.
+
+**Verify** in a new write session: ask Claude to run `python scripts/check_supabase_access.py`.
+It must report `PRIVILEGED`. If it fails with `Invalid API key` instead, the proxy is adding
+the headers alongside the placeholder rather than replacing it. In that case, delete the network
+secret and set `SUPABASE_SECRET_KEY` to the real `claude-cloud` key as a plain environment
+variable. Claude can then see the key. That's acceptable for a personal environment, and you can
+revoke `claude-cloud` in Supabase at any time.
+
+The secret key bypasses RLS, so a write session can also delete data or read subscriptions. The
+free plan has no point-in-time restore, so take a backup before a large ingest run:
+Database → Backups, or `pg_dump` with the connection string from Project Settings → Database.

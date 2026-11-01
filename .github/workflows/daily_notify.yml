@@ -24,5 +24,8 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          # Secret key: reading every subscription is blocked for the publishable
+          # key by row-level security (SUPABASE_SETUP.md section 16).
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
         run: python scripts/send_daily_notifications.py
