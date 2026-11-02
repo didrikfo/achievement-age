@@ -650,15 +650,16 @@ dashboard's Security Advisor flags tables that are missing it.
 ## 17. Claude Code cloud sessions (phone / claude.ai/code)
 
 Two cloud environments, one per trust level. Pick one per session in the environment selector of
-the Claude app's Code tab. Configure both at claude.ai/code → environment selector → edit.
+the Claude app's Code tab. Create them at claude.ai/code → environment selector → Add environment.
 
 `.claude/settings.json` runs `scripts/cloud_session_setup.sh` on session start, which `pip install`s
-the project. No setup script is needed on the environment.
+the project, so leave **Setup script** unset on both.
 
 ### `achievement-age read` (default for everyday development)
 
-- **Network access**: Custom. Allowed domains: `izysgsejftrzrikzctuj.supabase.co`. Tick "Also
-  include default list of common package managers" (pip needs PyPI).
+- **Network access**: Limited/Custom, with `izysgsejftrzrikzctuj.supabase.co` as the one allowed
+  domain and the package manager list on (pip needs PyPI).
+- **Network secrets**: none.
 - **Environment variables**:
   ```text
   SUPABASE_URL=https://izysgsejftrzrikzctuj.supabase.co
@@ -670,25 +671,36 @@ what it was designed for, and RLS caps it at reading public event data.
 
 ### `achievement-age write` (inserts and ingest runs)
 
-Same network access and variables as the read environment, plus:
+Same network access as the read environment, plus:
 
-- **Environment variable** `SUPABASE_SECRET_KEY=sb_secret_injected_by_proxy`. This placeholder
-  only switches `get_client()` to its secret-key path. The real key never enters the VM.
-- **Network secret**: Name `Supabase claude-cloud`, Allowed websites
-  `izysgsejftrzrikzctuj.supabase.co`, Secret type Bearer, two custom header rows, both with the
-  `claude-cloud` secret key as the value:
-  - Name `apikey`, prefix cleared
-  - Name `Authorization`, prefix `Bearer`
+- **Environment variables**:
+  ```text
+  SUPABASE_URL=https://izysgsejftrzrikzctuj.supabase.co
+  SUPABASE_KEY=<publishable key>
+  SUPABASE_SECRET_KEY=injected-by-proxy
+  ```
+- **Network secrets** → Add secret:
+  - **Host**: `izysgsejftrzrikzctuj.supabase.co`
+  - **Secret type**: Token
+  - **Header**: `apikey` (replace the default `Authorization`)
+  - **Prefix**: empty (delete the default `Bearer`)
+  - **Token**: the `claude-cloud` secret key
 
-Anthropic's proxy attaches the key after each request leaves the VM. Claude can use the key but
-can never print it or leak it.
+The form has no name field, and the host identifies the secret. Add exactly one secret: Supabase
+needs only `apikey`.
 
-**Verify** in a new write session: ask Claude to run `python scripts/check_supabase_access.py`.
-It must report `PRIVILEGED`. If it fails with `Invalid API key` instead, the proxy is adding
-the headers alongside the placeholder rather than replacing it. In that case, delete the network
-secret and set `SUPABASE_SECRET_KEY` to the real `claude-cloud` key as a plain environment
-variable. Claude can then see the key. That's acceptable for a personal environment, and you can
-revoke `claude-cloud` in Supabase at any time.
+`injected-by-proxy` is not a key. It tells `core.db.get_client()` to send no auth headers of its
+own, because Supabase rejects a secret `apikey` sent beside an `Authorization` header holding
+anything else. Anthropic's proxy then attaches the real key after each request leaves the VM, so
+Claude can use the key but can never read it.
+
+**Verify** in a new write session: ask Claude to run `python scripts/check_supabase_access.py`. It
+must report `PRIVILEGED`. If it fails, a plain `curl` to `/rest/v1/tags?select=name&limit=1` on the
+host with no headers isolates the proxy: it should succeed, because the proxy supplies the key.
+
+If it can't be made to work, delete the network secret and set `SUPABASE_SECRET_KEY` to the real
+`claude-cloud` key as a plain environment variable. Claude can then read the key, which is
+acceptable for a personal environment, and you can revoke `claude-cloud` in Supabase at any time.
 
 The secret key bypasses RLS, so a write session can also delete data or read subscriptions. The
 free plan has no point-in-time restore, so take a backup before a large ingest run:
