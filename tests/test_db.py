@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 from postgrest import ReturnMethod
 
 from core.db import (
+    SECRET_KEY_FROM_PROXY,
     create_subscription,
     fetch_events,
     get_client,
@@ -217,3 +218,25 @@ def test_get_client_falls_back_to_the_publishable_key(monkeypatch):
         get_client()
 
     create.assert_called_with("https://example.supabase.co", "sb_publishable_x")
+
+
+def test_get_client_leaves_auth_to_the_proxy_in_the_cloud_write_environment(monkeypatch):
+    # Supabase answers 401 if Authorization holds anything but the key in apikey,
+    # and the proxy can set only apikey, so the client must send neither header.
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_SECRET_KEY", SECRET_KEY_FROM_PROXY)
+
+    with patch("core.db.create_client") as create:
+        get_client()
+
+    http_client = create.call_args.kwargs["options"].httpx_client
+    request = http_client.build_request(
+        "GET",
+        "https://example.supabase.co/rest/v1/events",
+        headers={"apikey": "x", "Authorization": "Bearer x"},
+    )
+    for hook in http_client.event_hooks["request"]:
+        hook(request)
+
+    assert "apikey" not in request.headers
+    assert "authorization" not in request.headers

@@ -16,9 +16,10 @@ import secrets
 from datetime import date
 from typing import Dict, List, Optional
 
+import httpx
 from dotenv import load_dotenv
 from postgrest import ReturnMethod
-from supabase import Client, create_client
+from supabase import Client, ClientOptions, create_client
 
 from core.preferences import Preferences, default_preferences, preferences_to_columns
 
@@ -50,6 +51,21 @@ def get_config_value(key: str, default: str | None = None) -> str:
     return value
 
 
+#: SUPABASE_SECRET_KEY value meaning "a network proxy attaches the real key",
+#: as in the Claude cloud write environment (SUPABASE_SETUP.md section 17).
+SECRET_KEY_FROM_PROXY = "injected-by-proxy"
+
+
+def _strip_auth_headers(request: httpx.Request) -> None:
+    """Remove the headers supabase-py always sends, leaving the proxy's apikey alone.
+
+    Supabase rejects a secret apikey sent beside an Authorization header holding
+    any other key, and the proxy can set only the one header.
+    """
+    request.headers.pop("apikey", None)
+    request.headers.pop("Authorization", None)
+
+
 def get_client() -> Client:
     """A Supabase client, privileged only where a secret key has been configured.
 
@@ -62,8 +78,11 @@ def get_client() -> Client:
     it always runs as the publishable key.
     """
     url = get_config_value("SUPABASE_URL")
-    key = get_config_value("SUPABASE_SECRET_KEY", default="") or get_config_value("SUPABASE_KEY")
-    return create_client(url, key)
+    secret_key = get_config_value("SUPABASE_SECRET_KEY", default="")
+    if secret_key == SECRET_KEY_FROM_PROXY:
+        http_client = httpx.Client(timeout=120, event_hooks={"request": [_strip_auth_headers]})
+        return create_client(url, secret_key, options=ClientOptions(httpx_client=http_client))
+    return create_client(url, secret_key or get_config_value("SUPABASE_KEY"))
 
 
 EVENTS_PAGE_SIZE = 1000
